@@ -1,0 +1,67 @@
+#!/bin/bash
+
+CLANG_FORMAT=`which clang-format`
+SOURCE_FILE_EXTS=(.h .hh .hpp .hxx .c .cc .cpp .cxx)
+
+check_clang_format() {
+  if [ ! -x "$CLANG_FORMAT" ] ; then
+    echo "ERROR: clang-format executable not found."
+    exit 1
+  fi
+}
+
+# check whether the given file matches any of the extensions: case insensitive
+matches_extension() {
+  local file_name=$(basename "$1")
+  local file_ext=".${file_name##*.}"
+  local lowercase_file_ext=`echo $file_ext | awk '{print tolower($0)}'`
+  local source_file_ext
+  for source_file_ext in "${SOURCE_FILE_EXTS[@]}"
+  do
+    local lowercase_source_file_ext=`echo $source_file_ext | awk '{print tolower($0)}'`
+    [[ "$lowercase_file_ext" = "$lowercase_source_file_ext" ]] && return 0
+  done
+  return 1
+}
+
+_FORMATTED_FILES_CNT=0
+
+format_file() {
+  local source_file=$1
+  local formatted_file="${source_file}.formatted"
+  $CLANG_FORMAT -style=file $source_file > $formatted_file
+  cmp -s $source_file $formatted_file
+  if [ $? -ne 0 ]
+  then
+    mv $formatted_file $source_file && echo "formatted file $source_file"
+    let _FORMATTED_FILES_CNT++
+  else
+    rm -f $formatted_file
+  fi
+}
+
+_ROOT=$(git rev-parse --show-toplevel)
+format_staged_source_files() {
+  for file in $(git diff --staged --name-only)
+  do
+    file=$_ROOT/$file
+    matches_extension $file && format_file $file
+  done
+}
+
+# return 1 if there was any file actually formatted, which will break the `git commit` process.
+verify_format() {
+  if [ ${_FORMATTED_FILES_CNT} -gt 0 ]
+  then
+    echo "${_FORMATTED_FILES_CNT} files has been formatted."
+    exit 1
+  fi
+}
+
+main() {
+  check_clang_format
+  format_staged_source_files
+  verify_format
+}
+
+main
