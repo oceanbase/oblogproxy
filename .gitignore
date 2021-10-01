@@ -1,0 +1,16 @@
+*.iml
+*.swp
+.idea
+
+.DS_Store
+
+bin
+target
+
+./log
+
+cmake-build-debug/
+buildenv/
+build/
+
+*.pb.*
