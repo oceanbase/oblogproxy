@@ -1,0 +1,9 @@
+[target]
+os=7
+[deps]
+t-ant-light-logreader-1.0.0-20200616174105.alios7=test
+
+[target]
+os=6
+[deps]
+t-ant-light-logreader-1.0.0-20200616174105.alios6=test

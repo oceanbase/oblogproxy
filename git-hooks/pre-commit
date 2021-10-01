@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+ROOT=$(git rev-parse --show-toplevel)
+CLANG_FORMAT_HOOK_SCRIPT=$ROOT/git-hooks/pre-commit-clang-format
+$CLANG_FORMAT_HOOK_SCRIPT
+
