@@ -19,7 +19,7 @@ endif ()
 ExternalProject_Add(
         extern_oblogmsg
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        GIT_REPOSITORY "git@gitlab.alibaba-inc.com:oceanbase-ce-publish/oblogmsg.git"
+        GIT_REPOSITORY "https://github.com/oceanbase/oblogmsg"
         GIT_TAG "master"
         GIT_SUBMODULES ""
         GIT_SUBMODULES_RECURSE "false"
