@@ -7,8 +7,8 @@ option(WITH_TEST "With Tests" OFF)
 option(WITH_DEMO "With Demos" OFF)
 option(WITH_JNI_LIB "With oblogreader jni lib" OFF)
 option(WITH_GLOG "With google log" ON)
-option(USE_OBLOGMSG "Use pre-compiled oblogmsg library" OFF)
-option(USE_LIBOBLOG "Use pre-compiled liboblog library" ON)
+option(WITH_DEPS "With precompiled deps" ON)
+option(USE_LIBOBLOG "With precompiled liboblog" OFF)
 option(USE_CXX11_ABI "Build with C++11 ABI" OFF)
 
 SET(OMS_PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR})
@@ -17,14 +17,41 @@ SET(EXECUTABLE_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
 SET(LIBRARY_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
 
 SET(DEP_VAR $ENV{DEP_VAR})
-message(STATUS "DEP_VAR: ${DEP_VAR}")
 SET(JAVA_HOME $ENV{JAVA_HOME})
+
+SET(FIND_LIBOBLOG ON)
+if (WITH_DEPS)
+    execute_process(
+            COMMAND bash deps/dep_create.sh ${OMS_PROJECT_BUILD_PATH}/deps
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            COMMAND_ERROR_IS_FATAL ANY
+    )
+    SET(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
+
+    # make liboblog found
+    if (NOT USE_LIBOBLOG)
+        SET(FIND_LIBOBLOG OFF)
+        SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include/)
+        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/liboblog.so)
+    endif ()
+
+    # make openssl found
+    CMAKE_POLICY(SET CMP0074 NEW)
+    SET(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel/)
+
+    # make protoc found libstdc++
+    SET(PROTOC_LINK_FLAGS "-L${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ -static-libstdc++")
+
+    SET(DEP_LIB_PATH ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib64/)
+endif ()
+
+message(STATUS "DEP_VAR: ${DEP_VAR}")
 message(STATUS "JAVA_HOME: ${JAVA_HOME}")
 
 # compiler
-find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
-find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
-find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
+find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/  /usr/bin/ NO_DEFAULT_PATH)
+find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
+find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
 SET(CMAKE_C_COMPILER ${CC})
 SET(CMAKE_CXX_COMPILER ${CXX})
 SET(CMAKE_C_COMPILER_AR ${AR})
@@ -123,31 +150,20 @@ endforeach ()
 add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
-# oblogmsg
-if (USE_OBLOGMSG)
-    find_path(OBLOGMSG_INCLUDE_DIR NAMES LogRecord.h)
-    find_library(OBLOGMSG_LIBRARIES NAMES liboblogmsg.so)
-    if ((NOT OBLOGMSG_INCLUDE_DIR) OR (NOT OBLOGMSG_LIBRARIES))
-        message(FATAL_ERROR "Fail to find oblogmsg")
-    endif ()
-    ADD_LIBRARY(oblogmsg SHARED IMPORTED GLOBAL)
-else ()
-    include(oblogmsg)
-    SET(OBLOGMSG_MAPPING "")
-endif ()
-
 # obliboblog
-if (USE_LIBOBLOG)
+if (FIND_LIBOBLOG)
     find_path(LIBOBLOG_INCLUDE_PATH NAMES liboblog.h)
     find_library(LIBOBLOG_LIBRARIES NAMES liboblog.so)
     if ((NOT LIBOBLOG_INCLUDE_PATH) OR (NOT LIBOBLOG_LIBRARIES))
         message(FATAL_ERROR "Fail to find liboblog")
     endif ()
-    GET_FILENAME_COMPONENT(LIBOBLOG_LIB_DIR ${LIBOBLOG_LIBRARIES} DIRECTORY)
-else ()
-    SET(LIBOBLOG_INCLUDE_PATH "")
-    SET(LIBOBLOG_LIB_DIR "")
 endif ()
+GET_FILENAME_COMPONENT(LIBOBLOG_LIB_DIR ${LIBOBLOG_LIBRARIES} DIRECTORY)
+
+# oblogmsg
+include(oblogmsg)
+SET(OBLOGMSG_MAPPING "")
+
 
 message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
 message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIB_DIR}")
@@ -207,6 +223,8 @@ set(DEP_INC
         ${OPENSSL_INCLUDE_DIR}
         )
 set(DEP_LIB_PATH
+        ${DEP_LIB_PATH}
+
         ${JAVA_LIB_DIR}
         ${OBLOGMSG_LIB_DIR}
         ${LIBOBLOG_LIB_DIR}
@@ -228,6 +246,7 @@ set(DEP_LIBS
         ${CMAKE_THREAD_LIBS_INIT}
         )
 message("DEP_INC: ${DEP_INC}")
+message("DEP_LIB_PATH: ${DEP_LIB_PATH}")
 message("DEP_LIBS: ${DEP_LIBS}")
 ########### end define deps ###############################################################################################
 
@@ -325,3 +344,5 @@ if (WITH_TEST)
     target_link_libraries(test_oblogreader ${BASE_LIBS} oblog ${DEP_LIBS})
     target_link_options(test_oblogreader PUBLIC ${ASAN_LINK_OPTION})
 endif ()
+
+include(rpm)

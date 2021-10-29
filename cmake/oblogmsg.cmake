@@ -10,11 +10,7 @@ SET(OBLOGMSG_INSTALL_DIR ${THIRD_PARTY_PATH}/install/oblogmsg)
 SET(OBLOGMSG_INCLUDE_DIR "${OBLOGMSG_INSTALL_DIR}/include" CACHE PATH "oblogmsg include directory." FORCE)
 
 SET(OBLOGMSG_LIB_DIR "${OBLOGMSG_INSTALL_DIR}/lib/" CACHE FILEPATH "oblogmsg library directory." FORCE)
-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    SET(OBLOGMSG_LIBRARIES "liboblogmsg.dylib" CACHE FILEPATH "oblogmsg library." FORCE)
-else ()
-    SET(OBLOGMSG_LIBRARIES "liboblogmsg.so" CACHE FILEPATH "oblogmsg library." FORCE)
-endif ()
+SET(OBLOGMSG_LIBRARIES "liboblogmsg.a" CACHE FILEPATH "oblogmsg library." FORCE)
 
 ExternalProject_Add(
         extern_oblogmsg

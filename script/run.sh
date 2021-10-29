@@ -15,7 +15,6 @@ function is_running()
             return 1
         fi
     done
-#    echo "is_running : ${DEPLOY_PATH} ${PROC_BIN_NAME} ready!"
     return 0
 }
 
@@ -56,6 +55,10 @@ function kill_proc_9()
 start()
 {
     stop
+
+    if [ ! -d "./run" ]; then
+        mkdir ./run
+    fi
 
     log_path="./log"
     if [ ! -d ${log_path} ]; then

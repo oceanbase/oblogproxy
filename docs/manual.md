@@ -11,28 +11,49 @@
 
 Fedora based (including CentOS, Fedora, OpenAnolis, RedHat, UOS, etc.)
 ```bash
-yum install git wget rpm* cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils openssl-devel libaio
+yum install git wget rpm rpm-build cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils
 ```
 
 Debian based (including Debian, Ubuntu, etc.)
 ```bash
-apt-get install git wget rpm rpm2cpio cpio gcc make build-essential binutils openssl-dev libaio-dev
+apt-get install git wget rpm rpm2cpio cpio gcc make build-essential binutils
 ```
 
 ### 编译操作
 
-#### 1. 获取 liboblog.so，
-下载预编译的包或者自行编译二选一。
+#### 执行CMake编译
+```shell
+mkdir buildenv && cd buildenv
+# 生成
+cmake .. 
+# 执行
+make -j 6 
+```
+
+一切正常的话，在当前目录产出了`logproxy`二进制文件。
+
+### 编译选项
+上述编译过程，可以添加编译选项改变默认的行为。例如, 编译出Demo。成功后，当前目录还会产出`demo_client`二进制。
+```shell
+mkdir buildenv && cd buildenv
+cmake -DWITH_DEMO=ON .. 
+make -j 6
+```
+
+#### 自定义 liboblog.so
+您可以自己指定编译所使用的liboblog，下载预编译的包或者自行编译二选一。
 
 **下载预编译包：**
 
 预编译的产出在：[Release](https://github.com/oceanbase/oceanbase/releases) ，liboblog的包名是"oceanbase-ce-devel-xxxx.系统版本.x86_64.rpm"，根据自己的系统选取，解压：
 ```bash
 rpm2cpio oceanbase-ce-devel-xxxx.系统版本.x86_64.rpm | cpio -div && mv ./usr ./liboblog
-# 解压后，liboblog.so 和 liboblog.h 分别在 ./liboblog/lib 和 ./liboblog/include 下
 ```
+解压后：
+- liboblog.so: 在 `./liboblog/lib` 目录下
+- liboblog.h: 在 `./liboblog/include` 目录下
 
-**自行编译：**
+**编译liboblog：**
 
 下面参考了 [liboblog编译说明](https://open.oceanbase.com/docs/community/oceanbase-database/V3.1.1/abyu9b) ，编译 [OceanBase社区版](https://github.com/oceanbase/oceanbase) 时，添加参数 OB_BUILD_LIBOBLOG=ON。
 ```bash
@@ -44,28 +65,20 @@ bash ./build.sh release --init -DOB_BUILD_LIBOBLOG=ON --make
 - liboblog.so: 在 `build_release/src/liboblog/src/` 目录下。
 - liboblog.h: 在 `src/liboblog/src/` 目录下。
 
-这里假设你把`liboblog.so`和`liboblog.h`都放在了`/path/to/liboblog`。
+**编译oblogproxy：**
 
-#### 2. 执行CMake编译
+这里假设您把`liboblog.so`和`liboblog.h`都放在了`/path/to/liboblog`。
+
+需要在编译命令中打开自定义liboblog的开关并指定路径：
 ```shell
 mkdir buildenv && cd buildenv
 # 设置CMake环境变量从而可以找到预编译的liboblog
-CMAKE_INCLUDE_PATH=/path/to/liboblog CMAKE_LIBRARY_PATH=/path/to/liboblog cmake .. 
+CMAKE_INCLUDE_PATH=/path/to/liboblog CMAKE_LIBRARY_PATH=/path/to/liboblog cmake -DUSE_LIBOBLOG=ON .. 
 # 执行
 make -j 6 
 ```
 
-一切正常的话，在当前目录产出了`logproxy`二进制文件，且`oblogmsg.so`也复制到了当前目录。
-
-### 编译选项
-上述编译过程的第2步，可以添加编译选项改变默认的行为。例如, 编译出Demo。成功后，当前目录还会产出`demo_client`二进制。
-```shell
-cd buildenv
-CMAKE_INCLUDE_PATH=/path/to/liboblog CMAKE_LIBRARY_PATH=/path/to/liboblog cmake -DWITH_DEMO=ON .. 
-make -j 6
-```
-
-**全部编译参数**：
+#### 全部编译参数
 
 | 选项 | 默认 | 说明 |  
 | ------ | -------- | ------- |  
@@ -74,17 +87,16 @@ make -j 6
 | WITH_TEST | OFF | 测试 |   
 | WITH_DEMO | OFF | Demo |   
 | WITH_GLOG | ON | 使用glog |   
-| USE_OBLOGMSG | OFF | 使用预编译的 [oblogmsg](https://github.com/oceanbase/oblogmsg) |   
+| WITH_DEPS | ON | 自动下载预编译依赖 |   
+| USE_LIBOBLOG | OFF | 使用自定义预编译的liboblog |
 | USE_CXX11_ABI | ON | 是否使用C++11 ABI。注意如果用了预编译的依赖，需要保持一致，否则会找不到符号 | 
 
 ### 编译依赖说明
 
-默认情况下，会自动下载并编译依赖库。但有几个例外：
-- **GCC**：推荐>=5.2。
-- **openssl**：当前是去寻找系统安装的，但是1.0.*和1.1.*版本API少量不兼容，当前liboblog和logproxy都是是基于1.0.*实现的，需要版本一致。
-- **liboblog**：如前文描述，需要自行编译获取，并由环境变量指定路径，运行时需要指定LD_LIBRARY_PATH。
-- **libaio**：liboblog依赖这个，需要提前安装。
-- **oblogmsg**：liboblog和logproxy共同依赖 [oblogmsg](https://github.com/oceanbase/oblogmsg) ，自动依赖会采用动态库，并复制到当前编译目录，运行时需要指定LD_LIBRARY_PATH。
+默认情况下，会自动下载并编译依赖库。有几个点这里说明下：
+- **openssl**：当前使用的版本是：1.0.1e，1.0.*和1.1.*版本API少量不兼容，当前liboblog和logproxy都是是基于1.0.*实现的，需要版本一致。
+- **liboblog**：如前文描述，您也可以自行获取或编译，并由环境变量指定路径，运行时需要指定LD_LIBRARY_PATH。
+- **libaio**：liboblog依赖。
 
 ## 运行
 oblogproxy 单一配置文件，用代码目录下的 `conf.json`。
@@ -105,6 +117,7 @@ oblogproxy 单一配置文件，用代码目录下的 `conf.json`。
   "ob_sys_password": "DCE2AF09D006D6A440816880B938E7B3"
 }
 ```
+
 ### 2. 组织程序目录
 ```bash
 # 创建程序目录
@@ -112,7 +125,7 @@ mkdir -p ./oblogproxy/bin ./oblogproxy/run
 # 复制配置文件
 cp -r ../conf ./oblogproxy/
 # 复制起停脚本
-cp ../script/run.sh ./oblogproxy/bin/
+cp ../script/run.sh ./oblogproxy/
 # 复制程序二进制
 cp logproxy ./oblogproxy/bin/
 ```
@@ -127,18 +140,18 @@ bash ./run.sh start
 ```
 默认监听`2983`端口，修改`conf.json`中的`service_port`字段可更换监听端口。
 
-此时可以使用 [oblogproxy Client](https://github.com/oceanbase/oblogclient) 进行OB数据订阅，见 [使用文档](https://github.com/oceanbase/oblogclient)
+此时可以使用 [oblogclient](https://github.com/oceanbase/oblogclient) 进行OB数据订阅，见 [使用文档](https://github.com/oceanbase/oblogclient)
 
 ## 链路加密
-### Client与oblogproxy间TLS通信
+### oblogclient与oblogproxy间TLS通信
 修改`conf.json`中以下字段：
-- `channel_type`: "tls"，开启与Client通信的TLS。
+- `channel_type`: "tls"，开启与oblogclient通信的TLS。
 - `tls_ca_cert_file`: CA证书文件路径（绝对路径）
 - `tls_cert_file`: 服务器端签名证书路径（绝对路径）
 - `tls_key_file`: 服务器端的私钥路径（绝对路径）
-- `tls_verify_peer`: true，开启Client验证（绝对路径）
+- `tls_verify_peer`: true，开启oblogclient验证（绝对路径）
 
-对应的Client也需要相应配置，见 [oblogproxy Client链路加密](https://github.com/oceanbase/oblogclient) 。
+对应的oblogclient也需要相应配置，见 [oblogclient链路加密](https://github.com/oceanbase/oblogclient) 。
 
 ### oblogproxy(liboblog)与ObServer间TLS通信
 修改`conf.json`中以下字段：
@@ -149,45 +162,40 @@ bash ./run.sh start
 
 通常，您只需要关心前文描述过的参数。对于其他参数，在不完全了解参数用途的情况下，不建议修改。
 
-```json
-{
-  "service_port": 2983,                     // 服务端口
-  "encode_threadpool_size": 8,              // 编码线程池初始化大小
-  "encode_queue_size": 20000,               // 编码线程队列长度
-  "max_packet_bytes": 8388608,              // 最大数据包字节数
-  "record_queue_size": 1024,                // 数据发送队列长度
-  "read_timeout_us": 2000000,               // 数据读取队列批次等待周期，单位微秒
-  "read_fail_interval_us": 1000000,         // 数据读取队列重试等待周期，单位微秒
-  "read_wait_num": 20000,                   // 数据读取队列批次等待数量
-  "send_timeout_us": 2000000,               // 发送数据包超时，单位微秒
-  "send_fail_interval_us": 1000000,         // 发送数据包失败重试等待周期，单位微秒
-  "command_timeout_s": 10,                  // 命令执行超时，单位微妙
-  "log_quota_size_mb": 5120,                // 日志文件总大小阈值，单位MB
-  "log_quota_day": 30,                      // 日志文件存储时间阈值，单位天
-  "log_gc_interval_s": 43200,               // 日志文件清理周期，单位秒
-  "oblogreader_path_retain_hour": 168,      // oblogreader子进程目录保留时间，单位小时
-  "oblogreader_lease_s": 300,               // oblogreader子进程启动探测时间，单位秒
-  "oblogreader_path": "./run",              // oblogreader子进程上下文目录根路径
-  "allow_all_tenant": true,                 // 是否允许订阅所有租户
-  "auth_user": true,                        // 是否鉴权连接用户
-  "auth_use_rs": false,                     // 是否通过root server鉴权用户
-  "auth_allow_sys_user": true,              // 是否允许订阅系统租户
-  "ob_sys_username": "",                    // 系统租户用户名密文，用来订阅增量
-  "ob_sys_password": "",                    // 系统租户密码密文，用来订阅增量
-  "counter_interval_s": 2,                  // 计数器周期，单位秒
-  "debug": false,                           // 打印debug信息
-  "verbose": false,                         // 打印更多debug信息
-  "verbose_packet": false,                  // 打印数据包信息
-  "readonly": false,                        // 只读模式
-  "channel_type": "plain",                  // 链路类型
-  "tls_ca_cert_file": "",                   // CA证书文件路径（绝对路径）
-  "tls_cert_file": "",                      // 服务器端签名证书路径（绝对路径）
-  "tls_key_file": "",                       // 服务器端的私钥路径（绝对路径）
-  "tls_verify_peer": true,                  // 开启Client验证
-  "liboblog_tls": false,                    // 开启与ObServer通信的TLS
-  "liboblog_tls_cert_path": ""              // ObServer相关证书文件路径（绝对路径）
-}
-```
-
-
-### 
+| 字段 | 默认值 | 说明 |  
+| ---- | ---- | ---------- |
+| service_port | 2983                     | 服务端口 |  
+| encode_threadpool_size | 8              | 编码线程池初始化大小 |  
+| encode_queue_size | 20000               | 编码线程队列长度 |  
+| max_packet_bytes | 8388608              | 最大数据包字节数 |  
+| record_queue_size | 1024                | 数据发送队列长度 |  
+| read_timeout_us | 2000000               | 数据读取队列批次等待周期，单位微秒 |  
+| read_fail_interval_us | 1000000         | 数据读取队列重试等待周期，单位微秒 |  
+| read_wait_num | 20000                   | 数据读取队列批次等待数量 |  
+| send_timeout_us | 2000000               | 发送数据包超时，单位微秒 |  
+| send_fail_interval_us | 1000000         | 发送数据包失败重试等待周期，单位微秒 |  
+| command_timeout_s | 10                  | 命令执行超时，单位微妙 |  
+| log_quota_size_mb | 5120                | 日志文件总大小阈值，单位MB |  
+| log_quota_day | 30                      | 日志文件存储时间阈值，单位天 |  
+| log_gc_interval_s | 43200               | 日志文件清理周期，单位秒 |  
+| oblogreader_path_retain_hour | 168      | oblogreader子进程目录保留时间，单位小时 |  
+| oblogreader_lease_s | 300               | oblogreader子进程启动探测时间，单位秒 |  
+| oblogreader_path | ./run                | oblogreader子进程上下文目录根路径 |  
+| allow_all_tenant | true                 | 是否允许订阅所有租户 |  
+| auth_user | true                        | 是否鉴权连接用户 |  
+| auth_use_rs | false                     | 是否通过root server鉴权用户 |  
+| auth_allow_sys_user | true              | 是否允许订阅系统租户 |  
+| ob_sys_username | ""                    | 【必须自行配置】系统租户用户名密文，用来订阅增量 |  
+| ob_sys_password | ""                    | 【必须自行配置】系统租户密码密文，用来订阅增量 |  
+| counter_interval_s | 2                  | 计数器周期，单位秒 |  
+| debug | false                           | 打印debug信息 |  
+| verbose | false                         | 打印更多debug信息 |  
+| verbose_packet | false                  | 打印数据包信息 |  
+| readonly | false                        | 只读模式 |  
+| channel_type | plain                    | 链路类型 |  
+| tls_ca_cert_file | ""                   | CA证书文件路径（绝对路径） |  
+| tls_cert_file | ""                      | 服务器端签名证书路径（绝对路径） |  
+| tls_key_file | ""                       | 服务器端的私钥路径（绝对路径） |  
+| tls_verify_peer | true                  | 开启oblogclient验证 |  
+| liboblog_tls | false                    | 开启与ObServer通信的TLS |  
+| liboblog_tls_cert_path | ""             | ObServer相关证书文件路径（绝对路径）|  
