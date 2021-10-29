@@ -11,11 +11,11 @@ function is_running()
         _path=$(readlink -f /proc/${pid}/cwd)
         if [[ ${?} -eq 0 ]] && [[ ${_path} = ${DEPLOY_PATH} ]]; then
             GPID=${pid}
-            echo "is_running : (${GPID})${DEPLOY_PATH} ${PROC_BIN_NAME} is running !"
+            echo "is_running : (${GPID})${DEPLOY_PATH} ${PROC_BIN_NAME} is running!"
             return 1
         fi
     done
-#    echo "is_running : ${DEPLOY_PATH} ${PROC_BIN_NAME} ready !"
+#    echo "is_running : ${DEPLOY_PATH} ${PROC_BIN_NAME} ready!"
     return 0
 }
 
@@ -26,7 +26,7 @@ function kill_proc_9()
     force=$3
 
     [[ ! -d ${DEPLOY_PATH} ]] && {
-        echo "@@@@@@@@@@@@@@@ kill_proc : ${DEPLOY_PATH} invalid !"
+        echo "@@@@@@@@@@@@@@@ kill_proc : ${DEPLOY_PATH} invalid!"
         return 0
     }
 
@@ -36,10 +36,10 @@ function kill_proc_9()
     while [[ ${status} -eq 1 ]]; do
         if [ ! -z ${force} ]; then
             kill -9 ${GPID}
-            echo "kill_proc force : (${GPID})${DEPLOY_PATH} succ !"
+            echo "kill_proc force : (${GPID})${DEPLOY_PATH} succ!"
         else
             kill ${GPID}
-            echo "kill_proc : (${GPID})${DEPLOY_PATH} succ !"
+            echo "kill_proc : (${GPID})${DEPLOY_PATH} succ!"
         fi
         sleep 1
         retry=`expr ${retry} + 1`
@@ -83,7 +83,7 @@ stop()
 case C"$1" in
 Cstop)
     stop
-    echo "${BIN} stoped!"
+    echo "${BIN} stopped!"
     ;;
 Cstart)
     start
