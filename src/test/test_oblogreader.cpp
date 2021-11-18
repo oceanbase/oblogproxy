@@ -17,15 +17,17 @@
 using namespace oceanbase::logproxy;
 
 int run(const std::string& cluster_url, const std::string& user, const std::string& password,
-    const std::string& tb_white_list)
+    const std::string& tb_white_list, const std::string& start_timestamp = "0")
 {
   std::string config_str = "tb_white_list=" + tb_white_list + " cluster_url=" + cluster_url + " cluster_user=" + user +
-                           " cluster_password=" + password;
+                           " cluster_password=" + password + " start_timestamp=" + start_timestamp;
 
   Config::instance().readonly.set(true);
+  Config::instance().debug.set(true);
+  Config::instance().verbose.set(true);
+  Config::instance().verbose_packet.set(true);
 
   OblogConfig oblog_config(config_str);
-  oblog_config.start_timestamp = time(nullptr);
   OMS_INFO << "OB Log Config: " << oblog_config.to_string();
 
   ObLogReader& reader = ObLogReader::instance();
@@ -48,9 +50,9 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
 
 int main(int argc, char** argv)
 {
-  if (argc < 5) {
+  if (argc < 6) {
     OMS_ERROR << "Invalid param. use: " << argv[0] << " cluster_url user password tb_white_list";
     exit(-1);
   }
-  return run(argv[1], argv[2], argv[3], argv[4]);
+  return run(argv[1], argv[2], argv[3], argv[4], argv[5]);
 }

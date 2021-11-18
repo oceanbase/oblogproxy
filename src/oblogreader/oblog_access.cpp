@@ -51,7 +51,11 @@ int OblogAccess::init(const std::map<std::string, std::string>& configs, uint64_
 
   OMS_INFO << "======== Start liboblog configs ======== ";
   for (auto& entry : configs) {
-    OMS_INFO << entry.first << "=" << entry.second;
+    if (entry.first == "start_timestamp") {
+      OMS_INFO << entry.first << "=" << start_timestamp;
+    } else {
+      OMS_INFO << entry.first << "=" << entry.second;
+    }
   }
   OMS_INFO << "======== End Start liboblog configs ======== ";
   int ret = _oblog->init(configs, start_timestamp, &handle_error);
