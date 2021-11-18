@@ -63,6 +63,10 @@ OblogConfig::OblogConfig(const std::string& str)
     }
     _configs.emplace(kv_split[0], kv_split[1]);
   }
+  const auto& entry = _configs.find("start_timestamp");
+  if (entry != _configs.end()) {
+    start_timestamp = strtoull(entry->second.c_str(), nullptr, 10);
+  }
 }
 
 void OblogConfig::set_auth(const std::string& user, const std::string& password)
