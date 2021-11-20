@@ -20,7 +20,7 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
     const std::string& tb_white_list, const std::string& start_timestamp = "0")
 {
   std::string config_str = "tb_white_list=" + tb_white_list + " cluster_url=" + cluster_url + " cluster_user=" + user +
-                           " cluster_password=" + password + " start_timestamp=" + start_timestamp;
+                           " cluster_password=" + password + " first_start_timestamp=" + start_timestamp;
 
   Config::instance().readonly.set(true);
   Config::instance().debug.set(true);
