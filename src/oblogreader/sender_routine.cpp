@@ -69,16 +69,13 @@ void SenderRoutine::stop()
 
 void SenderRoutine::run()
 {
-#ifndef NEED_MAPPING_CLASS
   LogMsgLocalInit();
-#else
-  LMLocalinit();
-#endif
 
   std::vector<ILogRecord*> records;
   records.reserve(_s_config.read_wait_num.val());
 
   while (is_run()) {
+
     if (!_s_config.readonly.val()) {
       int ret = _comm.poll();
       if (ret != OMS_OK) {
@@ -88,10 +85,13 @@ void SenderRoutine::run()
       }
     }
 
+    _stage_timer.reset();
     records.clear();
     while (!_rqueue.poll(records, _s_config.read_timeout_us.val()) || records.empty()) {
       OMS_INFO << "send transfer queue empty, retry...";
     }
+    int64_t poll_us = _stage_timer.elapsed();
+    Counter::instance().count_key(Counter::SENDER_POLL_US, poll_us);
 
     for (size_t i = 0; i < records.size(); ++i) {
       ILogRecord* record = records[i];
@@ -100,14 +100,14 @@ void SenderRoutine::run()
       if (_s_config.verbose_packet.val()) {
         OMS_INFO << "fetch a records(" << (i + 1) << "/" << records.size() << ") from liboblog: "
                  << "size:" << record->getRealSize() << ", record_type:" << record->recordType()
-                 << ", timestamp:" << record->getTimestamp() << ", checkpoint:" << record->getFileNameOffset()
+                 << ", timestamp:" << record->getTimestamp() << ", checkpoint:" << record->getCheckpoint1()
                  << ", dbname:" << record->dbname() << ", tbname:" << record->tbname()
                  << ", queue size:" << _rqueue.size(false);
       }
       if (_s_config.readonly.val()) {
         Counter::instance().count_write(1);
         Counter::instance().mark_timestamp(record->getTimestamp());
-        Counter::instance().mark_checkpoint(record->getFileNameOffset());
+        Counter::instance().mark_checkpoint(record->getCheckpoint1());
         _oblog.release(record);
       }
     }
@@ -122,7 +122,12 @@ void SenderRoutine::run()
     for (i = 0; i < records.size(); ++i) {
       ILogRecord* r = records[i];
       size_t size = 0;
-      r->toString(&size, true);
+      const char* rbuf = r->toString(&size, true);
+      if (rbuf == nullptr) {
+        OMS_ERROR << "failed parse logmsg Record, !!!EXIT!!!";
+        stop();
+        break;
+      }
 
       if (packet_size + size > _s_config.max_packet_bytes.val()) {
         if (packet_size == 0) {
@@ -163,11 +168,7 @@ void SenderRoutine::run()
     }
   }
 
-#ifndef NEED_MAPPING_CLASS
   LogMsgLocalDestroy();
-#else
-  LMLocaldestroy();
-#endif
   ObLogReader::instance().stop();
 }
 
@@ -176,15 +177,19 @@ int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offse
   if (_s_config.verbose.val()) {
     OMS_DEBUG << "send record range[" << offset << ", " << offset + count << ")";
   }
+
+  _stage_timer.reset();
   RecordDataMessage msg(records, offset, count);
   msg.set_version(_packet_version);
   msg.compress_type = CompressType::PLAIN;
   int ret = _comm.send_message(_client_peer, msg, true);
+  Counter::instance().count_key(Counter::SENDER_SEND_US, _stage_timer.elapsed());
+
   if (ret == OMS_OK) {
     ILogRecord* last = records[offset + count - 1];
     Counter::instance().count_write(count);
     Counter::instance().mark_timestamp(last->getTimestamp());
-    Counter::instance().mark_checkpoint(last->getFileNameOffset());
+    Counter::instance().mark_checkpoint(last->getCheckpoint1());
   } else {
     OMS_WARN << "Failed to send record data message to client. peer=" << _client_peer.id();
   }

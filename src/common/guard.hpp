@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <stdlib.h>
+
 namespace oceanbase {
 namespace logproxy {
 
@@ -24,7 +26,7 @@ public:
   ~FreeGuard()
   {
     if (_own) {
-      free(_ptr);
+      ::free(_ptr);
       _ptr = nullptr;
     }
   }

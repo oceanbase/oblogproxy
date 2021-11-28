@@ -10,6 +10,8 @@
  * See the Mulan PubL v2 for more details.
  */
 
+#include "MsgHeader.h"
+
 #include "common/log.h"
 #include "common/config.h"
 #include "common/counter.h"

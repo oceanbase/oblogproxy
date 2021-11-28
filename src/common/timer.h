@@ -37,9 +37,7 @@ public:
 
   inline void reset()
   {
-    struct timeval tm;
-    gettimeofday(&tm, nullptr);
-    _start_time = tm.tv_sec * 1000000 + tm.tv_usec;
+    _start_time = now();
   }
 
   inline void reset(uint64_t us)

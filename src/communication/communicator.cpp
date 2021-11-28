@@ -401,7 +401,11 @@ PacketError Communicator::receive_message(Channel* ch, Message*& msg)
     return PacketError::PROTOCOL_ERROR;
   }
 
-  return _decoders[version]->decode(ch, (MessageVersion)version, msg);
+  auto ret = _decoders[version]->decode(ch, (MessageVersion)version, msg);
+  if (msg != nullptr) {
+    msg->set_version((MessageVersion)version);
+  }
+  return ret;
 }
 
 void Communicator::on_event(int fd, short event, void* arg)
@@ -419,7 +423,7 @@ void Communicator::on_event(int fd, short event, void* arg)
   Communicator& c = *ch->get_communicator();
 
   OMS_INFO << "On event fd: " << fd << " got channel, peer: " << ch->peer().to_string();
-  EventResult er = EventResult::ER_SUCCESS;
+  EventResult err = EventResult::ER_SUCCESS;
 
   if ((event & EV_FINALIZE) || (event & EV_CLOSED)) {
     OMS_WARN << "On event close, peer: " << ch->peer().to_string();
@@ -429,13 +433,13 @@ void Communicator::on_event(int fd, short event, void* arg)
     if (event & EV_WRITE) {
       event_del(&ch->_write_event);
     }
-    er = EventResult::ER_CLOSE_CHANNEL;
+    err = EventResult::ER_CLOSE_CHANNEL;
 
   } else {
     if ((event & EV_WRITE) && ch->_write_msg != nullptr) {
       OMS_INFO << "On event about to write message: " << ch->peer().to_string();
       if (c.write_message(ch, *ch->_write_msg) != OMS_OK) {
-        er = EventResult::ER_CLOSE_CHANNEL;
+        err = EventResult::ER_CLOSE_CHANNEL;
       }
       ch->set_write_msg(nullptr);
       event_del(&ch->_write_event);  // one-shot
@@ -444,20 +448,20 @@ void Communicator::on_event(int fd, short event, void* arg)
     if (event & EV_READ) {
       Message* msg = nullptr;
       PacketError result = c.receive_message(ch, msg);
-      if (result != PacketError::SUCCESS) {
-        OMS_ERROR << "Failed to handle receive message, ret: " << (int)result;
-
-        auto error_callback = c._error_callback.load();
-        if (error_callback != nullptr) {
-          er = (*error_callback)(ch->_peer, result);
-        } else {
-          er = EventResult::ER_CLOSE_CHANNEL;
-        }
-
-      } else {
+      if (result == PacketError::SUCCESS) {
         auto event_callback = c._read_callback.load();
         if (event_callback != nullptr) {
-          er = (*event_callback)(ch->_peer, *msg);
+          err = (*event_callback)(ch->_peer, *msg);
+        }
+      } else if (result == PacketError::IGNORE) {
+        // do nothing
+      } else {
+        OMS_ERROR << "Failed to handle receive message, ret: " << (int)result;
+        auto error_callback = c._error_callback.load();
+        if (error_callback != nullptr) {
+          err = (*error_callback)(ch->_peer, result);
+        } else {
+          err = EventResult::ER_CLOSE_CHANNEL;
         }
       }
       delete msg;
@@ -465,7 +469,7 @@ void Communicator::on_event(int fd, short event, void* arg)
   }
 
   ch->put();
-  switch (er) {
+  switch (err) {
     case EventResult::ER_CLOSE_CHANNEL:
       c.remove_channel(ch->_peer);
       break;

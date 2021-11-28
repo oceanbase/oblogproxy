@@ -58,6 +58,7 @@ enum class CompressType {
 
 enum class PacketError {
   SUCCESS,
+  IGNORE,
   OUT_OF_MEMORY,
   PROTOCOL_ERROR,
   NETWORK_ERROR,
@@ -115,7 +116,7 @@ public:
 
   ~ClientHandshakeRequestMessage() override = default;
 
-  OMS_MF_DFT(int, log_type, -1);
+  OMS_MF_DFT(uint8_t, log_type, 0);
   OMS_MF(std::string, id);
   OMS_MF(std::string, ip);
   OMS_MF(std::string, version);
@@ -164,7 +165,7 @@ public:
 
   ~RecordDataMessage() override;
 
-  size_t count() const
+  inline size_t count() const
   {
     return records.size();
   }
