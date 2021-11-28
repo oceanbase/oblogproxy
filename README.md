@@ -46,8 +46,57 @@ bash ./run.sh start
 ```
 
 ### 5. 用oblogclient订阅
-此时可以使用 [oblogclient](https://github.com/oceanbase/oblogclient) 进行OB数据订阅，见 [使用文档](https://github.com/oceanbase/oblogclient)
+此时可以使用 [oblogclient](https://github.com/oceanbase/oblogclient) 进行OB数据订阅。 Maven依赖，见： [Maven Repo](https://search.maven.org/search?q=g:com.oceanbase.logclient)
+```xml
+<dependency>
+  <groupId>com.oceanbase.logclient</groupId>
+  <artifactId>logproxy-client</artifactId>
+  <version>1.0.1</version>
+</dependency>
+```
+编写代码，参考：
+```Java
+ObReaderConfig config = new ObReaderConfig();
+// 设置OceanBase root server 地址列表，格式为（可以支持多个，用';'分隔）：ip1:rpc_port1:sql_port1;ip2:rpc_port2:sql_port2
+config.setRsList("127.0.0.1:2882:2881;127.0.0.2:2882:2881");
+// 设置用户名和密码（非系统租户）
+config.setUsername("root");
+config.setPassword("root");
+// 设置启动位点（UNIX时间戳，单位s）, 0表示从当前时间启动。
+config.setStartTimestamp(0L);
+// 设置订阅表白名单，格式为：tenant.db.table, '*'表示通配.
+config.setTableWhiteList("sys.*.*");
 
+// 指定oblogproxy服务地址，创建实例.
+LogProxyClient client = new LogProxyClient("127.0.0.1", 2983, config);
+// 添加 RecordListener
+client.addListener(new RecordListener() {
+    @Override
+    public void notify(LogMessage message){
+        // 处理消息
+    }
+
+    @Override
+    public void onException(LogProxyClientException e) {
+        // 处理错误
+        if (e.needStop()) {
+            // 不可恢复异常，需要停止Client
+            client.stop();
+        }
+    }
+});
+
+// 启动
+client.start();
+client.join();
+```
+
+更多详情见 [使用文档](https://github.com/oceanbase/oblogclient)
+
+## 注意
+- 配置里面无需指定具体的OB集群信息，理论上oblogproxy能同时订阅多个OB集群，只要与所有observer网络通，且OB集群包含配置中的sys租户账号密码。（需要配置sys租户账号密码由于安全原因，通常不对oblogclient侧的用户暴露）
+- 本身是无状态，订阅哪个OB，哪个库表都由oblogclient传入，且增量链路的位点等信息也需要oblogclient端自行保存。断开重连后，对于oblogproxy来讲，是创建全新的链路。
+- 消耗内存较多，强烈建议和observer分开部署。
 
 ## 文档
 - [编译](./docs/manual.md#编译)
