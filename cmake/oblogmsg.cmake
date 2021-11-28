@@ -28,8 +28,6 @@ ExternalProject_Add(
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DCMAKE_BUILD_TYPE=Debug
         -DCMAKE_PREFIX_PATH=${prefix_path}
-        -DTEST=OFF
-        -DUSE_CXX11_ABI=${USE_CXX11_ABI}
         INSTALL_COMMAND mkdir -p ${OBLOGMSG_INSTALL_DIR}/lib ${OBLOGMSG_INSTALL_DIR}/include COMMAND cp -r ${OBLOGMSG_SOURCES_DIR}/src/extern_oblogmsg/src/${OBLOGMSG_LIBRARIES} ${OBLOGMSG_INSTALL_DIR}/lib/ COMMAND cp -r ${OBLOGMSG_SOURCES_DIR}/src/extern_oblogmsg/include ${OBLOGMSG_INSTALL_DIR}/ COMMAND cp -r ${OBLOGMSG_SOURCES_DIR}/src/extern_oblogmsg/src/${OBLOGMSG_LIBRARIES} ${LIBRARY_OUTPUT_PATH}/
 )
 

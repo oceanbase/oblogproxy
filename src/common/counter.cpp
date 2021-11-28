@@ -32,29 +32,42 @@ void Counter::run()
   while (is_run()) {
     _timer.reset();
     this->sleep();
+    int64_t interval_ms = _timer.elapsed() / 1000;
+    int64_t interval_s = interval_ms == 0 ? 0 : (interval_ms / 1000);
 
-    int64_t interval = _timer.elapsed() / 1000;
-    uint64_t rcount = _read_count.fetch_and(0);
-    uint64_t wcount = _write_count.fetch_and(0);
-    uint64_t rio = _read_io.fetch_and(0);
-    uint64_t wio = _write_io.fetch_and(0);
-    uint64_t rtps = rcount / (interval / 1000);
-    uint64_t wtps = wcount / (interval / 1000);
-    uint64_t rios = rio / (interval / 1000);
-    uint64_t wios = wio / (interval / 1000);
-    int delay = (int)time(nullptr) - _timestamp;
-    int chk_delay = time(nullptr) - _checkpoint;
+    uint64_t rcount = _read_count.load();
+    uint64_t wcount = _write_count.load();
+    uint64_t rio = _read_io.load();
+    uint64_t wio = _write_io.load();
+    uint64_t rtps = interval_s == 0 ? rcount : (rcount / interval_s);
+    uint64_t wtps = interval_s == 0 ? wcount : (wcount / interval_s);
+    uint64_t rios = interval_s == 0 ? rio : (rio / interval_s);
+    uint64_t wios = interval_s == 0 ? wio : (wio / interval_s);
+    int nowtm = time(nullptr);
+    int delay = nowtm - _timestamp;
+    int chk_delay = nowtm - _checkpoint;
 
     // TODO... bytes rate
 
     ss.str("");
-    ss << "Counter:[Interval:" << interval << "ms][Delay:" << delay << "," << chk_delay << "][Read:" << rcount
-       << "][RTPS:" << rtps << "][RIOS:" << rios << "][Write:" << wcount << "][WTPS:" << wtps << "][WIOS:" << wios
+    ss << "Counter:[Span:" << interval_ms << "ms][Delay:" << delay << "," << chk_delay << "][RCNT:" << rcount
+       << "][RTPS:" << rtps << "][RIOS:" << rios << "][WCNT:" << wcount << "][WTPS:" << wtps << "][WIOS:" << wios
        << "]";
+    for (auto& count : _counts) {
+      uint64_t c = count.count.load();
+      ss << "[" << count.name << ":" << c << "]";
+      count.count.fetch_sub(c);
+    }
     for (auto& entry : _gauges) {
       ss << "[" << entry.first << ":" << entry.second() << "]";
     }
     OMS_INFO << ss.str();
+
+    // sub count that logged
+    _read_count.fetch_sub(rcount);
+    _write_count.fetch_sub(wcount);
+    _read_io.fetch_sub(rio);
+    _write_io.fetch_sub(wio);
   }
 
   OMS_INFO << "#### Counter thread stop, tid: " << tid();
@@ -83,6 +96,11 @@ void Counter::count_read_io(int bytes)
 void Counter::count_write_io(int bytes)
 {
   _write_io.fetch_add(bytes);
+}
+
+void Counter::count_key(Counter::CountKey key, uint64_t count)
+{
+  _counts[key].count.fetch_add(count);
 }
 
 void Counter::mark_timestamp(int timestamp)

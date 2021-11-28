@@ -23,7 +23,7 @@ static Config& _s_config = Config::instance();
 LegacyEncoder::LegacyEncoder()
 {
   /*
-   * [4] reponse code
+   * [4] response code
    * [1+varstr] Server IP
    * [1+varstr] Server Version
    */
@@ -35,12 +35,12 @@ LegacyEncoder::LegacyEncoder()
       OMS_ERROR << "Failed to encode handshake request due to failed to alloc memory";
       return OMS_FAILED;
     }
-    // response code
-    size_t offset = 0;
+
+    // Response code
     memset(buf, 0, 4);
-    offset += 4;
 
     // Server IP
+    size_t offset = 4;
     uint8_t varlen = msg.ip.size();
     memcpy(buf + offset, &varlen, 1);
     offset += 1;
@@ -77,46 +77,34 @@ LegacyEncoder::LegacyEncoder()
 
       size_t size = 0;
       // got independ address
-      const char* log_record_buffer = record->getFormatedString(&size);
-      if (nullptr == log_record_buffer) {
+      const char* logmsg_buf = record->getFormatedString(&size);
+      if (logmsg_buf == nullptr) {
         OMS_ERROR << "Failed to serialize log record";
         return OMS_FAILED;
       }
-      const MsgHeader* header = (const MsgHeader*)(log_record_buffer);
       if (_s_config.verbose_packet.val()) {
+        const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
         OMS_DEBUG << "Encode LogMessage Header, type: " << header->m_msgType << ", version: " << header->m_version
                   << ", size: " << header->m_size;
       }
-      size_t calc_size = header->m_size + sizeof(MsgHeader);
-      if (calc_size != size) {
-        if (calc_size > size) {
-          OMS_FATAL << "LogMessage Invalid, header calc size:" << calc_size << " > buffer size:" << size;
-          return OMS_FAILED;
-        }
-        if (_s_config.verbose_packet.val()) {
-          OMS_WARN << "LogMessage header size:" << calc_size << " != toString size:" << size
-                   << ". adjust to header size";
-        }
-        size = calc_size;
-      }
 
-      total_size += calc_size;
+      uint32_t seq_be = cpu_to_be<uint32_t>(i);
+      uint32_t size_be = cpu_to_be<uint32_t>(size);
+      buffer.push_back_copy((char*)&seq_be, 4);
+      buffer.push_back_copy((char*)&size_be, 4);
+      buffer.push_back((char*)logmsg_buf, size, false);
 
-      uint32_t seq = cpu_to_be<uint32_t>(i);
-      uint32_t len = cpu_to_be<uint32_t>(calc_size);
-      buffer.push_back_copy((char*)&seq, 4);
-      buffer.push_back_copy((char*)&len, 4);
-      buffer.push_back((char*)log_record_buffer, calc_size, false);
+      total_size += (size + 8);
     }
 
-    uint32_t packet_len = cpu_to_be<uint32_t>(total_size + 7);
+    uint32_t packet_len_be = cpu_to_be<uint32_t>(total_size + 9);
     total_size = cpu_to_be<uint32_t>(total_size);
 
-    char* buf = (char*)malloc(13);
-    memcpy(buf, &packet_len, sizeof(packet_len));
+    char* buf = (char*)malloc(4 + 1 + 4 + 4);
+    memcpy(buf, &packet_len_be, 4);
     memset(buf + 4, 0, 1);  // CompressType::PLAIN
-    memcpy(buf + 5, &total_size, sizeof(total_size));
-    memcpy(buf + 9, &total_size, sizeof(total_size));
+    memcpy(buf + 5, &total_size, 4);
+    memcpy(buf + 9, &total_size, 4);
     buffer.push_front(buf, 13);
     return OMS_OK;
   });
@@ -130,23 +118,17 @@ LegacyEncoder::LegacyEncoder()
   _funcs.emplace((int8_t)MessageType::ERROR_RESPONSE, [](const Message& in_msg, MessageBuffer& buffer) {
     const ErrorMessage& msg = (const ErrorMessage&)in_msg;
 
-    size_t len = 4 + 4 + msg.message.size();
+    size_t len = 4 + msg.message.size();
     char* buf = (char*)malloc(len);
     if (buf == nullptr) {
       OMS_ERROR << "Failed to encode error message due to failed to alloc memory";
       return OMS_FAILED;
     }
-    // response code
-    int code = cpu_to_be<int>(msg.code);
-    memcpy(buf, &code, 4);
-
-    size_t offset = 4;
 
     // Error message
     uint32_t varlen = cpu_to_be<uint32_t>(msg.message.size());
-    memcpy(buf + offset, &varlen, 4);
-    offset += 4;
-    memcpy(buf + offset, msg.message.c_str(), varlen);
+    memcpy(buf, &varlen, 4);
+    memcpy(buf + 4, msg.message.c_str(), varlen);
 
     buffer.push_back(buf, len);
     return OMS_OK;
@@ -155,7 +137,24 @@ LegacyEncoder::LegacyEncoder()
 
 int LegacyEncoder::encode(const Message& msg, MessageBuffer& buffer)
 {
-  return _funcs[(int8_t)msg.type()](msg, buffer);
+  int ret = _funcs[(int8_t)msg.type()](msg, buffer);
+  if (ret == OMS_FAILED) {
+    return OMS_FAILED;
+  }
+
+  // append header
+  size_t len = 2 + 4;
+  char* buf = (char*)malloc(len);
+
+  // version code
+  memset(buf, 0, 2);
+
+  // response type code
+  uint32_t msg_type_be = cpu_to_be<uint32_t>((uint32_t)msg.type());
+  memcpy(buf + 2, &msg_type_be, 4);
+  buffer.push_front(buf, len);
+
+  return ret;
 }
 
 }  // namespace logproxy

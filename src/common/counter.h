@@ -46,6 +46,16 @@ public:
 
   void count_write_io(int bytes);
 
+  // MUST BE as same order as _counts
+  enum CountKey {
+    READER_FETCH_US = 0,
+    READER_OFFER_US = 1,
+    SENDER_POLL_US = 2,
+    SENDER_SEND_US = 3,
+  };
+
+  void count_key(CountKey key, uint64_t count);
+
   void mark_timestamp(int timestamp);
 
   void mark_checkpoint(uint64_t checkpoint);
@@ -54,6 +64,14 @@ private:
   void sleep();
 
 private:
+  struct CountItem {
+    const char* name;
+    std::atomic<uint64_t> count{0};
+
+    CountItem(const char* n) : name(n)
+    {}
+  };
+
   Timer _timer;
 
   std::atomic<uint64_t> _read_count{0};
@@ -62,6 +80,8 @@ private:
   std::atomic<uint64_t> _write_io{0};
   volatile int _timestamp = time(nullptr);
   volatile int _checkpoint = time(nullptr);
+
+  CountItem _counts[4]{{"RFETCH"}, {"ROFFER"}, {"SPOLL"}, {"SSEND"}};
 
   std::map<std::string, std::function<int64_t()>> _gauges;
 

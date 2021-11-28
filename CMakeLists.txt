@@ -49,7 +49,7 @@ message(STATUS "DEP_VAR: ${DEP_VAR}")
 message(STATUS "JAVA_HOME: ${JAVA_HOME}")
 
 # compiler
-find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/  /usr/bin/ NO_DEFAULT_PATH)
+find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
 find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
 find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
 SET(CMAKE_C_COMPILER ${CC})
@@ -150,7 +150,11 @@ endforeach ()
 add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
-# obliboblog
+# oblogmsg
+include(oblogmsg)
+SET(OBLOGMSG_MAPPING "")
+
+# oblog
 if (FIND_LIBOBLOG)
     find_path(LIBOBLOG_INCLUDE_PATH NAMES liboblog.h)
     find_library(LIBOBLOG_LIBRARIES NAMES liboblog.so)
@@ -159,11 +163,6 @@ if (FIND_LIBOBLOG)
     endif ()
 endif ()
 GET_FILENAME_COMPONENT(LIBOBLOG_LIB_DIR ${LIBOBLOG_LIBRARIES} DIRECTORY)
-
-# oblogmsg
-include(oblogmsg)
-SET(OBLOGMSG_MAPPING "")
-
 
 message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
 message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIB_DIR}")

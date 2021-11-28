@@ -60,6 +60,7 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
     return PacketError::PROTOCOL_ERROR;
   }
 
+  // FIXME.. use an mem pool
   char* payload_buf = (char*)malloc(payload_size);
   if (nullptr == payload_buf) {
     OMS_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch->peer().id();

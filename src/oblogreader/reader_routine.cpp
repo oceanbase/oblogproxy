@@ -47,9 +47,15 @@ void ReaderRoutine::run()
     return;
   }
 
+  Counter& counter = Counter::instance();
+  Timer stage_tm;
+
   while (is_run()) {
+    stage_tm.reset();
     ILogRecord* record = nullptr;
     int ret = _oblog.fetch(record, _s_config.read_timeout_us.val());
+    int64_t fetch_us = stage_tm.elapsed();
+
     if (ret == OB_TIMEOUT && record == nullptr) {
       OMS_INFO << "fetch liboblog timeout, nothing incoming...";
       continue;
@@ -60,12 +66,16 @@ void ReaderRoutine::run()
       continue;
     }
 
+    stage_tm.reset();
     while (!_queue.offer(record, _s_config.read_timeout_us.val())) {
       OMS_WARN << "reader transfer queue full(" << _queue.size(false) << "), retry...";
     }
+    int64_t offer_us = stage_tm.elapsed();
 
-    Counter::instance().count_read_io(record->getRealSize());
-    Counter::instance().count_read(1);
+    counter.count_key(Counter::READER_FETCH_US, fetch_us);
+    counter.count_key(Counter::READER_OFFER_US, offer_us);
+    counter.count_read_io(record->getRealSize());
+    counter.count_read(1);
   }
 
   ObLogReader::instance().stop();

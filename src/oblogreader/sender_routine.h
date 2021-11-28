@@ -13,6 +13,7 @@
 #pragma once
 
 #include "common/thread.h"
+#include "common/timer.h"
 #include "common/blocking_queue.hpp"
 #include "oblogreader/oblog_access.h"
 
@@ -41,6 +42,8 @@ private:
 
   MessageVersion _packet_version;
   PeerInfo _client_peer;
+
+  Timer _stage_timer;
 };
 
 }  // namespace logproxy
