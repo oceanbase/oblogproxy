@@ -20,15 +20,18 @@ namespace logproxy {
 
 void ConfigBase::add_item(const std::string& key, ConfigItemBase* item)
 {
-  configs_.emplace(key, item);
+  _configs.emplace(key, item);
 }
 
 void EncryptedConfigItem::from_str(const std::string& val)
 {
+  if (val.empty()) {
+    return;
+  }
 
   const char* encrypt_key = nullptr;
-  if (!encrypt_key_.empty()) {
-    encrypt_key = encrypt_key_.c_str();
+  if (!_encrypt_key.empty()) {
+    encrypt_key = _encrypt_key.c_str();
   }
 
   std::string bin_val;
@@ -46,7 +49,7 @@ void EncryptedConfigItem::from_str(const std::string& val)
     exit(-1);
   }
 
-  val_.assign(decrypted, decrypted_len);
+  _val.assign(decrypted, decrypted_len);
   free(decrypted);
 }
 

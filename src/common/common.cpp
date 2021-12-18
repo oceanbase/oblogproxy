@@ -80,6 +80,13 @@ bool localhostip(std::string& hostname, std::string& ip)
   return true;
 }
 
+std::string dumphex(const std::string& str)
+{
+  std::string hex;
+  dumphex(str.c_str(), str.size(), hex);
+  return hex;
+}
+
 void dumphex(const char data[], size_t size, std::string& hex)
 {
   hex.resize(size * 2);
@@ -104,8 +111,12 @@ void dumphex(const char data[], size_t size, std::string& hex)
   }
 }
 
-void hex2bin(const char data[], size_t size, std::string& bin)
+int hex2bin(const char data[], size_t size, std::string& bin)
 {
+  if (size % 2 != 0) {
+    return -1;
+  }
+
   bin.reserve(size / 2);
   size_t count = 0;
   char last_char = 0;
@@ -128,6 +139,7 @@ void hex2bin(const char data[], size_t size, std::string& bin)
     }
     count++;
   }
+  return 0;
 }
 
 }  // namespace logproxy

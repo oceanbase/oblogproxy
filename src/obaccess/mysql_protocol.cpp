@@ -10,54 +10,41 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netdb.h>
 #include <string.h>
-#include <poll.h>
 #include <vector>
 
-#include "obaccess/ob_mysql_auth.h"
+#include "obaccess/mysql_protocol.h"
 #include "obaccess/ob_mysql_packet.h"
 #include "obaccess/ob_sha1.h"
 #include "common/log.h"
 #include "common/common.h"
 #include "communication/io.h"
 #include "codec/codec_endian.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-void my_xor(const unsigned char* s1, const unsigned char* s2, uint32_t len, unsigned char* to)
+MysqlProtocol::~MysqlProtocol()
 {
-  const unsigned char* s1_end = s1 + len;
-  while (s1 < s1_end) {
-    *to++ = *s1++ ^ *s2++;
+  close();
+}
+
+void MysqlProtocol::close()
+{
+  if (_sockfd >= 0) {
+    ::close(_sockfd);
+    _sockfd = -1;
   }
+  _hostname = "";
+  _port = -1;
+  _username = "";
+  _passwd_sha1 = "";
 }
 
-ObMysqlAuth::ObMysqlAuth(const std::string& host, int port, const std::string& username,
-    const std::vector<char>& passwd_sha1, const std::string& database)
-    : _username(username), _passwd_sha1(passwd_sha1), _database(database), _hostname(host), _port(port)
-{}
-
-ObMysqlAuth::~ObMysqlAuth()
+int MysqlProtocol::connect_to_server()
 {
-  if (_sock >= 0) {
-    close(_sock);
-    _sock = -1;
-  }
-}
-
-void ObMysqlAuth::set_detect_timeout(int t)
-{
-  _detect_timeout = t;
-}
-
-int ObMysqlAuth::connect_to_server()
-{
-  int ret = connect(_hostname.c_str(), _port, false, _detect_timeout, _sock);
+  int ret = connect(_hostname.c_str(), _port, false, _detect_timeout, _sockfd);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to connect to server. server=" << _hostname << ':' << _port;
   } else {
@@ -66,9 +53,16 @@ int ObMysqlAuth::connect_to_server()
   return ret;
 }
 
-int ObMysqlAuth::calc_mysql_auth_info(const std::vector<char>& scramble_buffer, std::vector<char>& auth_info)
+static inline void my_xor(const unsigned char* s1, const unsigned char* s2, uint32_t len, unsigned char* to)
 {
+  const unsigned char* s1_end = s1 + len;
+  while (s1 < s1_end) {
+    *to++ = *s1++ ^ *s2++;
+  }
+}
 
+int MysqlProtocol::calc_mysql_auth_info(const std::vector<char>& scramble_buffer, std::vector<char>& auth_info)
+{
   // SHA1( password ) XOR SHA1( "20-bytes random data from server" <concat> SHA1( SHA1( password ) ) )
   // SHA1(password) -> stage1
   // SHA1(SHA1(password)) -> stage2
@@ -121,18 +115,18 @@ int ObMysqlAuth::calc_mysql_auth_info(const std::vector<char>& scramble_buffer, 
   return OMS_OK;
 }
 
-int ObMysqlAuth::send_auth_info(const std::vector<char>& auth_info, uint8_t sequence)
+int MysqlProtocol::send_auth_info(const std::vector<char>& auth_info, uint8_t sequence)
 {
-  MysqlHandShakeResponsePacket hand_shake_response_packet(_username, _database, auth_info, sequence);
-  MessageBuffer message_buffer;
-  int ret = hand_shake_response_packet.encode(message_buffer);
+  MysqlHandShakeResponsePacket hand_shake_response_packet(_username, "", auth_info, sequence);
+  MsgBuf msgbuf;
+  int ret = hand_shake_response_packet.encode(msgbuf);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to encode hand shake response packet";
     return -1;
   }
 
-  for (auto iter = message_buffer.begin(), end = message_buffer.end(); iter != end; ++iter) {
-    ret = writen(_sock, iter->buffer(), iter->size());
+  for (const auto& iter : msgbuf) {
+    ret = writen(_sockfd, iter.buffer(), iter.size());
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to send hand shake response message. error=" << strerror(errno) << ". peer=" << _hostname
                 << ":" << _port;
@@ -142,28 +136,27 @@ int ObMysqlAuth::send_auth_info(const std::vector<char>& auth_info, uint8_t sequ
   return OMS_OK;
 }
 
-int ObMysqlAuth::is_mysql_response_ok()
+int MysqlProtocol::is_mysql_response_ok()
 {
-  uint32_t packet_length = 0;
-  uint8_t sequence = 0;
-  MessageBuffer message_buffer;
-  int ret = recv_mysql_packet(_sock, _detect_timeout, packet_length, sequence, message_buffer);
+  MsgBuf msgbuf;
+  int ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to receive ok packet from server " << _hostname << ':' << _port
               << ", error=" << strerror(errno);
-  } else {
-    MysqlOkPacket ok_packet;
-    if (ok_packet.result_ok(message_buffer)) {
-      ret = OMS_OK;
-    } else {
-      ret = OMS_FAILED;
-    }
+    return OMS_FAILED;
   }
-  return ret;
+  MysqlOkPacket ok_packet;
+  return ok_packet.decode(msgbuf);
 }
 
-int ObMysqlAuth::auth()
+int MysqlProtocol::login(const std::string& host, int port, const std::string& username, const std::string& passwd_sha1,
+    const std::string& database)
 {
+  _hostname = host;
+  _port = port;
+  _username = username;
+  _passwd_sha1 = passwd_sha1;
+
   // https://dev.mysql.com/doc/internals/en/secure-password-authentication.html
   // 1 connect to the server
   int ret = connect_to_server();
@@ -175,8 +168,8 @@ int ObMysqlAuth::auth()
   // 2 receive initial hand shake
   uint32_t packet_length = 0;
   uint8_t sequence = 0;
-  MessageBuffer message_buffer;
-  ret = recv_mysql_packet(_sock, _detect_timeout, packet_length, sequence, message_buffer);
+  MsgBuf msgbuf;
+  ret = recv_mysql_packet(_sockfd, _detect_timeout, packet_length, sequence, msgbuf);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to receive hand shake packet. error=" << strerror(errno) << ". server=" << _hostname << ':'
               << _port;
@@ -184,22 +177,22 @@ int ObMysqlAuth::auth()
   }
   OMS_DEBUG << "receive hand shake packet from server=" << _hostname << ':' << _port;
 
-  MysqlInitialHandShakePacket hand_shake_packet;
-  ret = hand_shake_packet.decode(message_buffer);
-  if (ret != OMS_OK || !hand_shake_packet.scramble_buffer_valid()) {
+  MysqlInitialHandShakePacket handshake_packet;
+  ret = handshake_packet.decode(msgbuf);
+  if (ret != OMS_OK || !handshake_packet.scramble_buffer_valid()) {
     OMS_ERROR << "Failed to decode_payload initial hand shake packet or does not has a valid scramble:"
-              << hand_shake_packet.scramble_buffer_valid() << ". length=" << packet_length << ", server=" << _hostname
+              << handshake_packet.scramble_buffer_valid() << ". length=" << packet_length << ", server=" << _hostname
               << ':' << _port;
     return ret;
   }
 
-  const std::vector<char>& scramble_buffer = hand_shake_packet.scramble_buffer();
+  const std::vector<char>& scramble_buffer = handshake_packet.scramble_buffer();
 
   // 3 calculate the password combined with scramble buffer -> auth information
   std::vector<char> auth_info;
   ret = calc_mysql_auth_info(scramble_buffer, auth_info);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to calc auth info. server=" << _hostname << ':' << _port << ", user=" << _username;
+    OMS_ERROR << "Failed to calc login info. server=" << _hostname << ':' << _port << ", user=" << _username;
     return ret;
   }
 
@@ -214,14 +207,90 @@ int ObMysqlAuth::auth()
   // 5 receive response from server
   ret = is_mysql_response_ok();
 
-  if (OMS_OK == ret) {
-    OMS_INFO << "Auth user success. server=" << _hostname << ':' << _port << ", user=" << _username << ", database='"
-             << _database << '\'';
+  if (ret == OMS_OK) {
+    OMS_INFO << "Auth user success. server=" << _hostname << ':' << _port << ", user=" << _username;
   } else {
-    OMS_DEBUG << "Auth user failed. server=" << _hostname << ':' << _port << ", user=" << _username << ", database='"
-              << _database << '\'';
+    OMS_DEBUG << "Auth user failed. server=" << _hostname << ':' << _port << ", user=" << _username;
   }
   return ret;
 }
+
+int MysqlProtocol::query(const std::string& sql, MysqlResultSet& rs)
+{
+  MysqlQueryPacket packet(sql);
+  MsgBuf msgbuf;
+  int ret = packet.encode_inplace(msgbuf);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to encode mysql sql packet ,ret:" << ret;
+    return ret;
+  }
+  ret = send_mysql_packet(_sockfd, msgbuf);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to send query packet to server:" << _hostname << ':' << _port;
+    return OMS_FAILED;
+  }
+
+  ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to recv query packet from server:" << _hostname << ':' << _port;
+    return OMS_FAILED;
+  }
+
+  MysqlQueryResponsePacket query_resp;
+  ret = query_resp.decode(msgbuf);
+  if (ret != OMS_OK || query_resp.col_count() == 0) {
+    OMS_ERROR << "Failed to query mysql:" << query_resp._err._message
+              << (query_resp.col_count() == 0 ? ", unexpected column count 0" : "");
+    return OMS_FAILED;
+  }
+
+  // column definitions
+  rs.col_count = query_resp.col_count();
+  rs.cols.resize(query_resp.col_count());
+  for (uint64_t i = 0; i < query_resp.col_count(); ++i) {
+    ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
+    if (ret != OMS_OK) {
+      OMS_ERROR << "Failed to recv column defines packet from server:" << _hostname << ':' << _port;
+      return OMS_FAILED;
+    }
+
+    MysqlCol column;
+    column.decode(msgbuf);
+    rs.cols[i] = column;
+  }
+
+  // eof
+  ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to recv eof packet from server:" << _hostname << ':' << _port;
+    return OMS_FAILED;
+  }
+  MysqlEofPacket eof;
+  ret = eof.decode(msgbuf);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to decode eof packet from server:" << _hostname << ':' << _port;
+    return OMS_OK;
+  }
+
+  // rows
+  while (true) {
+    ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
+    if (ret != OMS_OK || msgbuf.begin()->buffer() == nullptr) {
+      OMS_ERROR << "Failed to recv row packet from server:" << _hostname << ':' << _port;
+      return OMS_FAILED;
+    }
+    uint8_t eof_code = msgbuf.begin()->buffer()[0];
+    if (eof_code == 0xfe) {
+      break;
+    }
+
+    MysqlRow row(query_resp.col_count());
+    row.decode(msgbuf);
+    rs.rows.emplace_back(row);
+  }
+
+  return OMS_OK;
+}
+
 }  // namespace logproxy
 }  // namespace oceanbase

@@ -13,31 +13,17 @@
 #pragma once
 
 #include <string>
-#include <map>
-#include "common/model.h"
+#include <vector>
 
 namespace oceanbase {
 namespace logproxy {
 
-struct OblogConfig : public Model {
-public:
-  OMS_MF(std::string, id);
-  OMS_MF_DFT(uint64_t, start_timestamp, 0);
+/**
+ * copy splitted string to vec
+ */
+size_t split_all(const std::string& str, const std::string& seps, std::vector<std::string>& vec, bool first = false);
 
-public:
-  explicit OblogConfig(const std::string& str);
-
-  const std::map<std::string, std::string>& configs() const
-  {
-    return _configs;
-  }
-
-  void set_auth(const std::string& user, const std::string& password);
-
-private:
-  using ConfigMap = std::map<std::string, std::string>;
-  OMS_MF_PRI(ConfigMap, _configs);
-};
+size_t split(const std::string& str, char sep, std::vector<std::string>& vec, bool first = false);
 
 }  // namespace logproxy
 }  // namespace oceanbase

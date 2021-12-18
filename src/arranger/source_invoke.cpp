@@ -75,7 +75,8 @@ public:
 
       ObLogReader& reader = ObLogReader::instance();
       OblogConfig oblog_config(_config);
-      oblog_config.set_auth(Config::instance().ob_sys_username.val(), Config::instance().ob_sys_password.val());
+      oblog_config.user.set(Config::instance().ob_sys_username.val());
+      oblog_config.password.set(Config::instance().ob_sys_password.val());
       reader.init(_client.id.get(), _client.packet_version, ch, oblog_config);
       reader.start();
       reader.join();

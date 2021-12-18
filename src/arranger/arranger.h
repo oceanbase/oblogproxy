@@ -37,12 +37,15 @@ public:
 private:
   EventResult on_msg(const PeerInfo&, const Message&);
 
+  int auth(ClientMeta& client, std::string& errmsg);
+
   int start_source(const ClientMeta& client, const std::string& configuration);
+
+  void response_error(const PeerInfo&, MessageVersion version, const std::string&);
 
   int close_client_locked(const ClientMeta& client, const std::string& msg);
 
 private:
-
   /**
    * <ClientId, sink_peer>
    */

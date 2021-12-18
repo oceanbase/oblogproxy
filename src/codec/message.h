@@ -153,7 +153,7 @@ private:
   OMS_MF_DFT(int, worker_count, -1);
 };
 
-class MessageBuffer;
+class MsgBuf;
 
 class RecordDataMessage : public Message {
 public:
@@ -170,7 +170,7 @@ public:
     return records.size();
   }
 
-  int encode_log_records(MessageBuffer& buffer, size_t& raw_len) const;
+  int encode_log_records(MsgBuf& buffer, size_t& raw_len) const;
 
   int decode_log_records(CompressType compress_type, const char* buffer, size_t size, size_t raw_len, int expect_count);
 
@@ -179,9 +179,9 @@ protected:
 
   int decode_log_records_lz4(const char* buffer, size_t size, size_t raw_size, int expect_count);
 
-  int encode_log_records_plain(MessageBuffer& buffer) const;
+  int encode_log_records_plain(MsgBuf& buffer) const;
 
-  int encode_log_records_lz4(MessageBuffer& buffer, size_t& raw_len) const;
+  int encode_log_records_lz4(MsgBuf& buffer, size_t& raw_len) const;
 
 public:
   CompressType compress_type = CompressType::PLAIN;

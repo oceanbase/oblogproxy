@@ -13,6 +13,7 @@
 #pragma once
 
 #include <stdlib.h>
+#include <functional>
 
 namespace oceanbase {
 namespace logproxy {
@@ -23,10 +24,17 @@ public:
   explicit FreeGuard(const T ptr) : _ptr(ptr)
   {}
 
+  FreeGuard(T ptr, std::function<void(T)> free_func) : _ptr(ptr), _free_func(free_func)
+  {}
+
   ~FreeGuard()
   {
     if (_own) {
-      ::free(_ptr);
+      if (_free_func) {
+        _free_func(_ptr);
+      } else {
+        ::free(_ptr);
+      }
       _ptr = nullptr;
     }
   }
@@ -39,6 +47,8 @@ public:
 private:
   bool _own = true;
   T _ptr = nullptr;
+
+  std::function<void(T)> _free_func;
 };
 
 }  // namespace logproxy

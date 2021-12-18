@@ -28,7 +28,7 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
   Config::instance().verbose_packet.set(true);
 
   OblogConfig oblog_config(config_str);
-  OMS_INFO << "OB Log Config: " << oblog_config.to_string();
+  OMS_INFO << "OB Log Config: " << oblog_config.debug_str(true);
 
   ObLogReader& reader = ObLogReader::instance();
   PeerInfo peer(0);

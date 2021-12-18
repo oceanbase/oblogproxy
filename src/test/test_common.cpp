@@ -11,28 +11,81 @@
  */
 
 #include "gtest/gtest.h"
-#include "log.h"
-#include "config.h"
-#include "common.h"
+#include "common/common.h"
+#include "common/log.h"
+#include "common/config.h"
+#include "common/jsonutil.hpp"
 
 using namespace oceanbase::logproxy;
 
 TEST(COMMON, hex2bin)
 {
-	const char* text = "this is a text";
-	int len = strlen(text);
+  const char* text = "this is a text";
+  int len = strlen(text);
 
-	std::string hexstr;
-	dumphex(text, len, hexstr);
+  std::string hexstr;
+  dumphex(text, len, hexstr);
 
-	std::string binstr;
-	hex2bin(hexstr.data(), hexstr.size(), binstr);
-	ASSERT_STREQ(binstr.c_str(), text);
+  std::string binstr;
+  hex2bin(hexstr.data(), hexstr.size(), binstr);
+  ASSERT_STREQ(binstr.c_str(), text);
 
-	binstr.clear();
-	hexstr.insert(0, 1, ' ');
-	hexstr.insert(hexstr.size()/2, 1, ' ');
-	hexstr.insert(hexstr.size(), 1, ' ');
-	hex2bin(hexstr.data(), hexstr.size(), binstr);
-	ASSERT_STREQ(binstr.c_str(), text);
+  binstr.clear();
+  hexstr.insert(0, 1, ' ');
+  hexstr.insert(hexstr.size() / 2, 1, ' ');
+  hexstr.insert(hexstr.size(), 1, ' ');
+  hex2bin(hexstr.data(), hexstr.size(), binstr);
+  ASSERT_STREQ(binstr.c_str(), text);
+}
+
+TEST(COMMON, json)
+{
+  std::string jstr;
+
+  {
+    Json::Value json;
+    jstr = "{}";
+    ASSERT_TRUE(str2json(jstr, json));
+    ASSERT_FALSE(json.isMember("Data"));
+    Json::Value node = json["Data"];
+    ASSERT_TRUE(node.isNull());
+  }
+
+  {
+    Json::Value json;
+    jstr = "{\"Data\":{}}";
+    ASSERT_TRUE(str2json(jstr, json));
+    ASSERT_TRUE(json.isMember("Data"));
+    Json::Value node = json["Data"];
+    ASSERT_FALSE(node.isNull());
+    ASSERT_FALSE(node.isArray());
+    ASSERT_TRUE(node.isObject());
+  }
+
+  {
+    Json::Value json;
+    jstr = "{\"Data\":[]}";
+    ASSERT_TRUE(str2json(jstr, json));
+    ASSERT_TRUE(json.isMember("Data"));
+    Json::Value node = json["Data"];
+    ASSERT_FALSE(node.isNull());
+    ASSERT_FALSE(node.isObject());
+    ASSERT_TRUE(node.isArray());
+    ASSERT_TRUE(node.empty());
+  }
+
+  {
+    Json::Value json;
+    jstr = R"({"Data":[{"a":"b","c":111}]})";
+    ASSERT_TRUE(str2json(jstr, json));
+    ASSERT_TRUE(json.isMember("Data"));
+    Json::Value node = json["Data"];
+    ASSERT_FALSE(node.isNull());
+    ASSERT_FALSE(node.isObject());
+    ASSERT_TRUE(node.isArray());
+    ASSERT_FALSE(node.empty());
+
+    ASSERT_TRUE(node[0]["a"].asString() == "b");
+    ASSERT_TRUE(node[0]["c"].asInt() == 111);
+  }
 }

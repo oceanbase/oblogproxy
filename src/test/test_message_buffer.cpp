@@ -10,11 +10,11 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 
 using namespace oceanbase::logproxy;
 
-void test_read_one(MessageBufferReader& reader, size_t size, const std::string& expect)
+void test_read_one(MsgBufReader& reader, size_t size, const std::string& expect)
 {
   char out[size];
   reader.read(out, size);
@@ -29,12 +29,12 @@ TEST(MessageBuffer, io)
   char buffer1[11] = "0123456789";
   char buffer2[11] = "abcdefghij";
   char buffer3[11] = "ABCDEFGHIJ";
-  MessageBuffer buf;
+  MsgBuf buf;
   buf.push_back(buffer1, 10, false);
   buf.push_back(buffer2, 10, false);
   buf.push_back(buffer3, 10, false);
 
-  MessageBufferReader reader(buf);
+  MsgBufReader reader(buf);
   OMS_INFO << reader.debug_info();
 
   test_read_one(reader, 1, "0");

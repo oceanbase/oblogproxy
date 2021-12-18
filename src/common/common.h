@@ -50,8 +50,9 @@ private:                                \
 
 bool localhostip(std::string& hostname, std::string& ip);
 
+std::string dumphex(const std::string& str);
 void dumphex(const char data[], size_t size, std::string& hex);
-void hex2bin(const char data[], size_t size, std::string& bin);
+int hex2bin(const char data[], size_t size, std::string& bin);
 
 }  // namespace logproxy
 }  // namespace oceanbase

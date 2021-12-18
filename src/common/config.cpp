@@ -35,8 +35,8 @@ int Config::load(const std::string& file)
   }
 
   for (const std::string& k : json.getMemberNames()) {
-    const auto& centry = configs_.find(k);
-    if (configs_.count(k) != 0) {
+    const auto& centry = _configs.find(k);
+    if (_configs.count(k) != 0) {
       centry->second->from_str(json[k].asString());
     }
   }
@@ -45,27 +45,11 @@ int Config::load(const std::string& file)
   return OMS_OK;
 }
 
-void Config::add(const std::string& key, const std::string& value)
-{
-  auto entry = configs_.find(key);
-  if (entry == configs_.end()) {
-    extras_.emplace(key, value);
-  } else {
-    entry->second->from_str(value);
-  }
-}
-
 std::string Config::debug_str(bool formatted) const
 {
   std::stringstream ss;
-  for (auto& entry : configs_) {
+  for (auto& entry : _configs) {
     ss << entry.first << ":" << entry.second->debug_str() << ",";
-    if (formatted) {
-      ss << '\n';
-    }
-  }
-  for (auto& entry : extras_) {
-    ss << entry.first << ":" << entry.second << "," << std::endl;
     if (formatted) {
       ss << '\n';
     }

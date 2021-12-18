@@ -33,7 +33,7 @@ TEST(sha1, get_result)
   dumphex((const char*)result, sizeof(result), hex_result);
   ASSERT_EQ(hex_result, std::string("7C4A8D09CA3762AF61E59520943DC26494F8941B"));
 
-  unsigned char c2[] = "alibaba-inc@antgroup.com";
+  unsigned char c2[] = "aabbccdd";
   ret = sha1.reset();
   ASSERT_EQ(ret, SHA1::SHA_SUCCESS);
   ret = sha1.input(c2, sizeof(c2) - 1);
@@ -42,5 +42,5 @@ TEST(sha1, get_result)
   ASSERT_EQ(ret, SHA1::SHA_SUCCESS);
 
   dumphex((const char*)result, sizeof(result), hex_result);
-  ASSERT_EQ(hex_result, std::string("0DE3F2872F421723ADB4EF32E11450565C0D55C7"));
+  ASSERT_EQ(hex_result, std::string("527BEE2730BF234E9A78BDE5AF091ECE9C6302D5"));
 }

@@ -28,21 +28,12 @@ std::string json2str(const JT& json, bool formate = false)
 }
 
 template <class JT>
-bool str2json(const std::string& str, JT& json)
+bool str2json(const std::string& str, JT& json, std::string* errmsg = nullptr)
 {
   Json::CharReaderBuilder builder;
   builder["collectComments"] = false;
   std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-  return reader->parse(str.data(), str.data() + str.size(), &json, nullptr);
-}
-
-template <class JT>
-bool str2json(const std::string& str, JT& json, std::string* errmsg = nullptr)
-{
-  std::string err;
-  Json::CharReaderBuilder builder;
-  builder["collectComments"] = false;
-  return Json::parseFromStream(str.data(), str.data() + str.size(), &json, errmsg);
+  return reader->parse(str.data(), str.data() + str.size(), &json, errmsg);
 }
 
 template <class JT>

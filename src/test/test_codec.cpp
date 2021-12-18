@@ -18,7 +18,7 @@
 #include "codec/encoder.h"
 #include "codec/decoder.h"
 #include "codec/message.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 
 using namespace oceanbase::logproxy;
 

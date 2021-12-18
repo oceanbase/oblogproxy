@@ -390,7 +390,7 @@ int ChannelFactory::init_tls_context(
 
   int mode = verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE;
   SSL_CTX_set_verify(ssl_ctx, mode, verify_callback);
-  int ret = SSL_CTX_load_verify_locations(ssl_ctx, ca_cert_file, NULL);
+  int ret = SSL_CTX_load_verify_locations(ssl_ctx, ca_cert_file, nullptr);
   if (ret != 1) {
     OMS_ERROR << "SSL_CTX_load_verify_locations failed. ca cert file: '" << ca_cert_file << '\'';
     log_tls_errors();
@@ -465,7 +465,7 @@ Channel* ChannelFactory::create_plain(const PeerInfo& peer)
 
 Channel* ChannelFactory::create_tls(const PeerInfo& peer)
 {
-  TlsChannel* channel = new TlsChannel(peer);
+  TlsChannel* channel = new (std::nothrow) TlsChannel(peer);
   if (channel == nullptr) {
     return nullptr;
   }

@@ -29,7 +29,9 @@ ReaderRoutine::ReaderRoutine(OblogAccess& oblog, BlockingQueue<ILogRecord*>& q)
 
 int ReaderRoutine::init(const OblogConfig& config)
 {
-  return _oblog.init(config.configs(), config.start_timestamp);
+  std::map<std::string, std::string> configs;
+  config.generate_configs(configs);
+  return _oblog.init(configs, config.start_timestamp.val());
 }
 
 void ReaderRoutine::stop()

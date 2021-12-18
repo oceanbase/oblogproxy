@@ -37,11 +37,6 @@ public:
 
   int load(const std::string& file);
 
-  /**
-   * add a config KV , if no structure key exist, add given KV to extras_.
-   */
-  void add(const std::string& key, const std::string& value);
-
   std::string debug_str(bool formatted = false) const;
 
 public:
@@ -102,10 +97,6 @@ public:
   // for inner use
   OMS_CONFIG_UINT64(process_name_address, 0);
   OMS_CONFIG_BOOL(packet_magic, true);
-
-protected:
-  // string KV extra configs
-  std::map<std::string, std::string> extras_;
 };
 
 }  // namespace logproxy

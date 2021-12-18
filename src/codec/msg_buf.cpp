@@ -12,14 +12,14 @@
 
 #include <string.h>
 
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 #include "codec/codec_endian.h"
 #include "common/log.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-size_t MessageBuffer::byte_size() const
+size_t MsgBuf::byte_size() const
 {
   size_t result = 0;
   for (auto& chunk : _chunks) {
@@ -29,40 +29,35 @@ size_t MessageBuffer::byte_size() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-MessageBufferReader::MessageBufferReader(const MessageBuffer& buffer) : _buffer(buffer)
+MsgBufReader::MsgBufReader(const MsgBuf& buffer) : _buffer(buffer)
 {
   _iter = buffer.begin();
   _byte_size = _buffer.byte_size();
 }
 
-int MessageBufferReader::read_uint8(uint8_t& i)
-{
-  return read((char*)&i, sizeof(i));
-}
-
-int MessageBufferReader::read(char* buffer, size_t size)
+int MsgBufReader::read(char* buf, size_t size)
 {
   if (size == 0) {
     return 0;
   }
-  if (buffer == nullptr) {
-    OMS_ERROR << "Invalid argument. buffer=" << (intptr_t)buffer << ", size=" << size;
+  if (buf == nullptr) {
+    OMS_ERROR << "Invalid argument. buffer=" << (intptr_t)buf << ", size=" << size;
     return -1;
   }
-  return read(buffer, size, false);
+  return read(buf, size, false);
 }
 
-int MessageBufferReader::read(char* buffer, size_t size, bool skip)
+int MsgBufReader::read(char* buf, size_t size, bool skip)
 {
   auto chunk_iter = _iter;
   size_t chunk_pos = _pos;
   size_t read_size = 0;
   for (; read_size < size && chunk_iter != _buffer.end();) {
-    const MessageBuffer::Chunk& chunk = *chunk_iter;
+    const MsgBuf::Chunk& chunk = *chunk_iter;
     const size_t chunk_size = chunk.size() - chunk_pos;
     if (read_size + chunk_size >= size) {
       if (!skip) {
-        memcpy(buffer + read_size, chunk.buffer() + chunk_pos, size - read_size);
+        memcpy(buf + read_size, chunk.buffer() + chunk_pos, size - read_size);
       }
       chunk_pos += size - read_size;
       read_size = size;
@@ -74,7 +69,7 @@ int MessageBufferReader::read(char* buffer, size_t size, bool skip)
       return 0;
     } else {
       if (!skip) {
-        memcpy(buffer + read_size, chunk.buffer() + chunk_pos, chunk_size);
+        memcpy(buf + read_size, chunk.buffer() + chunk_pos, chunk_size);
       }
       read_size += chunk_size;
       ++chunk_iter;
@@ -86,7 +81,37 @@ int MessageBufferReader::read(char* buffer, size_t size, bool skip)
   return -1;
 }
 
-int MessageBufferReader::next(const char** buffer, int* size)
+int MsgBufReader::read_uint8(uint8_t& i)
+{
+  return read((char*)&i, sizeof(i));
+}
+
+int MsgBufReader::read_uint16(uint16_t& i)
+{
+  return read((char*)&i, sizeof(i));
+}
+
+int MsgBufReader::read_uint24(uint32_t& i)
+{
+  return read((char*)&i, 3);
+}
+
+int MsgBufReader::read_uint32(uint32_t& i)
+{
+  return read((char*)&i, sizeof(i));
+}
+
+int MsgBufReader::read_uint48(uint64_t& i)
+{
+  return read((char*)&i, 6);
+}
+
+int MsgBufReader::read_uint64(uint64_t& i)
+{
+  return read((char*)&i, sizeof(i));
+}
+
+int MsgBufReader::next(const char** buffer, int* size)
 {
   if (_iter == _buffer.end()) {
     OMS_DEBUG << "got EOF while call next";
@@ -108,7 +133,7 @@ int MessageBufferReader::next(const char** buffer, int* size)
   return 0;
 }
 
-int MessageBufferReader::backward(size_t count)
+int MsgBufReader::backward(size_t count)
 {
   if (count > _read_size) {
     OMS_ERROR << "Failed to backward data. count=" << count << ", read_size=" << _read_size;
@@ -132,27 +157,27 @@ int MessageBufferReader::backward(size_t count)
   return 0;
 }
 
-int MessageBufferReader::forward(size_t count)
+int MsgBufReader::forward(size_t count)
 {
   return read(nullptr, count, true);
 }
 
-size_t MessageBufferReader::read_size() const
+size_t MsgBufReader::read_size() const
 {
   return _read_size;
 }
 
-size_t MessageBufferReader::byte_size() const
+size_t MsgBufReader::byte_size() const
 {
   return _byte_size;
 }
 
-size_t MessageBufferReader::remain_size() const
+size_t MsgBufReader::remain_size() const
 {
   return _byte_size - _read_size;
 }
 
-bool MessageBufferReader::has_more() const
+bool MsgBufReader::has_more() const
 {
   auto iter = _iter;
   size_t pos = _pos;
@@ -167,13 +192,45 @@ bool MessageBufferReader::has_more() const
   return false;
 }
 
-std::string MessageBufferReader::debug_info() const
+std::string MsgBufReader::debug_info() const
 {
   LogStream ls(0, "", 0, nullptr);
   ls << "[MsgBuf] all: " << byte_size() << ", "
      << "read: " << read_size() << ", "
      << "remain: " << remain_size();
   return ls.str();
+}
+
+int MysqlBufReader::read_lenenc_uint(uint64_t& value)
+{
+  value = 0;
+  uint8_t byte = 0;
+  read((char*)&byte, 1);
+
+  if (byte < 251) {
+    value = byte;
+  } else if (byte == 252) {
+    read((char*)&value, 2);
+  } else if (byte == 253) {
+    read((char*)&value, 3);
+  } else if (byte == 254) {
+    read((char*)&value, 8);
+  } else if (byte == 251) {
+    return 251;
+  } else if (byte == 255) {
+    return 255;
+  }
+  return 0;
+}
+
+void MysqlBufReader::read_lenenc_str(std::string& value)
+{
+  uint64_t length = 0;
+  read_lenenc_uint(length);
+
+  // FIXME... length secure check
+  value.resize(length);
+  read((char*)value.data(), length);
 }
 
 }  // namespace logproxy

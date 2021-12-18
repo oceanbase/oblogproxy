@@ -27,7 +27,7 @@ LegacyEncoder::LegacyEncoder()
    * [1+varstr] Server IP
    * [1+varstr] Server Version
    */
-  _funcs.emplace((int8_t)MessageType::HANDSHAKE_RESPONSE_CLIENT, [](const Message& in_msg, MessageBuffer& buffer) {
+  _funcs.emplace((int8_t)MessageType::HANDSHAKE_RESPONSE_CLIENT, [](const Message& in_msg, MsgBuf& buffer) {
     const ClientHandshakeResponseMessage& msg = (const ClientHandshakeResponseMessage&)in_msg;
     size_t len = 4 + 1 + msg.ip.size() + 1 + msg.version.size();
     char* buf = (char*)malloc(len);
@@ -68,7 +68,7 @@ LegacyEncoder::LegacyEncoder()
    *    [4] Message Len
    *    [Message Len] LogMsg
    */
-  _funcs.emplace((int8_t)MessageType::DATA_CLIENT, [](const Message& in_msg, MessageBuffer& buffer) {
+  _funcs.emplace((int8_t)MessageType::DATA_CLIENT, [](const Message& in_msg, MsgBuf& buffer) {
     const RecordDataMessage& msg = (const RecordDataMessage&)in_msg;
 
     uint32_t total_size = 0;
@@ -109,13 +109,13 @@ LegacyEncoder::LegacyEncoder()
     return OMS_OK;
   });
 
-  _funcs.emplace((int8_t)MessageType::STATUS, [](const Message& in_msg, MessageBuffer& buffer) { return OMS_OK; });
+  _funcs.emplace((int8_t)MessageType::STATUS, [](const Message& in_msg, MsgBuf& buffer) { return OMS_OK; });
 
   /*
    * [4] Reponse code
    * [4+varstr] Error message
    */
-  _funcs.emplace((int8_t)MessageType::ERROR_RESPONSE, [](const Message& in_msg, MessageBuffer& buffer) {
+  _funcs.emplace((int8_t)MessageType::ERROR_RESPONSE, [](const Message& in_msg, MsgBuf& buffer) {
     const ErrorMessage& msg = (const ErrorMessage&)in_msg;
 
     size_t len = 4 + msg.message.size();
@@ -135,7 +135,7 @@ LegacyEncoder::LegacyEncoder()
   });
 }
 
-int LegacyEncoder::encode(const Message& msg, MessageBuffer& buffer)
+int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer)
 {
   int ret = _funcs[(int8_t)msg.type()](msg, buffer);
   if (ret == OMS_FAILED) {

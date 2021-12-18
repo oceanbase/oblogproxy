@@ -165,7 +165,7 @@ endif ()
 GET_FILENAME_COMPONENT(LIBOBLOG_LIB_DIR ${LIBOBLOG_LIBRARIES} DIRECTORY)
 
 message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
-message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIB_DIR}")
+message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIBRARIES}")
 
 execute_process(
         COMMAND git log -1 --format=%H

@@ -13,6 +13,7 @@
 #include <assert.h>
 
 #include "LogMsgBuf.h"
+#include "LogRecord.h"
 
 #include "common/log.h"
 #include "common/config.h"
