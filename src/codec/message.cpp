@@ -11,7 +11,7 @@
  */
 
 #include "codec/message.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 #include "common/log.h"
 #include "common/common.h"
 #include "common/config.h"
@@ -121,7 +121,7 @@ RecordDataMessage::RecordDataMessage(const std::vector<ILogRecord*>& in_records,
 
 RecordDataMessage::~RecordDataMessage() = default;
 
-int RecordDataMessage::encode_log_records(MessageBuffer& buffer, size_t& raw_len) const
+int RecordDataMessage::encode_log_records(MsgBuf& buffer, size_t& raw_len) const
 {
   switch (compress_type) {
     case CompressType::PLAIN: {
@@ -138,10 +138,10 @@ int RecordDataMessage::encode_log_records(MessageBuffer& buffer, size_t& raw_len
   }
 }
 
-int RecordDataMessage::encode_log_records_plain(MessageBuffer& buffer) const
+int RecordDataMessage::encode_log_records_plain(MsgBuf& buffer) const
 {
   const size_t count = records.size();
-  MessageBuffer tmp_buffer;
+  MsgBuf tmp_buffer;
 
   for (size_t i = 0; i < count; ++i) {
     ILogRecord* log_record = records[i];
@@ -180,7 +180,7 @@ int RecordDataMessage::encode_log_records_plain(MessageBuffer& buffer) const
   return OMS_OK;
 }
 
-int RecordDataMessage::encode_log_records_lz4(MessageBuffer& buffer, size_t& raw_len) const
+int RecordDataMessage::encode_log_records_lz4(MsgBuf& buffer, size_t& raw_len) const
 {
   int ret = encode_log_records_plain(buffer);
   if (ret != OMS_OK) {
@@ -202,7 +202,7 @@ int RecordDataMessage::encode_log_records_lz4(MessageBuffer& buffer, size_t& raw
       OMS_ERROR << "Failed to alloc memory. size=" << raw_len;
       return OMS_FAILED;
     }
-    MessageBufferReader reader(buffer);
+    MsgBufReader reader(buffer);
     ret = reader.read(plain_buffer, raw_len);
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to read buffer. size=" << raw_len;
@@ -238,7 +238,7 @@ int RecordDataMessage::encode_log_records_lz4(MessageBuffer& buffer, size_t& raw
 
   OMS_DEBUG << "Encode client data success(lz4). raw_len=" << raw_len << ", compressed_size=" << compressed_size;
 
-  MessageBuffer compressed_message_buffer;
+  MsgBuf compressed_message_buffer;
   compressed_message_buffer.push_back(compressed_buffer, compressed_size);
   buffer.swap(compressed_message_buffer);
   return OMS_OK;

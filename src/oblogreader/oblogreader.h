@@ -15,7 +15,7 @@
 #include "common/common.h"
 #include "communication/communicator.h"
 #include "oblogreader/oblog_access.h"
-#include "oblogreader/oblog_config.h"
+#include "obaccess/oblog_config.h"
 #include "oblogreader/reader_routine.h"
 #include "oblogreader/sender_routine.h"
 

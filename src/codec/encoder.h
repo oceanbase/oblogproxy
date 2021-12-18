@@ -13,7 +13,7 @@
 #pragma once
 
 #include "codec/message.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 
 namespace google {
 namespace protobuf {
@@ -28,7 +28,7 @@ class MessageEncoder {
 public:
   virtual ~MessageEncoder() = default;
 
-  virtual int encode(const Message& msg, MessageBuffer& buffer) = 0;
+  virtual int encode(const Message& msg, MsgBuf& buffer) = 0;
 };
 
 class LegacyEncoder : public MessageEncoder {
@@ -45,10 +45,10 @@ private:
   LegacyEncoder();
 
 public:
-  int encode(const Message& msg, MessageBuffer& buffer) override;
+  int encode(const Message& msg, MsgBuf& buffer) override;
 
 private:
-  std::unordered_map<int8_t, std::function<int(const Message&, MessageBuffer&)>> _funcs;
+  std::unordered_map<int8_t, std::function<int(const Message&, MsgBuf&)>> _funcs;
 };
 
 class ProtobufEncoder : public MessageEncoder {
@@ -56,21 +56,20 @@ class ProtobufEncoder : public MessageEncoder {
   OMS_SINGLETON(ProtobufEncoder);
 
 public:
-  int encode(const Message& msg, MessageBuffer& buffer) override;
+  int encode(const Message& msg, MsgBuf& buffer) override;
 
 private:
-  static int encode_message(
-      const google::protobuf::Message& pb_msg, MessageType type, MessageBuffer& buffer, bool magic);
+  static int encode_message(const google::protobuf::Message& pb_msg, MessageType type, MsgBuf& buffer, bool magic);
 
-  static int encode_error_response(const Message& msg, MessageBuffer& buffer);
+  static int encode_error_response(const Message& msg, MsgBuf& buffer);
 
-  static int encode_client_handshake_request(const Message& msg, MessageBuffer& buffer);
+  static int encode_client_handshake_request(const Message& msg, MsgBuf& buffer);
 
-  static int encode_client_handshake_response(const Message& msg, MessageBuffer& buffer);
+  static int encode_client_handshake_response(const Message& msg, MsgBuf& buffer);
 
-  static int encode_runtime_status(const Message& msg, MessageBuffer& buffer);
+  static int encode_runtime_status(const Message& msg, MsgBuf& buffer);
 
-  static int encode_data_client(const Message& msg, MessageBuffer& buffer);
+  static int encode_data_client(const Message& msg, MsgBuf& buffer);
 };
 
 }  // namespace logproxy

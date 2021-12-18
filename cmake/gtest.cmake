@@ -16,7 +16,7 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS gflags
         GIT_REPOSITORY "https://github.com/google/googletest.git"
-        GIT_TAG "master"
+        GIT_TAG "release-1.6.0"
         PREFIX ${GTEST_SOURCES_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}

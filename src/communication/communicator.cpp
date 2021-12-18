@@ -20,7 +20,7 @@
 #include "common/common.h"
 #include "common/config.h"
 #include "common/counter.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 #include "codec/decoder.h"
 #include "codec/encoder.h"
 
@@ -348,7 +348,7 @@ int Communicator::write_message(Channel* ch, const Message& msg)
     OMS_INFO << "About to write mssage, ch: " << ch->peer().id() << ", msg type: " << (int)msg.type();
   }
 
-  MessageBuffer buffer;
+  MsgBuf buffer;
   int ret = _encoders[(uint16_t)msg.version()]->encode(msg, buffer);
   if (ret != OMS_OK) {
     OMS_ERROR << "Encoding message failed";

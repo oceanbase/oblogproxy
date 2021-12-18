@@ -10,32 +10,25 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#pragma once
+#include "gtest/gtest.h"
+#include "common/log.h"
+#include "communication/http.h"
 
-#include "common/thread.h"
-#include "common/blocking_queue.hpp"
-#include "oblogreader/oblog_access.h"
-#include "obaccess/oblog_config.h"
+using namespace oceanbase::logproxy;
 
-namespace oceanbase {
-namespace logproxy {
+void get(const std::string& url)
+{
+  HttpResponse response;
+  HttpClient::get(url, response);
+  OMS_INFO << "response:" << response.code << " " << response.message;
+  OMS_INFO << "header:\n";
+  for (auto& entry : response.headers) {
+    OMS_INFO << "\t" << entry.first << ": " << entry.second;
+  }
+  OMS_INFO << "payload:" << response.payload;
+}
 
-class ReaderRoutine : public Thread {
-public:
-  ReaderRoutine(OblogAccess&, BlockingQueue<ILogRecord*>&);
-
-  int init(const OblogConfig& config);
-
-  void stop() override;
-
-private:
-  void run() override;
-
-private:
-  OblogAccess& _oblog;
-
-  BlockingQueue<ILogRecord*>& _queue;
-};
-
-}  // namespace logproxy
-}  // namespace oceanbase
+TEST(HTTP, get)
+{
+  get("https://www.oceanbase.com");
+}

@@ -17,10 +17,11 @@
 #include "test/test_queue.cpp"
 #include "test/test_aes.cpp"
 #include "test/test_message_buffer.cpp"
-//#include "test/test_codec.cpp"
+#include "test/test_ob_sha1.cpp"
 
-#include "test/obaccess/test_ob_sha1.cpp"
-//#include "test/obaccess/test_ob_mysql_auth.cpp"
+#include "test/test_ob_mysql.cpp"
+//#include "test/test_codec.cpp"
+#include "test/test_http.cpp"
 
 int main(int argc, char* argv[])
 {

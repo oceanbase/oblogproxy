@@ -16,7 +16,7 @@
 #include "common/common.h"
 #include "common/config.h"
 #include "codec/message.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 #include "codec/codec_endian.h"
 #include "codec/encoder.h"
 #include "logproxy.pb.h"
@@ -27,7 +27,7 @@ namespace logproxy {
 static const size_t PB_PACKET_HEADER_SIZE = PACKET_VERSION_SIZE + 1 /*type*/ + 4 /*packet size */;
 static const size_t PB_PACKET_HEADER_SIZE_MAGIC = PACKET_MAGIC_SIZE + PB_PACKET_HEADER_SIZE;
 
-int ProtobufEncoder::encode(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode(const Message& msg, MsgBuf& buffer)
 {
   switch (msg.type()) {
     case MessageType::ERROR_RESPONSE: {
@@ -81,7 +81,7 @@ static char* encode_message_header(MessageType type, int packet_size, bool magic
 }
 
 int ProtobufEncoder::encode_message(
-    const google::protobuf::Message& pb_msg, MessageType type, MessageBuffer& buffer, bool magic)
+    const google::protobuf::Message& pb_msg, MessageType type, MsgBuf& buffer, bool magic)
 {
   const size_t serialize_size = pb_msg.ByteSizeLong();
   // TODO max message size
@@ -112,7 +112,7 @@ int ProtobufEncoder::encode_message(
   return OMS_OK;
 }
 
-int ProtobufEncoder::encode_error_response(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode_error_response(const Message& msg, MsgBuf& buffer)
 {
   const ErrorMessage oms_msg = (const ErrorMessage&)msg;
   ErrorResponse pb_msg;
@@ -121,7 +121,7 @@ int ProtobufEncoder::encode_error_response(const Message& msg, MessageBuffer& bu
   return encode_message(pb_msg, oms_msg.type(), buffer, false);
 }
 
-int ProtobufEncoder::encode_client_handshake_request(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode_client_handshake_request(const Message& msg, MsgBuf& buffer)
 {
   const ClientHandshakeRequestMessage& request_message = (const ClientHandshakeRequestMessage&)msg;
   ClientHandshakeRequest pb_msg;
@@ -134,7 +134,7 @@ int ProtobufEncoder::encode_client_handshake_request(const Message& msg, Message
   return encode_message(pb_msg, request_message.type(), buffer, true);
 }
 
-int ProtobufEncoder::encode_client_handshake_response(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode_client_handshake_response(const Message& msg, MsgBuf& buffer)
 {
   const ClientHandshakeResponseMessage& response_message = (const ClientHandshakeResponseMessage&)msg;
   ClientHandshakeResponse pb_msg;
@@ -144,7 +144,7 @@ int ProtobufEncoder::encode_client_handshake_response(const Message& msg, Messag
   return encode_message(pb_msg, response_message.type(), buffer, false);
 }
 
-int ProtobufEncoder::encode_runtime_status(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode_runtime_status(const Message& msg, MsgBuf& buffer)
 {
   const RuntimeStatusMessage& runtime_status_message = (const RuntimeStatusMessage&)msg;
   RuntimeStatus pb_msg;
@@ -155,18 +155,18 @@ int ProtobufEncoder::encode_runtime_status(const Message& msg, MessageBuffer& bu
   return encode_message(pb_msg, runtime_status_message.type(), buffer, false);
 }
 
-int ProtobufEncoder::encode_data_client(const Message& msg, MessageBuffer& buffer)
+int ProtobufEncoder::encode_data_client(const Message& msg, MsgBuf& buffer)
 {
   RecordDataMessage& record_data_message = (RecordDataMessage&)msg;
   size_t raw_len = 0;
-  MessageBuffer records_buffer;
+  MsgBuf records_buffer;
   int ret = record_data_message.encode_log_records(records_buffer, raw_len);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to encode log records. ret=" << ret;
     return ret;
   }
 
-  MessageBufferReader records_buffer_reader(records_buffer);
+  MsgBufReader records_buffer_reader(records_buffer);
   const size_t records_size = records_buffer_reader.byte_size();
 
   std::string pb_record_string(records_size, 0);

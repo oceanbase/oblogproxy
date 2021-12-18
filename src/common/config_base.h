@@ -34,7 +34,7 @@ public:
   void add_item(const std::string& key, ConfigItemBase* item);
 
 protected:
-  std::map<std::string, ConfigItemBase*> configs_;
+  std::map<std::string, ConfigItemBase*> _configs;
 };
 
 template <typename T>
@@ -43,41 +43,41 @@ public:
   friend class Config;
 
   explicit ConfigItem(ConfigBase* config, const std::string& key, const T dft, bool optional = false)
-      : key_(key), optional_(optional)
+      : _key(key), _optional(optional)
   {
-    val_ = dft;
+    _val = dft;
     config->add_item(key, this);
   }
 
   const std::string& key() const
   {
-    return key_;
+    return _key;
   }
 
   void set(const T v)
   {
-    val_ = v;
+    _val = v;
   }
 
   T val() const
   {
-    return val_;
+    return _val;
   }
 
   bool empty() const
   {
-    return empty_type(val_);
+    return empty_type(_val);
   }
 
   std::string debug_str() const override
   {
-    return std::to_string(val_);
+    return std::to_string(_val);
   }
 
 private:
   void from_str(const std::string& val) override
   {
-    val_ = from_str(val, val_);
+    _val = from_str(val, _val);
   }
 
   uint16_t from_str(const std::string& val, uint16_t v)
@@ -121,9 +121,9 @@ private:
   }
 
 private:
-  std::string key_;
-  T val_;
-  bool optional_ = false;
+  std::string _key;
+  T _val;
+  bool _optional = false;
 };
 
 // specific for std::string
@@ -133,47 +133,47 @@ public:
   friend class Config;
 
   explicit ConfigItem(ConfigBase* config, const std::string& key, const std::string& dft, bool optional = false)
-      : key_(key), optional_(optional)
+      : _key(key), _optional(optional)
   {
-    val_ = dft;
+    _val = dft;
     config->add_item(key, this);
   }
 
   const std::string& key() const
   {
-    return key_;
+    return _key;
   }
 
   void set(const std::string& v)
   {
-    val_ = v;
+    _val = v;
   }
 
   const std::string& val() const
   {
-    return val_;
+    return _val;
   }
 
   bool empty() const
   {
-    return val_.empty();
+    return _val.empty();
   }
 
   std::string debug_str() const override
   {
-    return val_;
+    return _val;
   }
 
 protected:
   void from_str(const std::string& val) override
   {
-    val_ = val;
+    _val = val;
   }
 
 protected:
-  std::string key_;
-  std::string val_;
-  bool optional_ = false;
+  std::string _key;
+  std::string _val;
+  bool _optional = false;
 };
 
 class EncryptedConfigItem : public ConfigItem<std::string> {
@@ -182,9 +182,9 @@ public:
 
   EncryptedConfigItem(ConfigBase* config, const std::string& key, const std::string& dft, bool optional = false,
       const std::string& encrypt_key = "")
-      : ConfigItem<std::string>(config, key, dft, optional), encrypt_key_(encrypt_key)
+      : ConfigItem<std::string>(config, key, dft, optional), _encrypt_key(encrypt_key)
   {
-    val_ = dft;
+    _val = dft;
     config->add_item(key, this);
   }
 
@@ -197,7 +197,7 @@ private:
   void from_str(const std::string& val) override;
 
 private:
-  std::string encrypt_key_;
+  std::string _encrypt_key;
 };
 
 #define OMS_CONFIG_UINT16(key, args...) \
@@ -214,6 +214,11 @@ private:
   ConfigItem<uint64_t> key              \
   {                                     \
     this, #key, ##args                  \
+  }
+#define OMS_CONFIG_UINT64_K(name, key, args...) \
+  ConfigItem<uint64_t> name                     \
+  {                                             \
+    this, key, ##args                           \
   }
 #define OMS_CONFIG_INT16(key, args...) \
   ConfigItem<int16_t> key              \
@@ -235,10 +240,17 @@ private:
   {                                   \
     this, #key, ##args                \
   }
+
 #define OMS_CONFIG_STR(key, args...) \
   ConfigItem<std::string> key        \
   {                                  \
     this, #key, ##args               \
+  }
+
+#define OMS_CONFIG_STR_K(name, key, args...) \
+  ConfigItem<std::string> name               \
+  {                                          \
+    this, key, ##args                        \
   }
 
 #define OMS_CONFIG_ENCRYPT(key, args...) \

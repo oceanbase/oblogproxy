@@ -14,35 +14,52 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
+#include "obaccess/oblog_config.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-/**
- * 按照提供的ob server集群，校验客户端发来的用户名和密码，是否合法
- */
 class ObAccess {
 public:
   struct ServerInfo {
     std::string host;
     int port;
-
-    ServerInfo(const char* host_, int port_) : host(host_), port(port_)
-    {}
   };
 
 public:
   ObAccess() = default;
   ~ObAccess() = default;
 
+  int init(const OblogConfig&);
+
   /**
-   * @param servers 服务器地址列表，格式 ip:port,ip1:port1
+   * 按照提供的ob server集群，校验客户端发来的用户名和密码，是否合法
    */
-  int init(const ServerInfo* servers, int num);
-  int auth(const char* user, const char* passwd_sha1, int passwd_sha1_size, const char* db) const;
+  int auth();
+
+private:
+  int auth_sys(const ServerInfo&);
+
+  int auth_tenant(const ServerInfo&);
 
 private:
   std::vector<ServerInfo> _servers;
+  std::string _user;
+  std::string _password_sha1;
+  std::string _sys_user;
+  std::string _sys_password_sha1;
+
+  // TODO... database table auth
+  TenantDbTable _table_whites;
+};
+
+struct ObUsername {
+  std::string cluster;
+  std::string tenant;
+  std::string username;
+
+  explicit ObUsername(const std::string& full_name);
 };
 
 }  // namespace logproxy

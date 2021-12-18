@@ -15,6 +15,8 @@
 #include "common/log.h"
 #include "arranger/source_invoke.h"
 #include "arranger/arranger.h"
+#include "obaccess/ob_access.h"
+#include "obaccess/oblog_config.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -52,6 +54,12 @@ EventResult Arranger::on_msg(const PeerInfo& peer, const Message& msg)
     ClientMeta client = ClientMeta::from_handshake(peer, handshake);
     client.packet_version = msg.version();
 
+    std::string errmsg;
+    if (auth(client, errmsg) != OMS_OK) {
+      response_error(peer, msg.version(), errmsg);
+      return EventResult::ER_CLOSE_CHANNEL;
+    }
+
     ClientHandshakeResponseMessage resp(0, _localip.c_str(), "1.0.0");
     resp.set_version(msg.version());
     int ret = _accepter.send_message(peer, resp, true);
@@ -61,18 +69,35 @@ EventResult Arranger::on_msg(const PeerInfo& peer, const Message& msg)
 
     ret = create(client);
     if (ret != OMS_OK) {
-      ErrorMessage error(-1, "Failed to create oblogreader");
-      error.set_version(msg.version());
-      ret = _accepter.send_message(peer, error);
-      if (ret != OMS_OK) {
-        OMS_WARN << "Failed to send error response message. peer=" << peer.to_string();
-      }
+      response_error(peer, msg.version(), "Failed to create oblogreader");
+      return EventResult::ER_CLOSE_CHANNEL;
     }
 
   } else {
     OMS_WARN << "Unknown message type: " << (int)msg.type();
   }
   return EventResult::ER_SUCCESS;
+}
+
+int Arranger::auth(ClientMeta& client, std::string& errmsg)
+{
+  if (_s_conf.auth_user.val()) {
+    OblogConfig oblog_config(client.configuration);
+
+    ObAccess ob_access;
+    int ret = ob_access.init(oblog_config);
+    if (ret != OMS_OK) {
+      errmsg = "Failed to parse configuration";
+      return ret;
+    }
+
+    ret = ob_access.auth();
+    if (ret != OMS_OK) {
+      errmsg = "Failed to auth";
+      return ret;
+    }
+  }
+  return OMS_OK;
 }
 
 int Arranger::create(const ClientMeta& client)
@@ -115,11 +140,31 @@ int Arranger::create(const ClientMeta& client)
   return OMS_OK;
 }
 
+int Arranger::start_source(const ClientMeta& client, const std::string& configuration)
+{
+  int ret = SourceInvoke::invoke(_accepter, client, configuration);
+  if (ret != OMS_OK) {
+    return ret;
+  }
+  return OMS_OK;
+}
+
+void Arranger::response_error(const PeerInfo& peer, MessageVersion version, const std::string& errmsg)
+{
+  ErrorMessage error(-1, errmsg);
+  error.set_version(version);
+  int ret = _accepter.send_message(peer, error);
+  if (ret != OMS_OK) {
+    OMS_WARN << "Failed to send error response message to peer:" << peer.to_string() << " for message:" << errmsg;
+  }
+}
+
 int Arranger::close_client(const ClientMeta& client, const std::string& msg)
 {
   std::lock_guard<std::mutex> _lp(_op_mutex);
   return close_client_locked(client, msg);
 }
+
 int Arranger::close_client_locked(const ClientMeta& client, const std::string& msg)
 {
   auto channel_entry = _client_peers.find(client.id);
@@ -135,15 +180,6 @@ int Arranger::close_client_locked(const ClientMeta& client, const std::string& m
 
     _accepter.remove_channel(channel_entry->second);
     _client_peers.erase(channel_entry);
-  }
-  return OMS_OK;
-}
-
-int Arranger::start_source(const ClientMeta& client, const std::string& configuration)
-{
-  int ret = SourceInvoke::invoke(_accepter, client, configuration);
-  if (ret != OMS_OK) {
-    return ret;
   }
   return OMS_OK;
 }

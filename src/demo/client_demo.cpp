@@ -16,6 +16,8 @@
 #include "codec/encoder.h"
 #include "communication/io.h"
 #include "communication/communicator.h"
+#include "obaccess/oblog_config.h"
+#include "obaccess/mysql_protocol.h"
 
 using namespace oceanbase::logproxy;
 
@@ -158,6 +160,18 @@ int main(int argc, char** argv)
 
   //  init_log(argv[0]);
 
+  OblogConfig oblog_config(config);
+  if (!oblog_config.password.val().empty()) {
+    std::string password_sha1;
+    MysqlProtocol::do_sha_password(oblog_config.password.val(), password_sha1);
+    oblog_config.password.set(dumphex(password_sha1));
+  }
+  if (!oblog_config.sys_password.val().empty()) {
+    std::string sys_password_sha1;
+    MysqlProtocol::do_sha_password(oblog_config.sys_password.val(), sys_password_sha1);
+    oblog_config.sys_password.set(dumphex(sys_password_sha1));
+  }
+
   Config::instance().verbose.set(true);
   Config::instance().verbose_packet.set(true);
   Config::instance().communication_mode.set("client");
@@ -166,5 +180,5 @@ int main(int argc, char** argv)
   Config::instance().tls_cert_file.set(tls_cert_file);
   Config::instance().tls_ca_cert_file.set(tls_ca_cert_file);
   Config::instance().packet_magic.set(false);
-  return run(host, port, client_id, config);
+  return run(host, port, client_id, oblog_config.generate_config_str());
 }

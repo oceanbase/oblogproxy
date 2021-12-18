@@ -12,29 +12,21 @@
 
 #pragma once
 
-#include "common/thread.h"
-#include "common/blocking_queue.hpp"
-#include "oblogreader/oblog_access.h"
-#include "obaccess/oblog_config.h"
+#include "event2/http.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-class ReaderRoutine : public Thread {
+struct HttpResponse {
+  int code;
+  std::string message;
+  std::map<std::string, std::string> headers;
+  std::string payload;
+};
+
+class HttpClient {
 public:
-  ReaderRoutine(OblogAccess&, BlockingQueue<ILogRecord*>&);
-
-  int init(const OblogConfig& config);
-
-  void stop() override;
-
-private:
-  void run() override;
-
-private:
-  OblogAccess& _oblog;
-
-  BlockingQueue<ILogRecord*>& _queue;
+  static int get(const std::string& url, HttpResponse& response);
 };
 
 }  // namespace logproxy

@@ -20,7 +20,7 @@
 namespace oceanbase {
 namespace logproxy {
 
-class MessageBuffer {
+class MsgBuf {
 public:
   class Chunk {
   public:
@@ -69,11 +69,16 @@ public:
   using ChunkConstIterator = ChunksType::const_iterator;
 
 public:
-  MessageBuffer() = default;
+  MsgBuf() = default;
 
-  ~MessageBuffer() = default;
+  ~MsgBuf() = default;
 
-  void swap(MessageBuffer& other)
+  void reset()
+  {
+    _chunks.clear();
+  }
+
+  void swap(MsgBuf& other)
   {
     if (&other != this) {
       this->_chunks.swap(other._chunks);
@@ -119,11 +124,31 @@ private:
 };
 
 // TODO messageBufferWriter
-class MessageBufferReader {
+class MsgBufReader {
 public:
-  explicit MessageBufferReader(const MessageBuffer& buffer);
+  explicit MsgBufReader(const MsgBuf& buffer);
+
+  int read(char* buf, size_t size);
+
+  /**
+   * Read data into buffer. If it is not enough, reading position is untouched
+   * @param buf  target
+   * @param size size to read, in byte
+   * @param skip true: no reading(memcpy), just skip it
+   */
+  int read(char* buf, size_t size, bool skip);
 
   int read_uint8(uint8_t& i);
+
+  int read_uint16(uint16_t& i);
+
+  int read_uint24(uint32_t& i);
+
+  int read_uint32(uint32_t& i);
+
+  int read_uint48(uint64_t& i);
+
+  int read_uint64(uint64_t& i);
 
   template <class Integer, Endian endian = Endian::LITTLE>
   int read_int(Integer& i)
@@ -136,9 +161,7 @@ public:
     return 0;
   }
 
-  int read(char* buffer, size_t size);
-
-  int next(const char** buffer, int* size);
+  int next(const char** buf, int* size);
 
   int backward(size_t count);
 
@@ -158,20 +181,21 @@ public:
   std::string debug_info() const;
 
 private:
-  /**
-   * Read data into buffer. If it is not enough, reading position is untouched
-   * @param buffer  target
-   * @param size size to read, in byte
-   * @param skip true: no reading(memcpy), just skip it
-   */
-  int read(char* buffer, size_t size, bool skip);
-
-private:
-  const MessageBuffer& _buffer;
-  MessageBuffer::ChunkConstIterator _iter;
+  const MsgBuf& _buffer;
+  MsgBuf::ChunkConstIterator _iter;
   size_t _pos = 0;
   size_t _byte_size = 0;
   size_t _read_size = 0;
+};
+
+class MysqlBufReader : public MsgBufReader {
+public:
+  explicit MysqlBufReader(const MsgBuf& buffer) : MsgBufReader(buffer)
+  {}
+
+  int read_lenenc_uint(uint64_t& value);
+
+  void read_lenenc_str(std::string& value);
 };
 
 }  // namespace logproxy

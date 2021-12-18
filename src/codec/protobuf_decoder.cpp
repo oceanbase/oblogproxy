@@ -74,7 +74,7 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
 
   payload_buf_guard.release();
 
-  MessageBuffer buffer;
+  MsgBuf buffer;
   buffer.push_back(payload_buf, payload_size);
   // Transfer buffer owner to message_buffer
   // buffer's memory will freed by MessageBuffer
@@ -88,9 +88,9 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
   return PacketError::SUCCESS;
 }
 
-int ProtobufDecoder::decode_payload(MessageType type, const MessageBuffer& buffer, Message*& msg)
+int ProtobufDecoder::decode_payload(MessageType type, const MsgBuf& buffer, Message*& msg)
 {
-  MessageBufferReader reader(buffer);
+  MsgBufReader reader(buffer);
 
   switch ((MessageType)type) {
     case MessageType::HANDSHAKE_REQUEST_CLIENT: {
@@ -115,7 +115,7 @@ int ProtobufDecoder::decode_payload(MessageType type, const MessageBuffer& buffe
 
 class ZeroCopyStreamAdapter : public ::google::protobuf::io::ZeroCopyInputStream {
 public:
-  explicit ZeroCopyStreamAdapter(MessageBufferReader& buffer_reader) : _buffer_reader(buffer_reader)
+  explicit ZeroCopyStreamAdapter(MsgBufReader& buffer_reader) : _buffer_reader(buffer_reader)
   {}
 
   ~ZeroCopyStreamAdapter() override = default;
@@ -141,10 +141,10 @@ public:
   }
 
 private:
-  MessageBufferReader& _buffer_reader;
+  MsgBufReader& _buffer_reader;
 };
 
-int ProtobufDecoder::decode_handshake_request(MessageBufferReader& buffer_reader, Message*& out_msg)
+int ProtobufDecoder::decode_handshake_request(MsgBufReader& buffer_reader, Message*& out_msg)
 {
   ZeroCopyStreamAdapter zero_copy_stream(buffer_reader);
   ClientHandshakeRequest pb_msg;
@@ -170,7 +170,7 @@ int ProtobufDecoder::decode_handshake_request(MessageBufferReader& buffer_reader
   return OMS_OK;
 }
 
-int ProtobufDecoder::decode_handshake_response(MessageBufferReader& buffer_reader, Message*& msg)
+int ProtobufDecoder::decode_handshake_response(MsgBufReader& buffer_reader, Message*& msg)
 {
   ZeroCopyStreamAdapter zero_copy_stream(buffer_reader);
   ClientHandshakeResponse pb_msg;
@@ -192,7 +192,7 @@ int ProtobufDecoder::decode_handshake_response(MessageBufferReader& buffer_reade
   return OMS_OK;
 }
 
-int ProtobufDecoder::decode_runtime_status(MessageBufferReader& buffer_reader, Message*& _msg)
+int ProtobufDecoder::decode_runtime_status(MsgBufReader& buffer_reader, Message*& _msg)
 {
   ZeroCopyStreamAdapter zero_copy_stream(buffer_reader);
   RuntimeStatus pb_msg;
@@ -214,7 +214,7 @@ int ProtobufDecoder::decode_runtime_status(MessageBufferReader& buffer_reader, M
   return OMS_OK;
 }
 
-int ProtobufDecoder::decode_data_client(MessageBufferReader& buffer_reader, Message*& _msg)
+int ProtobufDecoder::decode_data_client(MsgBufReader& buffer_reader, Message*& _msg)
 {
   RecordData pb_msg;
   //  bool ret = pb_msg.ParseFromArray(str.c_str(), size);

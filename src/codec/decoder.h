@@ -13,7 +13,7 @@
 #pragma once
 
 #include "codec/message.h"
-#include "codec/message_buffer.h"
+#include "codec/msg_buf.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -47,15 +47,15 @@ public:
   PacketError decode(Channel* ch, MessageVersion version, Message*& message) override;
 
 private:
-  int decode_payload(MessageType type, const MessageBuffer& buffer, Message*& msg);
+  int decode_payload(MessageType type, const MsgBuf& buffer, Message*& msg);
 
-  static int decode_handshake_request(MessageBufferReader& buffer_reader, Message*& msg);
+  static int decode_handshake_request(MsgBufReader& buffer_reader, Message*& msg);
 
-  static int decode_handshake_response(MessageBufferReader& buffer_reader, Message*& msg);
+  static int decode_handshake_response(MsgBufReader& buffer_reader, Message*& msg);
 
-  static int decode_runtime_status(MessageBufferReader& buffer_reader, Message*& msg);
+  static int decode_runtime_status(MsgBufReader& buffer_reader, Message*& msg);
 
-  static int decode_data_client(MessageBufferReader& buffer_reader, Message*& msg);
+  static int decode_data_client(MsgBufReader& buffer_reader, Message*& msg);
 };
 
 }  // namespace logproxy
