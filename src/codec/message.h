@@ -64,6 +64,65 @@ enum class PacketError {
   NETWORK_ERROR,
 };
 
+enum ErrorCode {
+  ////////// 0~499: process error ////////////
+  /**
+   * general error
+   */
+  NONE = 0,
+
+  /**
+   * inner error
+   */
+  E_INNER = 1,
+
+  /**
+   * failed to connect
+   */
+  E_CONNECT = 2,
+
+  /**
+   * exceed max retry connect count
+   */
+  E_MAX_RECONNECT = 3,
+
+  /**
+   * user callback throws exception
+   */
+  E_USER = 4,
+
+  ////////// 500~: recv data error ////////////
+  /**
+   * unknown data protocol
+   */
+  E_PROTOCOL = 500,
+
+  /**
+   * unknown header type
+   */
+  E_HEADER_TYPE = 501,
+
+  /**
+   * failed to auth
+   */
+  NO_AUTH = 502,
+
+  /**
+   * unknown compress type
+   */
+  E_COMPRESS_TYPE = 503,
+
+  /**
+   * length not match
+   */
+  E_LEN = 504,
+
+  /**
+   * failed to parse data
+   */
+  E_PARSE = 505
+};
+
 constexpr char PACKET_MAGIC[] = {'x', 'i', '5', '3', 'g', ']', 'q'};
 constexpr size_t PACKET_MAGIC_SIZE = sizeof(PACKET_MAGIC);
 const size_t PACKET_VERSION_SIZE = 2;
@@ -126,16 +185,14 @@ public:
 
 class ClientHandshakeResponseMessage : public Message, public Model {
 public:
-  ClientHandshakeResponseMessage();
-
-  ClientHandshakeResponseMessage(int code, const char* ip, const char* version);
+  ClientHandshakeResponseMessage(int code, const std::string& in_ip, const std::string& in_version);
 
   ~ClientHandshakeResponseMessage() override = default;
 
 private:
   OMS_MF_DFT(int, code, -1);
-  OMS_MF(std::string, ip);
-  OMS_MF(std::string, version);
+  OMS_MF(std::string, server_ip);
+  OMS_MF(std::string, server_version);
 };
 
 class RuntimeStatusMessage : public Message, public Model {

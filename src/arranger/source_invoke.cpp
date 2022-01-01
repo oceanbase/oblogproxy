@@ -75,8 +75,16 @@ public:
 
       ObLogReader& reader = ObLogReader::instance();
       OblogConfig oblog_config(_config);
-      oblog_config.user.set(Config::instance().ob_sys_username.val());
-      oblog_config.password.set(Config::instance().ob_sys_password.val());
+      if (!oblog_config.sys_user.empty()) {
+        oblog_config.user.set(oblog_config.sys_user.val());
+      } else {
+        oblog_config.user.set(Config::instance().ob_sys_username.val());
+      }
+      if (!oblog_config.sys_password.empty()) {
+        oblog_config.password.set(oblog_config.sys_password.val());
+      } else {
+        oblog_config.password.set(Config::instance().ob_sys_password.val());
+      }
       reader.init(_client.id.get(), _client.packet_version, ch, oblog_config);
       reader.start();
       reader.join();

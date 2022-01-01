@@ -60,23 +60,20 @@ static char* localhost()
 
 bool localhostip(std::string& hostname, std::string& ip)
 {
-  struct hostent* hp;
-
   char* hname = localhost();
   if (hname == nullptr) {
     return false;
   }
-
   hostname = hname;
 
-  if (!(hp = gethostbyname(hname))) {
+  struct hostent* hp = gethostbyname(hname);
+  if (hp == nullptr) {
     return false;
   }
 
   while (hp->h_addr_list[0]) {
     ip = inet_ntoa(*(struct in_addr*)*hp->h_addr_list++);
   }
-
   return true;
 }
 

@@ -217,6 +217,9 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
 
 int MysqlProtocol::query(const std::string& sql, MysqlResultSet& rs)
 {
+
+  OMS_INFO << "query obmysql:" << sql;
+
   MysqlQueryPacket packet(sql);
   MsgBuf msgbuf;
   int ret = packet.encode_inplace(msgbuf);

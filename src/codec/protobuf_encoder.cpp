@@ -139,8 +139,8 @@ int ProtobufEncoder::encode_client_handshake_response(const Message& msg, MsgBuf
   const ClientHandshakeResponseMessage& response_message = (const ClientHandshakeResponseMessage&)msg;
   ClientHandshakeResponse pb_msg;
   pb_msg.set_code(response_message.code);
-  pb_msg.set_ip(response_message.ip);
-  pb_msg.set_version(response_message.version);
+  pb_msg.set_ip(response_message.server_ip);
+  pb_msg.set_version(response_message.server_version);
   return encode_message(pb_msg, response_message.type(), buffer, false);
 }
 

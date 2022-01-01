@@ -345,7 +345,8 @@ int Communicator::send_message(const PeerInfo& peer, const Message& msg, bool di
 int Communicator::write_message(Channel* ch, const Message& msg)
 {
   if (_s_config.verbose_packet.val()) {
-    OMS_INFO << "About to write mssage, ch: " << ch->peer().id() << ", msg type: " << (int)msg.type();
+    OMS_INFO << "About to write mssage: " << msg.debug_string() << ", ch: " << ch->peer().id()
+             << ", msg type: " << (int)msg.type();
   }
 
   MsgBuf buffer;

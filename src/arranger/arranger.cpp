@@ -12,6 +12,7 @@
 
 #include <mutex>
 #include <memory>
+#include "common/version.h"
 #include "common/log.h"
 #include "arranger/source_invoke.h"
 #include "arranger/arranger.h"
@@ -25,7 +26,10 @@ static Config& _s_conf = Config::instance();
 
 int Arranger::init()
 {
-  localhostip(_localhost, _localip);
+  if (!localhostip(_localhost, _localip) || _localhost.empty() || _localip.empty()) {
+    OMS_ERROR << "Failed to fetch localhost name or localip";
+    return OMS_FAILED;
+  }
 
   int ret = _accepter.init();
   if (ret == OMS_FAILED) {
@@ -56,20 +60,21 @@ EventResult Arranger::on_msg(const PeerInfo& peer, const Message& msg)
 
     std::string errmsg;
     if (auth(client, errmsg) != OMS_OK) {
-      response_error(peer, msg.version(), errmsg);
+      response_error(peer, msg.version(), ErrorCode::NO_AUTH, errmsg);
       return EventResult::ER_CLOSE_CHANNEL;
     }
 
-    ClientHandshakeResponseMessage resp(0, _localip.c_str(), "1.0.0");
+    ClientHandshakeResponseMessage resp(0, _localip, __OMS_VERSION__);
     resp.set_version(msg.version());
     int ret = _accepter.send_message(peer, resp, true);
     if (ret != OMS_OK) {
       OMS_WARN << "Failed to send handshake response message. peer=" << peer.to_string();
+      return EventResult::ER_CLOSE_CHANNEL;
     }
 
     ret = create(client);
     if (ret != OMS_OK) {
-      response_error(peer, msg.version(), "Failed to create oblogreader");
+      response_error(peer, msg.version(), E_INNER, "Failed to create oblogreader");
       return EventResult::ER_CLOSE_CHANNEL;
     }
 
@@ -149,11 +154,11 @@ int Arranger::start_source(const ClientMeta& client, const std::string& configur
   return OMS_OK;
 }
 
-void Arranger::response_error(const PeerInfo& peer, MessageVersion version, const std::string& errmsg)
+void Arranger::response_error(const PeerInfo& peer, MessageVersion version, ErrorCode code, const std::string& errmsg)
 {
-  ErrorMessage error(-1, errmsg);
+  ErrorMessage error(code, errmsg);
   error.set_version(version);
-  int ret = _accepter.send_message(peer, error);
+  int ret = _accepter.send_message(peer, error, true);
   if (ret != OMS_OK) {
     OMS_WARN << "Failed to send error response message to peer:" << peer.to_string() << " for message:" << errmsg;
   }

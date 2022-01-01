@@ -22,18 +22,19 @@ namespace logproxy {
 
 struct OblogConfig : protected ConfigBase {
 public:
+  // client defined params
   OMS_CONFIG_STR(id, "");
+  OMS_CONFIG_STR_K(sys_user, "sys_user", "");
+  OMS_CONFIG_STR_K(sys_password, "sys_password", "");
 
+  // from here to beflow, params use to send to liboblog
   OMS_CONFIG_UINT64_K(start_timestamp, "first_start_timestamp", 0);
 
   OMS_CONFIG_STR_K(cluster_url, "cluster_url", "");
-
   // syntax: rs1:rpc_port1:sql_port1;rs2:rpc_port2:sql_port2
   OMS_CONFIG_STR_K(root_servers, "rootserver_list", "");
   OMS_CONFIG_STR_K(user, "cluster_user", "");
   OMS_CONFIG_STR_K(password, "cluster_password", "");
-  OMS_CONFIG_STR_K(sys_user, "sys_user", "");
-  OMS_CONFIG_STR_K(sys_password, "sys_password", "");
   OMS_CONFIG_STR_K(table_whites, "tb_white_list", "");
 
 public:
