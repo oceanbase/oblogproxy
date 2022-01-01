@@ -23,8 +23,8 @@ namespace logproxy {
 
 static Config& _s_config = Config::instance();
 
-ReaderRoutine::ReaderRoutine(OblogAccess& oblog, BlockingQueue<ILogRecord*>& q)
-    : Thread("ReaderRoutine"), _oblog(oblog), _queue(q)
+ReaderRoutine::ReaderRoutine(ObLogReader& reader, OblogAccess& oblog, BlockingQueue<ILogRecord*>& q)
+    : Thread("ReaderRoutine"), _reader(reader), _oblog(oblog), _queue(q)
 {}
 
 int ReaderRoutine::init(const OblogConfig& config)
@@ -80,7 +80,7 @@ void ReaderRoutine::run()
     counter.count_read(1);
   }
 
-  ObLogReader::instance().stop();
+  _reader.stop();
 }
 
 }  // namespace logproxy

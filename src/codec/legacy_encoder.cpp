@@ -60,14 +60,15 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
     return OMS_FAILED;
   }
 
+  uint32_t idx = msg.idx;
   size_t offset = 0;
-  for (size_t i = 0; i < ptrs.size(); ++i) {
-    size_t block_size = ptrs[i].second;
-    uint32_t seq_be = cpu_to_be<uint32_t>(i);
+  for (auto& ptr : ptrs) {
+    size_t block_size = ptr.second;
+    uint32_t seq_be = cpu_to_be<uint32_t>(idx++);
     uint32_t size_be = cpu_to_be<uint32_t>(block_size);
     memcpy(raw + offset, &seq_be, 4);
     memcpy(raw + offset + 4, &size_be, 4);
-    memcpy(raw + offset + 8, ptrs[i].first, block_size);
+    memcpy(raw + offset + 8, ptr.first, block_size);
     offset += (block_size + 8);
   }
 
@@ -153,10 +154,9 @@ LegacyEncoder::LegacyEncoder()
       return compress_data(msg, buffer);
     }
 
+    uint32_t idx = msg.idx;
     uint32_t total_size = 0;
-    for (size_t i = 0; i < msg.records.size(); ++i) {
-      ILogRecord* record = msg.records[i];
-
+    for (auto record : msg.records) {
       size_t size = 0;
       // got independ address
       const char* logmsg_buf = record->getFormatedString(&size);
@@ -170,7 +170,7 @@ LegacyEncoder::LegacyEncoder()
                   << ", size: " << header->m_size;
       }
 
-      uint32_t seq_be = cpu_to_be<uint32_t>(i);
+      uint32_t seq_be = cpu_to_be<uint32_t>(idx++);
       uint32_t size_be = cpu_to_be<uint32_t>(size);
       buffer.push_back_copy((char*)&seq_be, 4);
       buffer.push_back_copy((char*)&size_be, 4);

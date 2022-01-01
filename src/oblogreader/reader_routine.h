@@ -20,9 +20,11 @@
 namespace oceanbase {
 namespace logproxy {
 
+class ObLogReader;
+
 class ReaderRoutine : public Thread {
 public:
-  ReaderRoutine(OblogAccess&, BlockingQueue<ILogRecord*>&);
+  ReaderRoutine(ObLogReader&, OblogAccess&, BlockingQueue<ILogRecord*>&);
 
   int init(const OblogConfig& config);
 
@@ -32,6 +34,7 @@ private:
   void run() override;
 
 private:
+  ObLogReader& _reader;
   OblogAccess& _oblog;
 
   BlockingQueue<ILogRecord*>& _queue;

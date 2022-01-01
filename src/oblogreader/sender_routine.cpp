@@ -28,8 +28,8 @@ namespace logproxy {
 
 static Config& _s_config = Config::instance();
 
-SenderRoutine::SenderRoutine(OblogAccess& oblog, BlockingQueue<ILogRecord*>& rqueue)
-    : Thread("SenderRoutine"), _oblog(oblog), _rqueue(rqueue)
+SenderRoutine::SenderRoutine(ObLogReader& reader, OblogAccess& oblog, BlockingQueue<ILogRecord*>& rqueue)
+    : Thread("SenderRoutine"), _reader(reader), _oblog(oblog), _rqueue(rqueue)
 {}
 
 int SenderRoutine::init(MessageVersion packet_version, Channel* ch)
@@ -170,7 +170,7 @@ void SenderRoutine::run()
   }
 
   LogMsgLocalDestroy();
-  ObLogReader::instance().stop();
+  _reader.stop();
 }
 
 int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offset, size_t count)
@@ -183,8 +183,11 @@ int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offse
   RecordDataMessage msg(records, offset, count);
   msg.set_version(_packet_version);
   msg.compress_type = CompressType::LZ4;
+  msg.idx = _msg_seq;
   int ret = _comm.send_message(_client_peer, msg, true);
   Counter::instance().count_key(Counter::SENDER_SEND_US, _stage_timer.elapsed());
+
+  _msg_seq += count;
 
   if (ret == OMS_OK) {
     ILogRecord* last = records[offset + count - 1];
