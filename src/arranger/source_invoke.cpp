@@ -73,7 +73,7 @@ public:
       _comm.clear_channels();
       _comm.stop();
 
-      ObLogReader& reader = ObLogReader::instance();
+      ObLogReader reader;
       OblogConfig oblog_config(_config);
       if (!oblog_config.sys_user.empty()) {
         oblog_config.user.set(oblog_config.sys_user.val());

@@ -20,9 +20,11 @@
 namespace oceanbase {
 namespace logproxy {
 
+class ObLogReader;
+
 class SenderRoutine : public Thread {
 public:
-  SenderRoutine(OblogAccess&, BlockingQueue<ILogRecord*>&);
+  SenderRoutine(ObLogReader&, OblogAccess&, BlockingQueue<ILogRecord*>&);
 
   int init(MessageVersion packet_version, Channel* ch);
 
@@ -34,6 +36,7 @@ private:
   int do_send(const std::vector<ILogRecord*>& records, size_t offset, size_t count);
 
 private:
+  ObLogReader& _reader;
   OblogAccess& _oblog;
 
   BlockingQueue<ILogRecord*>& _rqueue;
@@ -44,6 +47,8 @@ private:
   PeerInfo _client_peer;
 
   Timer _stage_timer;
+
+  uint32_t _msg_seq = 0;
 };
 
 }  // namespace logproxy

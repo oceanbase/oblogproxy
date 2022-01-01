@@ -23,8 +23,6 @@ namespace oceanbase {
 namespace logproxy {
 
 class ObLogReader {
-  OMS_SINGLETON(ObLogReader);
-  OMS_AVOID_COPY(ObLogReader);
 
 public:
   virtual ~ObLogReader();
@@ -41,8 +39,8 @@ private:
   OblogAccess _oblog;
 
   BlockingQueue<ILogRecord*> _queue{Config::instance().record_queue_size.val()};
-  ReaderRoutine _reader{_oblog, _queue};
-  SenderRoutine _sender{_oblog, _queue};
+  ReaderRoutine _reader{*this, _oblog, _queue};
+  SenderRoutine _sender{*this, _oblog, _queue};
 };
 
 }  // namespace logproxy

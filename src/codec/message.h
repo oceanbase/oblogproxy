@@ -243,6 +243,9 @@ protected:
 public:
   CompressType compress_type = CompressType::PLAIN;
   std::vector<ILogRecord*> records;
+
+  // index to count message seq for a client session
+  uint32_t idx = 0;
 };
 
 }  // namespace logproxy

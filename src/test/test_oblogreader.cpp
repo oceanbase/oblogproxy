@@ -30,7 +30,7 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
   OblogConfig oblog_config(config_str);
   OMS_INFO << "OB Log Config: " << oblog_config.debug_str(true);
 
-  ObLogReader& reader = ObLogReader::instance();
+  ObLogReader reader;
   PeerInfo peer(0);
   ChannelFactory channel_factory;
   int ret = channel_factory.init(Config::instance());
