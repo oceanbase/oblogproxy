@@ -150,7 +150,7 @@ int ObAccess::init(const OblogConfig& config)
   if (config.sys_password.empty()) {
     MysqlProtocol::do_sha_password(Config::instance().ob_sys_password.val(), _sys_password_sha1);
   } else {
-    _sys_password_sha1 = config.sys_password.val();  // already sha1
+    MysqlProtocol::do_sha_password(config.sys_password.val(), _sys_password_sha1);
   }
   if (_sys_user.empty() || _sys_password_sha1.empty()) {
     OMS_ERROR << "Failed to init ObAccess caused by empty sys_user or sys_password";
@@ -204,8 +204,8 @@ int ObAccess::auth_sys(const ServerInfo& server)
 int ObAccess::auth_tenant(const ServerInfo& server)
 {
   // 1. found tenant server using sys
-  MysqlProtocol auther;
-  int ret = auther.login(server.host, server.port, _sys_user, _sys_password_sha1);
+  MysqlProtocol sys_auther;
+  int ret = sys_auther.login(server.host, server.port, _sys_user, _sys_password_sha1);
   if (ret != OMS_OK) {
     return ret;
   }
@@ -215,15 +215,17 @@ int ObAccess::auth_tenant(const ServerInfo& server)
   // 2. for each of tenant servers, login it.
   MysqlResultSet rs;
   for (auto& tenant_entry : _table_whites.tenants) {
+    OMS_INFO << "About to auth tenant:" << tenant_entry.first << " of user:" << _user;
+
     rs.reset();
-    ret =
-        auther.query("SELECT server.svr_ip, server.inner_port, server.zone, tenant.tenant_id, tenant.tenant_name from "
-                     "oceanbase.__all_resource_pool AS pool, oceanbase.__all_unit AS unit, oceanbase.__all_server AS "
-                     "server, oceanbase.__all_tenant AS tenant WHERE tenant.tenant_id = pool.tenant_id AND "
-                     "unit.resource_pool_id = pool.resource_pool_id AND unit.svr_ip = server.svr_ip AND "
-                     "unit.svr_port = server.svr_port AND tenant.tenant_name='" +
-                         tenant_entry.first + "'",
-            rs);
+    ret = sys_auther.query(
+        "SELECT server.svr_ip, server.inner_port, server.zone, tenant.tenant_id, tenant.tenant_name FROM "
+        "oceanbase.__all_resource_pool AS pool, oceanbase.__all_unit AS unit, oceanbase.__all_server AS "
+        "server, oceanbase.__all_tenant AS tenant WHERE tenant.tenant_id=pool.tenant_id AND "
+        "unit.resource_pool_id=pool.resource_pool_id AND unit.svr_ip=server.svr_ip AND "
+        "unit.svr_port=server.svr_port AND tenant.tenant_name='" +
+            tenant_entry.first + "'",
+        rs);
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to auth, failed to query tenant server for:" << tenant_entry.first << ", ret:" << ret;
       return OMS_FAILED;
@@ -237,11 +239,11 @@ int ObAccess::auth_tenant(const ServerInfo& server)
     const std::string& host = row.fields()[0];
     const uint16_t sql_port = atoi(row.fields()[1].c_str());
 
-    MysqlProtocol sys_auther;
+    MysqlProtocol user_auther;
     std::string conn_user = ob_user.username;
     conn_user.append("@");
     conn_user.append(ob_user.tenant.empty() ? tenant_entry.first : ob_user.tenant);
-    ret = sys_auther.login(host, sql_port, conn_user, _password_sha1);
+    ret = user_auther.login(host, sql_port, conn_user, _password_sha1);
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to auth from tenant server: " << host << ":" << sql_port << ", ret:" << ret;
       return ret;

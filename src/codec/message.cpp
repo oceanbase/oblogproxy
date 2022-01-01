@@ -91,11 +91,9 @@ ClientHandshakeRequestMessage::ClientHandshakeRequestMessage(
       configuration(configuration)
 {}
 
-ClientHandshakeResponseMessage::ClientHandshakeResponseMessage() : Message(MessageType::HANDSHAKE_RESPONSE_CLIENT)
-{}
-
-ClientHandshakeResponseMessage::ClientHandshakeResponseMessage(int in_code, const char* in_ip, const char* in_version)
-    : Message(MessageType::HANDSHAKE_RESPONSE_CLIENT), code(in_code), ip(in_ip), version(in_version)
+ClientHandshakeResponseMessage::ClientHandshakeResponseMessage(
+    int in_code, const std::string& in_ip, const std::string& in_version)
+    : Message(MessageType::HANDSHAKE_RESPONSE_CLIENT), code(in_code), server_ip(in_ip), server_version(in_version)
 {}
 
 RuntimeStatusMessage::RuntimeStatusMessage() : Message(MessageType::STATUS)

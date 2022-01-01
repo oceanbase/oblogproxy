@@ -182,7 +182,7 @@ int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offse
   _stage_timer.reset();
   RecordDataMessage msg(records, offset, count);
   msg.set_version(_packet_version);
-  msg.compress_type = CompressType::PLAIN;
+  msg.compress_type = CompressType::LZ4;
   int ret = _comm.send_message(_client_peer, msg, true);
   Counter::instance().count_key(Counter::SENDER_SEND_US, _stage_timer.elapsed());
 

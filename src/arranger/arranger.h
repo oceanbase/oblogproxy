@@ -41,7 +41,7 @@ private:
 
   int start_source(const ClientMeta& client, const std::string& configuration);
 
-  void response_error(const PeerInfo&, MessageVersion version, const std::string&);
+  void response_error(const PeerInfo&, MessageVersion version, ErrorCode code, const std::string&);
 
   int close_client_locked(const ClientMeta& client, const std::string& msg);
 
