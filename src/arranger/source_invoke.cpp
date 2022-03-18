@@ -85,9 +85,11 @@ public:
       } else {
         oblog_config.password.set(Config::instance().ob_sys_password.val());
       }
-      reader.init(_client.id.get(), _client.packet_version, ch, oblog_config);
-      reader.start();
-      reader.join();
+      int ret = reader.init(_client.id.get(), _client.packet_version, ch, oblog_config);
+      if (ret == OMS_OK) {
+        reader.start();
+        reader.join();
+      }
 
       // !!!IMPORTANT!!! we don't quit current thread which work as child process's main thread
       // we IGNORE other context inheriting from parent process
