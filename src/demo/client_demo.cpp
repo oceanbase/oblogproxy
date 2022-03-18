@@ -167,9 +167,9 @@ int main(int argc, char** argv)
     oblog_config.password.set(dumphex(password_sha1));
   }
   if (!oblog_config.sys_password.val().empty()) {
-    std::string sys_password_sha1;
-    MysqlProtocol::do_sha_password(oblog_config.sys_password.val(), sys_password_sha1);
-    oblog_config.sys_password.set(dumphex(sys_password_sha1));
+    //    std::string sys_password_sha1;
+    //    MysqlProtocol::do_sha_password(oblog_config.sys_password.val(), sys_password_sha1);
+    oblog_config.sys_password.set(oblog_config.sys_password.val());
   }
 
   Config::instance().verbose.set(true);

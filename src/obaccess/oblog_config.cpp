@@ -62,9 +62,16 @@ void OblogConfig::set(const std::string& key, const std::string& value)
 void OblogConfig::generate_configs(std::map<std::string, std::string>& configs) const
 {
   for (auto& entry : _configs) {
-    configs.emplace(entry.first, entry.second->debug_str());
+    const std::string& val = entry.second->debug_str();
+    if (val.empty()) {
+      continue;
+    }
+    configs.emplace(entry.first, val);
   }
   for (auto& entry : _extras) {
+    if (entry.second.empty()) {
+      continue;
+    }
     configs.emplace(entry.first, entry.second);
   }
 }

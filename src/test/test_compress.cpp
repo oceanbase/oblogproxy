@@ -57,7 +57,7 @@ TEST(COMPRESS, lz4_flow)
     char* raw_block = (char*)malloc(block_size + 1);
     ASSERT_TRUE(raw_block != nullptr);
     int decompressed_size = LZ4_decompress_safe(compressed + offset + 8, raw_block, compressed_block_size, block_size);
-    ASSERT_EQ(decompressed_size, block_size);
+    ASSERT_EQ((uint32_t)decompressed_size, block_size);
     raw_block[decompressed_size] = '\0';
     OMS_INFO << "decompress block: " << raw_block << ", size:" << block_size
              << ", compressed size:" << compressed_block_size;

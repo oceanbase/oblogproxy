@@ -28,6 +28,10 @@ namespace logproxy {
 
 static Config& _s_config = Config::instance();
 
+#ifdef LOGMSG_BY_LIBOBLOG
+static __thread LogMsgBuf* _t_s_lmb = nullptr;
+#endif
+
 SenderRoutine::SenderRoutine(ObLogReader& reader, OblogAccess& oblog, BlockingQueue<ILogRecord*>& rqueue)
     : Thread("SenderRoutine"), _reader(reader), _oblog(oblog), _rqueue(rqueue)
 {}
@@ -70,7 +74,7 @@ void SenderRoutine::stop()
 
 void SenderRoutine::run()
 {
-  LogMsgLocalInit();
+  LogMsgLocalInit;
 
   std::vector<ILogRecord*> records;
   records.reserve(_s_config.read_wait_num.val());
@@ -123,7 +127,11 @@ void SenderRoutine::run()
     for (i = 0; i < records.size(); ++i) {
       ILogRecord* r = records[i];
       size_t size = 0;
+#ifdef LOGMSG_BY_LIBOBLOG
+      const char* rbuf = r->toString(&size, _t_s_lmb, true);
+#else
       const char* rbuf = r->toString(&size, true);
+#endif
       if (rbuf == nullptr) {
         OMS_ERROR << "failed parse logmsg Record, !!!EXIT!!!";
         stop();
@@ -169,7 +177,7 @@ void SenderRoutine::run()
     }
   }
 
-  LogMsgLocalDestroy();
+  LogMsgLocalDestroy;
   _reader.stop();
 }
 

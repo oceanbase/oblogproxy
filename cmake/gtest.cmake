@@ -31,6 +31,8 @@ ExternalProject_Add(
         -DCMAKE_INSTALL_LIBDIR=${GTEST_INSTALL_DIR}/lib
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_GMOCK=OFF
+        -Dbuild_gtest_samples=OFF
+        -Dgtest_build_tests=OFF
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
         -DCMAKE_PREFIX_PATH=${prefix_path}
         ${EXTERNAL_OPTIONAL_ARGS}

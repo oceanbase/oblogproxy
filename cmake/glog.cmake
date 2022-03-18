@@ -16,7 +16,9 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS gflags
         GIT_REPOSITORY "https://github.com/google/glog.git"
-        GIT_TAG "v0.4.0"
+        GIT_TAG "v0.5.0"
+        GIT_SUBMODULES ""
+        GIT_SUBMODULES_RECURSE "false"
         PREFIX ${GLOG_SOURCES_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
@@ -30,7 +32,9 @@ ExternalProject_Add(
         -DCMAKE_INSTALL_PREFIX=${GLOG_INSTALL_DIR}
         -DCMAKE_INSTALL_LIBDIR=${GLOG_INSTALL_DIR}/lib
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DBUILD_SHARED_LIBS=OFF
         -DWITH_GFLAGS=ON
+        -DWITH_GTEST=OFF
         -Dgflags_DIR=${GFLAGS_INSTALL_DIR}/lib/cmake/gflags
         -DBUILD_TESTING=OFF
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}

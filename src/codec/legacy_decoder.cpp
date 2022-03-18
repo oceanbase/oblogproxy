@@ -10,6 +10,7 @@
  * See the Mulan PubL v2 for more details.
  */
 
+#include <stdint.h>
 #include "common/guard.hpp"
 #include "communication/channel.h"
 #include "codec/decoder.h"

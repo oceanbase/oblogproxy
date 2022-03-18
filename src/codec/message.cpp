@@ -124,10 +124,13 @@ int RecordDataMessage::encode_log_records(MsgBuf& buffer, size_t& raw_len) const
   switch (compress_type) {
     case CompressType::PLAIN: {
       int ret = encode_log_records_plain(buffer);
-      if (OMS_OK == ret) {
+      if (ret == OMS_OK) {
         raw_len = buffer.byte_size();
       }
       return ret;
+    }
+    case CompressType::LZ4: {
+      return encode_log_records_lz4(buffer, raw_len);
     }
     default: {
       OMS_ERROR << "Unsupported compress type: " << (int)compress_type;

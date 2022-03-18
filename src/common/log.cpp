@@ -16,6 +16,16 @@
 namespace oceanbase {
 namespace logproxy {
 
+static char dump_line[1024];
+static void dump_writer(const char* buf, int size)
+{
+  int len = std::min(1022, size);
+  memcpy(dump_line, buf, len);
+  dump_line[len] = '\n';
+  dump_line[len + 1] = '\0';
+  printf(dump_line);
+}
+
 void init_log(const char* argv0, bool restart)
 {
 #ifdef WITH_GLOG
@@ -50,6 +60,9 @@ void init_log(const char* argv0, bool restart)
   google::SetLogDestination(google::GLOG_WARNING, "log/logproxy_warn.");
   google::SetLogDestination(google::GLOG_ERROR, "log/logproxy_error.");
   google::SetLogDestination(google::GLOG_FATAL, "log/logproxy_error.");
+
+  google::InstallFailureSignalHandler();
+  google::InstallFailureWriter(dump_writer);
 
   FileGcRoutine log_gc("./log", {"logproxy_", bin_name + ".log"});
   //    log_gc.start();

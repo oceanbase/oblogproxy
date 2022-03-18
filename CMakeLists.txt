@@ -49,9 +49,16 @@ message(STATUS "DEP_VAR: ${DEP_VAR}")
 message(STATUS "JAVA_HOME: ${JAVA_HOME}")
 
 # compiler
-find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
-find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
-find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${DEP_VAR}/usr/local/gcc-5.2.0/bin/ /usr/bin/ NO_DEFAULT_PATH)
+execute_process(
+        COMMAND which gcc
+        OUTPUT_VARIABLE GCC_BIN
+)
+GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
+message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
+
+find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
 SET(CMAKE_C_COMPILER ${CC})
 SET(CMAKE_CXX_COMPILER ${CXX})
 SET(CMAKE_C_COMPILER_AR ${AR})
@@ -151,8 +158,14 @@ add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
 # oblogmsg
-include(oblogmsg)
-SET(OBLOGMSG_MAPPING "")
+SET(OBLOGMSG_MAPPING "-DLOGMSG_BY_LIBOBLOG=1 -DLogMsgLocalInit=\"if((_t_s_lmb=new(std::nothrow)LogMsgBuf())==nullptr){OMS_ERROR<<\\\"Failed to alloc LogMsgBuf\\\";stop();return;}\" -DLogMsgLocalDestroy=\"delete _t_s_lmb\"")
+SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg)
+
+SET(OBLOGMSG_LIBRARIES ${LIBOBLOG_LIBRARIES})
+GET_FILENAME_COMPONENT(OBLOGMSG_LIB_DIR ${OBLOGMSG_LIBRARIES} DIRECTORY)
+
+ADD_LIBRARY(oblogmsg STATIC IMPORTED GLOBAL)
+SET_PROPERTY(TARGET oblogmsg PROPERTY IMPORTED_LOCATION ${OBLOGMSG_LIBRARIES})
 
 # oblog
 if (FIND_LIBOBLOG)
