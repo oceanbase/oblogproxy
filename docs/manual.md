@@ -11,7 +11,7 @@
 
 Fedora based (including CentOS, Fedora, OpenAnolis, RedHat, UOS, etc.)
 ```bash
-yum install git wget rpm rpm-build cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils
+yum install which git wget rpm rpm-build cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils openssl-devel libaio-devel
 ```
 
 Debian based (including Debian, Ubuntu, etc.)
