@@ -43,10 +43,10 @@ public:
   OMS_CONFIG_UINT16(service_port, 2983);
   OMS_CONFIG_UINT32(encode_threadpool_size, 8);
   OMS_CONFIG_UINT32(encode_queue_size, 50000);
-  OMS_CONFIG_UINT32(max_packet_bytes, 1024 * 1024 * 8);  // 8MB
+  OMS_CONFIG_UINT32(max_packet_bytes, 1024 * 1024 * 64);  // 64MB
   OMS_CONFIG_UINT32(command_timeout_s, 10);
 
-  OMS_CONFIG_UINT32(record_queue_size, 1024);
+  OMS_CONFIG_UINT32(record_queue_size, 512);
   OMS_CONFIG_UINT64(read_timeout_us, 2000000);
   OMS_CONFIG_UINT64(read_fail_interval_us, 1000000);
   OMS_CONFIG_UINT32(read_wait_num, 20000);
