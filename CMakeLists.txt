@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.2)
 project(oblogproxy CXX)
 
+macro(ob_define VAR DEFAULT)
+    if (NOT DEFINED ${VAR})
+        set(${VAR} ${DEFAULT})
+    endif()
+endmacro()
+
+ob_define(OBLOGPROXY_RELEASEID 1)
 option(WITH_DEBUG "With debug symbols" ON)
 option(WITH_ASAN "Compile with AddressSanitizer" OFF)
 option(WITH_TEST "With Tests" OFF)
