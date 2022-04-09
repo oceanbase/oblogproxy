@@ -6,7 +6,7 @@ set(CPACK_RPM_COMPONENT_INSTALL ON)
 set(CPACK_RPM_MAIN_COMPONENT "oblogproxy")
 # let rpmbuild determine rpm filename
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
-set(CPACK_RPM_PACKAGE_RELEASE 1)
+set(CPACK_RPM_PACKAGE_RELEASE ${OBLOGPROXY_RELEASEID})
 set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
 # RPM package informations.
 set(CPACK_PACKAGING_INSTALL_PREFIX /usr/local/oblogproxy)
@@ -14,7 +14,7 @@ list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "/usr/local/oblogproxy
 set(CPACK_PACKAGE_NAME "oblogproxy")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "oblogproxy is a clog proxy server for OceanBase CE")
 set(CPACK_PACKAGE_VENDOR "Ant Group CO., Ltd.")
-set(CPACK_PACKAGE_VERSION 1.0.0)
+set(CPACK_PACKAGE_VERSION 1.0.1)
 set(CPACK_PACKAGE_VERSION_MAJOR 1)
 set(CPACK_PACKAGE_VERSION_MINOR 0)
 set(CPACK_PACKAGE_VERSION_PATCH 0)
@@ -61,7 +61,7 @@ set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script "/sbin/ldconfig")
 set(CPACK_RPM_UTILS_POST_UNINSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script)
 
-set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel >= 3.1.1")
+set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel = 3.1.2")
 
 # install cpack to make everything work
 include(CPack)
