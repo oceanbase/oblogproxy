@@ -46,6 +46,7 @@ Channel* Channel::get()
 void Channel::put()
 {
   if (1 == _refcount.fetch_sub(1)) {
+    OMS_DEBUG << "delete Channel";
     delete this;
   }
 }

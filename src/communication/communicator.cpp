@@ -186,7 +186,6 @@ int Communicator::add_channel(const PeerInfo& peer, Channel* ch /* = nullptr */)
   }
 
   std::lock_guard<std::mutex> lock_guard(_lock);
-
   auto iter = _channels.find(peer);
   if (iter != _channels.end()) {
     OMS_WARN << "Add channel twice: " << peer.file_desc;
@@ -263,7 +262,6 @@ int Communicator::remove_channel(const PeerInfo& peer, bool steal /* = false */)
   Channel* ch = nullptr;
   {
     std::lock_guard<std::mutex> lock_guard(_lock);
-
     auto iter = _channels.find(peer);
     if (iter == _channels.end()) {
       OMS_WARN << "No channel found of peer: " << peer.to_string();
@@ -284,7 +282,6 @@ int Communicator::remove_channel(const PeerInfo& peer, bool steal /* = false */)
 int Communicator::clear_channels()
 {
   std::lock_guard<std::mutex> lock_guard(_lock);
-
   for (auto& channel : _channels) {
     Channel* ch = channel.second;
     release_channel_event(*ch, false);
@@ -296,7 +293,6 @@ int Communicator::clear_channels()
 Channel* Communicator::get_channel(const PeerInfo& peer)
 {
   const std::lock_guard<std::mutex> lock_guard(_lock);
-
   return get_channel_locked(peer);
 }
 
@@ -468,8 +464,7 @@ void Communicator::on_event(int fd, short event, void* arg)
       delete msg;
     }
   }
-
-  ch->put();
+  //对于ER_CLOSE_CHANNEL,先处理错误再释放内存
   switch (err) {
     case EventResult::ER_CLOSE_CHANNEL:
       c.remove_channel(ch->_peer);
@@ -478,6 +473,7 @@ void Communicator::on_event(int fd, short event, void* arg)
       // do nothing
       break;
   }
+  ch->put();
 }
 
 void Communicator::close_listen()

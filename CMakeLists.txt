@@ -194,6 +194,18 @@ execute_process(
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
 
+if (NOT GIT_VERSION)
+    message(WARNING "oblogproxy fetch git version empty, use current time as program version")
+    STRING(TIMESTAMP GIT_VERSION "%Y-%m-%d %H:%M:%S")
+endif ()
+
+if (NOT GIT_VERSION)
+    message(WARNING "oblogproxy fetch current time failed")
+    SET(GIT_VERSION "2.0.0")
+endif ()
+
+message("oblogproxy version: ${GIT_VERSION}")
+
 if (WITH_DEBUG)
     SET(DEBUG_SYMBOL "-ggdb")
 else ()

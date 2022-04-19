@@ -37,7 +37,7 @@ public:
 private:
   EventResult on_msg(const PeerInfo&, const Message&);
 
-  int auth(ClientMeta& client, std::string& errmsg);
+  static int auth(ClientMeta& client, std::string& errmsg);
 
   int start_source(const ClientMeta& client, const std::string& configuration);
 

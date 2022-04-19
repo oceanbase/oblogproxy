@@ -29,6 +29,10 @@ int main(int argc, char** argv)
     options.usage();
     exit(0);
   }));
+  options.add(OmsOption('v', "version", false, "program version", [&](const std::string&) {
+    printf("version: " __OMS_VERSION__ "\n");
+    exit(0);
+  }));
   options.add(OmsOption('f', "file", true, "configuration json file", [&](const std::string& optarg) {
     if (conf.load(optarg) != OMS_OK) {
       OMS_INFO << "failed to load config: " << optarg;
