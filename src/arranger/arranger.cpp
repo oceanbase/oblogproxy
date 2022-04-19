@@ -52,7 +52,7 @@ EventResult Arranger::on_msg(const PeerInfo& peer, const Message& msg)
 {
   OMS_INFO << "Arranger on_msg fired: " << peer.to_string();
   if (msg.type() == MessageType::HANDSHAKE_REQUEST_CLIENT) {
-    ClientHandshakeRequestMessage& handshake = (ClientHandshakeRequestMessage&)msg;
+    auto& handshake = (ClientHandshakeRequestMessage&)msg;
     OMS_INFO << "Handshake request from peer: " << peer.to_string() << ", msg: " << handshake.to_string();
 
     ClientMeta client = ClientMeta::from_handshake(peer, handshake);
@@ -128,7 +128,7 @@ int Arranger::create(const ClientMeta& client)
 
   int ret = start_source(client, client.configuration);
   if (ret != OMS_OK) {
-    close_client_locked(client, "");
+    close_client_locked(client, "failed to invoke");
     return ret;
   }
 
@@ -182,7 +182,6 @@ int Arranger::close_client_locked(const ClientMeta& client, const std::string& m
     if (ret != OMS_OK) {
       OMS_WARN << "Failed to send error response message. client=" << client.peer.id();
     }
-
     _accepter.remove_channel(channel_entry->second);
     _client_peers.erase(channel_entry);
   }

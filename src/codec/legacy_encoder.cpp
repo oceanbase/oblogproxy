@@ -212,7 +212,9 @@ LegacyEncoder::LegacyEncoder()
     memcpy(buf, &code_be, 4);
     uint32_t varlen_be = cpu_to_be<uint32_t>(msg.message.size());
     memcpy(buf + 4, &varlen_be, 4);
-    memcpy(buf + 8, msg.message.c_str(), msg.message.size());
+    if (msg.message.size() != 0) {
+      memcpy(buf + 8, msg.message.c_str(), msg.message.size());
+    }
 
     // buf's ownership transfered to buffer
     buffer.push_back(buf, len);
@@ -238,7 +240,6 @@ int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer)
   uint32_t msg_type_be = cpu_to_be<uint32_t>((uint32_t)msg.type());
   memcpy(buf + 2, &msg_type_be, 4);
   buffer.push_front(buf, len);
-
   return ret;
 }
 

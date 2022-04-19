@@ -99,7 +99,6 @@ public:
       ::exit(-1);
 
     } else {  // parent;
-
       OMS_INFO << "+++ create oblogreader with pid: " << pid;
       SourceWaiter::instance().add(pid, _client);
     }
@@ -116,7 +115,6 @@ private:
 static int start_oblogreader(Communicator& communicator, const ClientMeta& client, const std::string& configuration)
 {
   communicator.fork_prepare();
-
   // we create new thread for fork() acting as children process's main thread
   ForkThread fork_thd(communicator, client, configuration);
   fork_thd.start();
@@ -168,15 +166,16 @@ void SourceWaiter::WaitThread::run()
 {
   int retval = OMS_OK;
   waitpid(_pid, &retval, 0);
-  OMS_WARN << "--- oblogreader exit with ret: " << retval << ", try to close fd: " << _client.peer.file_desc;
-  if (retval != OMS_OK) {
+  if (WIFEXITED(retval)) {
+    OMS_INFO << "--- oblogreader exit succeed, try to close fd: " << _client.peer.file_desc;
+  } else {
+    OMS_ERROR << "oblogreader exit failed:" << WEXITSTATUS(retval);
     // TODO... response to client with _client.channel
   }
-
   shutdown(_client.peer.file_desc, SHUT_RDWR);
 
   // use a thread to remove avoid join dead lock
-  Arranger::instance().close_client(_client);
+  Arranger::instance().close_client(_client, "oblogreader exit");
   SourceWaiter::instance().remove(_pid);
 
   OMS_WARN << "--- oblogreader WaiterThread(" << tid() << ") exit for pid: " << _pid;

@@ -46,6 +46,7 @@ void ReaderRoutine::stop()
 void ReaderRoutine::run()
 {
   if (_oblog.start() != OMS_OK) {
+    OMS_ERROR << "Failed to start ReaderRoutine";
     return;
   }
 
