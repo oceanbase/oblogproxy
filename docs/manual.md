@@ -80,16 +80,17 @@ make -j 6
 
 #### 全部编译参数
 
-| 选项 | 默认 | 说明 |  
-| ------ | -------- | ------- |  
-| WITH_DEBUG | ON | 调试模式带 Debug 符号 |   
-| WITH_ASAN | OFF | 编译带 [AddressSanitizer](https://github.com/google/sanitizers) |   
-| WITH_TEST | OFF | 测试 |   
-| WITH_DEMO | OFF | Demo |   
-| WITH_GLOG | ON | 使用glog |   
-| WITH_DEPS | ON | 自动下载预编译依赖 |   
-| USE_LIBOBLOG | OFF | 使用自定义预编译的liboblog |
-| USE_CXX11_ABI | ON | 是否使用C++11 ABI。注意如果用了预编译的依赖，需要保持一致，否则会找不到符号 | 
+| 选项 | 默认  | 说明                                                                                        |  
+| ------ |-----|-------------------------------------------------------------------------------------------|  
+| WITH_DEBUG | ON  | 调试模式带 Debug 符号                                                                            |   
+| WITH_ASAN | OFF | 编译带 [AddressSanitizer](https://github.com/google/sanitizers)                              |   
+| WITH_TEST | OFF | 测试                                                                                        |   
+| WITH_DEMO | OFF | Demo                                                                                      |   
+| WITH_GLOG | ON  | 使用glog                                                                                    |   
+| WITH_DEPS | ON  | 自动下载预编译依赖                                                                                 |   
+| USE_LIBOBLOG | OFF | 使用自定义预编译的liboblog                                                                         |
+| USE_OBCDC_NS | ON  | 是否使用obcdc进行编译。注意oblogproxy 对 obcdc (原liboblog) 有版本依赖,USE_OBCDC_NS=OFF时，兼容obcdc 3.1.2及之前版本 |
+| USE_CXX11_ABI | ON  | 是否使用C++11 ABI。注意如果用了预编译的依赖，需要保持一致，否则会找不到符号                                                | 
 
 ### 编译依赖说明
 

@@ -464,7 +464,6 @@ void Communicator::on_event(int fd, short event, void* arg)
       delete msg;
     }
   }
-  //对于ER_CLOSE_CHANNEL,先处理错误再释放内存
   switch (err) {
     case EventResult::ER_CLOSE_CHANNEL:
       c.remove_channel(ch->_peer);
