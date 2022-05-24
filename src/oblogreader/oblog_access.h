@@ -18,7 +18,11 @@
 
 // this three MUST BE ordered like this
 #include "LogRecord.h"
+#ifdef USE_OBCDC_NS
+#include "libobcdc.h"
+#else
 #include "liboblog.h"
+#endif
 
 #ifndef OB_TIMEOUT
 #define OB_TIMEOUT -4012
