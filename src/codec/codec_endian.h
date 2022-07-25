@@ -17,75 +17,44 @@
 namespace oceanbase {
 namespace logproxy {
 
-enum class Endian {
-  BIG,
-  LITTLE,
-};
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 
-inline bool is_little_endian()
+#define le_to_cpu(integer) (integer)
+#define cpu_to_le(integer) (integer)
+
+inline uint16_t be_to_cpu(uint16_t integer)
 {
-  int32_t i = 0x01020304;
-  char* buf = (char*)&i;
-  return buf[0] == 0x04;
+  return __builtin_bswap16(integer);
 }
 
-template <class Integer>
-Integer bswap(Integer integer)
+inline uint32_t be_to_cpu(uint32_t integer)
 {
-  char* src_buf = (char*)&integer;
-  Integer ret = 0;
-  char* dst_buf = (char*)&ret;
-  const int bytes = sizeof(integer);
-  for (int i = 0; i < bytes; i++) {
-    dst_buf[i] = src_buf[bytes - i - 1];
-  }
-  return ret;
+  return __builtin_bswap32(integer);
 }
 
-template <class Integer>
-Integer le_to_cpu(Integer integer)
+inline uint64_t be_to_cpu(uint64_t integer)
 {
-  if (is_little_endian()) {
-    return integer;
-  }
-  return bswap<Integer>(integer);
+  return __builtin_bswap64(integer);
 }
 
-template <class Integer>
-Integer cpu_to_le(Integer integer)
+inline uint16_t cpu_to_be(uint16_t integer)
 {
-  return le_to_cpu<Integer>(integer);
+  return __builtin_bswap16(integer);
 }
 
-template <class Integer>
-Integer be_to_cpu(Integer integer)
+inline uint32_t cpu_to_be(uint32_t integer)
 {
-  if (!is_little_endian()) {
-    return integer;
-  }
-  return bswap<Integer>(integer);
+  return __builtin_bswap32(integer);
 }
 
-template <class Integer>
-Integer cpu_to_be(Integer integer)
+inline uint64_t cpu_to_be(uint64_t integer)
 {
-  return be_to_cpu<Integer>(integer);
+  return __builtin_bswap64(integer);
 }
 
-template <class Integer, Endian endian>
-Integer transform_endian(Integer integer)
-{
-  if (endian == Endian::BIG) {
-    if (!is_little_endian()) {
-      return integer;
-    }
-    return bswap(integer);
-  } else {
-    if (is_little_endian()) {
-      return integer;
-    }
-    return bswap(integer);
-  }
-}
+#else
+
+#endif
+
 }  // namespace logproxy
 }  // namespace oceanbase

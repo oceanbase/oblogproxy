@@ -67,7 +67,7 @@ static char* encode_message_header(MessageType type, int packet_size, bool magic
     offset = sizeof(PACKET_MAGIC);
   }
 
-  int16_t version = cpu_to_be<int16_t>((int16_t)MessageVersion::V2);
+  uint16_t version = cpu_to_be((uint16_t)MessageVersion::V2);
   memcpy(buffer + offset, &version, sizeof(version));
   offset += sizeof(version);
 
@@ -75,7 +75,7 @@ static char* encode_message_header(MessageType type, int packet_size, bool magic
   memcpy(buffer + offset, &message_type, sizeof(message_type));
   offset += sizeof(message_type);
 
-  int32_t pb_packet_size = cpu_to_be<int32_t>(packet_size);
+  uint32_t pb_packet_size = cpu_to_be((uint32_t)packet_size);
   memcpy(buffer + offset, &pb_packet_size, sizeof(pb_packet_size));
   return buffer;
 }

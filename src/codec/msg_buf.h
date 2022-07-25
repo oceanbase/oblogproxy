@@ -64,11 +64,6 @@ public:
   };
 
 public:
-  using ChunksType = std::deque<Chunk>;
-  using ChunkIterator = ChunksType::iterator;
-  using ChunkConstIterator = ChunksType::const_iterator;
-
-public:
   MsgBuf() = default;
 
   ~MsgBuf() = default;
@@ -107,12 +102,12 @@ public:
     return _chunks.size();
   }
 
-  ChunkConstIterator begin() const
+  std::deque<Chunk>::const_iterator begin() const
   {
     return _chunks.begin();
   }
 
-  ChunkConstIterator end() const
+  std::deque<Chunk>::const_iterator end() const
   {
     return _chunks.end();
   }
@@ -120,7 +115,7 @@ public:
   size_t byte_size() const;
 
 private:
-  ChunksType _chunks;
+  std::deque<Chunk> _chunks;
 };
 
 // TODO messageBufferWriter
@@ -150,14 +145,14 @@ public:
 
   int read_uint64(uint64_t& i);
 
-  template <class Integer, Endian endian = Endian::LITTLE>
+  template <class Integer>
   int read_int(Integer& i)
   {
     int ret = read((char*)&i, sizeof(i));
     if (ret != 0) {
       return ret;
     }
-    i = transform_endian<Integer, endian>(i);
+    i = le_to_cpu(i);
     return 0;
   }
 
@@ -182,7 +177,7 @@ public:
 
 private:
   const MsgBuf& _buffer;
-  MsgBuf::ChunkConstIterator _iter;
+  std::deque<MsgBuf::Chunk>::const_iterator _iter;
   size_t _pos = 0;
   size_t _byte_size = 0;
   size_t _read_size = 0;

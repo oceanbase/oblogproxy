@@ -16,7 +16,7 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS gflags
         GIT_REPOSITORY "https://github.com/google/googletest.git"
-        GIT_TAG "release-1.6.0"
+        GIT_TAG "release-1.11.0"
         PREFIX ${GTEST_SOURCES_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
@@ -31,7 +31,7 @@ ExternalProject_Add(
         -DCMAKE_INSTALL_LIBDIR=${GTEST_INSTALL_DIR}/lib
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_GMOCK=OFF
-        -Dbuild_gtest_samples=OFF
+        -Dgtest_build_samples=OFF
         -Dgtest_build_tests=OFF
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
         -DCMAKE_PREFIX_PATH=${prefix_path}

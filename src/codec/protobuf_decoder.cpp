@@ -42,7 +42,6 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
   // type
   int8_t type = -1;
   memcpy(&type, header_buf, 1);
-  type = be_to_cpu<int8_t>(type);
   if (!is_type_available(type)) {
     OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch->peer().id();
     return PacketError::PROTOCOL_ERROR;
@@ -51,7 +50,7 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
   // payload size
   uint32_t payload_size = 0;
   memcpy(&payload_size, header_buf + 1, 4);
-  payload_size = be_to_cpu<uint32_t>(payload_size);
+  payload_size = be_to_cpu(payload_size);
 
   // TODO... suppose that no large message
   if (payload_size > Config::instance().max_packet_bytes.val()) {

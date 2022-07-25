@@ -29,13 +29,6 @@ TEST(COMMON, hex2bin)
   std::string binstr;
   hex2bin(hexstr.data(), hexstr.size(), binstr);
   ASSERT_STREQ(binstr.c_str(), text);
-
-  binstr.clear();
-  hexstr.insert(0, 1, ' ');
-  hexstr.insert(hexstr.size() / 2, 1, ' ');
-  hexstr.insert(hexstr.size(), 1, ' ');
-  hex2bin(hexstr.data(), hexstr.size(), binstr);
-  ASSERT_STREQ(binstr.c_str(), text);
 }
 
 TEST(COMMON, json)

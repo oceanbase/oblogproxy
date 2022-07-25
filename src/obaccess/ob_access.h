@@ -46,6 +46,7 @@ private:
 private:
   std::vector<ServerInfo> _servers;
   std::string _user;
+  std::string _user_to_conn;
   std::string _password_sha1;
   std::string _sys_user;
   std::string _sys_password_sha1;
@@ -60,6 +61,8 @@ struct ObUsername {
   std::string username;
 
   explicit ObUsername(const std::string& full_name);
+
+  std::string name_without_cluster(const std::string& in_tenant = "");
 };
 
 }  // namespace logproxy

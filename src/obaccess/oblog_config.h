@@ -60,7 +60,7 @@ struct DbTable {
 };
 
 struct TenantDbTable {
-  bool all_tenant;
+  bool all_tenant = false;
   std::map<std::string, DbTable> tenants;
 
   int from(const std::string& table_whites);

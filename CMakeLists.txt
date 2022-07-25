@@ -4,10 +4,11 @@ project(oblogproxy CXX)
 macro(ob_define VAR DEFAULT)
     if (NOT DEFINED ${VAR})
         set(${VAR} ${DEFAULT})
-    endif()
+    endif ()
 endmacro()
 
 ob_define(OBLOGPROXY_RELEASEID 1)
+
 option(WITH_DEBUG "With debug symbols" ON)
 option(WITH_ASAN "Compile with AddressSanitizer" OFF)
 option(WITH_TEST "With Tests" OFF)
@@ -15,6 +16,7 @@ option(WITH_DEMO "With Demos" OFF)
 option(WITH_JNI_LIB "With oblogreader jni lib" OFF)
 option(WITH_GLOG "With google log" ON)
 option(WITH_DEPS "With precompiled deps" ON)
+option(WITH_LOGMSG "compiled logmsg from source files" OFF)
 option(USE_OBCDC_NS "With libobcdc" ON)
 option(USE_LIBOBLOG "With precompiled liboblog" OFF)
 option(USE_CXX11_ABI "Build with C++11 ABI" OFF)
@@ -31,9 +33,10 @@ SET(FIND_LIBOBLOG ON)
 if (USE_OBCDC_NS)
     SET(OBCDC_NAME "libobcdc")
     SET(OBCDC_NAME_VAR "-DUSE_OBCDC_NS")
-else()
+else ()
     SET(OBCDC_NAME "liboblog")
 endif ()
+
 if (WITH_DEPS)
     execute_process(
             COMMAND bash deps/dep_create.sh ${OMS_PROJECT_BUILD_PATH}/deps
@@ -172,14 +175,21 @@ add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
 # oblogmsg
-SET(OBLOGMSG_MAPPING "-DLOGMSG_BY_LIBOBLOG=1 -DLogMsgLocalInit=\"if((_t_s_lmb=new(std::nothrow)LogMsgBuf())==nullptr){OMS_ERROR<<\\\"Failed to alloc LogMsgBuf\\\";stop();return;}\" -DLogMsgLocalDestroy=\"delete _t_s_lmb\"")
-SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg)
+set(LOGMSG_BY_LIBOBLOG_DEFINE "")
+if (LOGMSG_BY_LIBOBLOG)
+    set(LOGMSG_BY_LIBOBLOG_DEFINE "-DLOGMSG_BY_LIBOBLOG=1")
+    SET(OBLOGMSG_MAPPING "${LOGMSG_BY_LIBOBLOG_DEFINE} -DLogMsgLocalInit=\"if((_t_s_lmb=new(std::nothrow)LogMsgBuf())==nullptr){OMS_ERROR<<\\\"Failed to alloc LogMsgBuf\\\";stop();return;}\" -DLogMsgLocalDestroy=\"delete _t_s_lmb\"")
+    SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg)
 
-SET(OBLOGMSG_LIBRARIES ${LIBOBLOG_LIBRARIES})
-GET_FILENAME_COMPONENT(OBLOGMSG_LIB_DIR ${OBLOGMSG_LIBRARIES} DIRECTORY)
+    SET(OBLOGMSG_LIBRARIES ${LIBOBLOG_LIBRARIES})
+    GET_FILENAME_COMPONENT(OBLOGMSG_LIB_DIR ${OBLOGMSG_LIBRARIES} DIRECTORY)
 
-ADD_LIBRARY(oblogmsg STATIC IMPORTED GLOBAL)
-SET_PROPERTY(TARGET oblogmsg PROPERTY IMPORTED_LOCATION ${OBLOGMSG_LIBRARIES})
+    ADD_LIBRARY(oblogmsg STATIC IMPORTED GLOBAL)
+    SET_PROPERTY(TARGET oblogmsg PROPERTY IMPORTED_LOCATION ${OBLOGMSG_LIBRARIES})
+
+else ()
+    include(oblogmsg)
+endif ()
 
 # oblog
 if (FIND_LIBOBLOG)
@@ -310,7 +320,7 @@ target_include_directories(common PUBLIC ${COMMON_INC})
 
 if (USE_OBCDC_NS)
     set(DEP_OBCDC_LIB obcdc)
-else()
+else ()
     set(DEP_OBCDC_LIB oblog)
 endif ()
 # oblogreader
@@ -353,7 +363,7 @@ add_dependencies(logproxy logproxy_static)
 target_include_directories(logproxy PUBLIC ${DEP_INC} ${LOGPROXY_INC})
 target_link_directories(logproxy PUBLIC ${DEP_LIB_PATH})
 target_link_libraries(logproxy ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
-target_link_options(logproxy PUBLIC "${ASAN_LINK_OPTION}")
+target_link_options(logproxy PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
 
 if (WITH_DEMO)
     # demo client
@@ -363,18 +373,17 @@ if (WITH_DEMO)
     target_include_directories(demo_client PUBLIC ${COMMON_INC})
     target_link_directories(demo_client PUBLIC ${DEP_LIB_PATH})
     target_link_libraries(demo_client libcommon.a ${DEP_LIBS})
-    target_link_libraries(demo_client libcommon.a ${DEP_LIBS})
-    target_link_options(demo_client PUBLIC ${ASAN_LINK_OPTION})
+    target_link_options(demo_client PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
 endif ()
 
 if (WITH_TEST)
     # test_base
     file(GLOB TEST_BASE_SRC ./src/test/test_entry.cpp)
     add_executable(test_base ${TEST_BASE_SRC})
-    add_dependencies(test_base logproxy_static gtest)
+    add_dependencies(test_base common oblogmsg gtest)
     target_include_directories(test_base PUBLIC ${LOGPROXY_INC})
     target_link_directories(test_base PUBLIC ${DEP_LIB_PATH})
-    target_link_libraries(test_base ${BASE_LIBS} ${DEP_LIBS})
+    target_link_libraries(test_base libcommon.a ${DEP_LIBS})
     target_link_options(test_base PUBLIC ${ASAN_LINK_OPTION})
 
     # test_oblogreader
