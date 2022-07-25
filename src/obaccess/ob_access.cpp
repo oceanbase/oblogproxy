@@ -96,21 +96,26 @@ static int parse_cluster_url(const std::string& cluster_url, std::vector<ObAcces
   return OMS_OK;
 }
 
-int ObAccess::init(const OblogConfig& config)
+int ObAccess::init(const OblogConfig& hs_config)
 {
-  if (!config.cluster_url.empty()) {
-    if (parse_cluster_url(config.cluster_url.val(), _servers) != OMS_OK) {
+  _user = hs_config.user.val();
+  _user_to_conn = _user;
+  std::vector<std::string> sections;
+
+  if (!hs_config.cluster_url.empty()) {
+    if (parse_cluster_url(hs_config.cluster_url.val(), _servers) != OMS_OK) {
       return OMS_FAILED;
     }
+    _user_to_conn = ObUsername(_user).name_without_cluster();
+
   } else {
 
-    const std::string& root_servers = config.root_servers.val();
+    const std::string& root_servers = hs_config.root_servers.val();
     if (root_servers.empty()) {
       OMS_ERROR << "Failed to init ObAccess caused by empty root_servers";
       return OMS_FAILED;
     }
 
-    std::vector<std::string> sections;
     int ret = split(root_servers, ';', sections);
     if (ret == 0) {
       OMS_ERROR << "Failed to init ObAccess caused by invalid root_servers";
@@ -138,26 +143,27 @@ int ObAccess::init(const OblogConfig& config)
     }
   }
 
-  _user = config.user.val();
-  hex2bin(config.password.val().c_str(), config.password.val().size(), _password_sha1);
+  hex2bin(hs_config.password.val().c_str(), hs_config.password.val().size(), _password_sha1);
 
-  if (_user.empty() || _password_sha1.empty()) {
+  if (_user_to_conn.empty() || _password_sha1.empty()) {
     OMS_ERROR << "Failed to init ObAccess caused by empty user or password";
     return OMS_FAILED;
   }
 
-  _sys_user = config.sys_user.empty() ? Config::instance().ob_sys_username.val() : config.sys_user.val();
-  if (config.sys_password.empty()) {
-    MysqlProtocol::do_sha_password(Config::instance().ob_sys_password.val(), _sys_password_sha1);
+  _sys_user = !hs_config.sys_user.empty() ? hs_config.sys_user.val() : Config::instance().ob_sys_username.val();
+
+  // preconfiged sys password was encrypted, otherwise was plain text as handshake param
+  if (!hs_config.sys_password.empty()) {
+    MysqlProtocol::do_sha_password(hs_config.sys_password.val(), _sys_password_sha1);
   } else {
-    MysqlProtocol::do_sha_password(config.sys_password.val(), _sys_password_sha1);
+    MysqlProtocol::do_sha_password(Config::instance().ob_sys_password.val(), _sys_password_sha1);
   }
   if (_sys_user.empty() || _sys_password_sha1.empty()) {
     OMS_ERROR << "Failed to init ObAccess caused by empty sys_user or sys_password";
     return OMS_FAILED;
   }
 
-  int ret = _table_whites.from(config.table_whites.val());
+  int ret = _table_whites.from(hs_config.table_whites.val());
   if (ret != OMS_OK) {
     return ret;
   }
@@ -168,7 +174,8 @@ int ObAccess::init(const OblogConfig& config)
 int ObAccess::auth()
 {
   for (auto& server : _servers) {
-    int ret = _table_whites.all_tenant ? auth_sys(server) : auth_tenant(server);
+    bool auth_by_sys = _table_whites.all_tenant || _table_whites.with_sys;
+    int ret = auth_by_sys ? auth_sys(server) : auth_tenant(server);
     if (ret != OMS_OK) {
       return OMS_FAILED;
     }
@@ -180,22 +187,22 @@ int ObAccess::auth_sys(const ServerInfo& server)
 {
   MysqlProtocol auther;
   // all tenant must be sys tenant;
-  int ret = auther.login(server.host, server.port, _user, _password_sha1);
+  int ret = auther.login(server.host, server.port, _user_to_conn, _password_sha1);
   if (ret != OMS_OK) {
     return ret;
   }
 
-  MysqlResultSet rs;
+  MySQLResultSet rs;
   ret = auther.query("show tenant", rs);
   if (ret != OMS_OK || rs.rows.empty()) {
     OMS_ERROR << "Failed to auth, show tenant for sys all match mode, ret:" << ret;
     return OMS_FAILED;
   }
 
-  const MysqlRow& row = rs.rows.front();
+  const MySQLRow& row = rs.rows.front();
   const std::string& tenant = row.fields().front();
   if (tenant.size() < 3 || strncasecmp("sys", tenant.c_str(), 3) != 0) {
-    OMS_ERROR << "Failed to auth, all tenant mode must be sys tenant, current: " << tenant;
+    OMS_ERROR << "Failed to auth, all tenant mode or sys tenant must be connected as sys tenant, current: " << tenant;
     return OMS_FAILED;
   }
   return OMS_OK;
@@ -213,9 +220,9 @@ int ObAccess::auth_tenant(const ServerInfo& server)
   ObUsername ob_user(_user);
 
   // 2. for each of tenant servers, login it.
-  MysqlResultSet rs;
+  MySQLResultSet rs;
   for (auto& tenant_entry : _table_whites.tenants) {
-    OMS_INFO << "About to auth tenant:" << tenant_entry.first << " of user:" << _user;
+    OMS_INFO << "About to auth tenant:" << tenant_entry.first << " of user:" << _user_to_conn;
 
     rs.reset();
     ret = sys_auther.query(
@@ -235,15 +242,12 @@ int ObAccess::auth_tenant(const ServerInfo& server)
                 << ", col count:" << rs.col_count << ", ret:" << ret;
       return OMS_FAILED;
     }
-    const MysqlRow& row = rs.rows.front();
+    const MySQLRow& row = rs.rows.front();
     const std::string& host = row.fields()[0];
     const uint16_t sql_port = atoi(row.fields()[1].c_str());
 
     MysqlProtocol user_auther;
-    std::string conn_user = ob_user.username;
-    conn_user.append("@");
-    conn_user.append(ob_user.tenant.empty() ? tenant_entry.first : ob_user.tenant);
-    ret = user_auther.login(host, sql_port, conn_user, _password_sha1);
+    ret = user_auther.login(host, sql_port, ob_user.name_without_cluster(tenant_entry.first), _password_sha1);
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to auth from tenant server: " << host << ":" << sql_port << ", ret:" << ret;
       return ret;
@@ -286,6 +290,19 @@ ObUsername::ObUsername(const std::string& full_name)
     // username
     username = full_name;
   }
+}
+
+std::string ObUsername::name_without_cluster(const std::string& in_tenant)
+{
+  std::string conn_user = username;
+  if (!tenant.empty()) {
+    conn_user.append("@");
+    conn_user.append(tenant);
+  } else if (!in_tenant.empty()) {
+    conn_user.append("@");
+    conn_user.append(in_tenant);
+  }
+  return conn_user;
 }
 
 }  // namespace logproxy

@@ -37,7 +37,7 @@ public:
   int login(const std::string& host, int port, const std::string& username, const std::string& passwd_sha1,
       const std::string& database = "");
 
-  int query(const std::string& sql, MysqlResultSet& rs);
+  int query(const std::string& sql, MySQLResultSet& rs);
 
   /**
    * 设置接收网络消息包时，首次检测是否有消息到达的超时时间。单位毫秒
@@ -59,11 +59,9 @@ public:
 private:
   int connect_to_server();
 
-  int calc_mysql_auth_info(const std::vector<char>& scramble_buffer, std::vector<char>& auth_info);
+  int calc_mysql_auth_info(const std::vector<char>& scramble, std::vector<char>& auth);
 
-  int send_auth_info(const std::vector<char>& auth_info, uint8_t sequence);
-
-  int is_mysql_response_ok();
+  int send_auth(const std::vector<char>& auth_info, const std::string& database);
 
 private:
   std::string _username;

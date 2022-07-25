@@ -64,8 +64,8 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
   size_t offset = 0;
   for (auto& ptr : ptrs) {
     size_t block_size = ptr.second;
-    uint32_t seq_be = cpu_to_be<uint32_t>(idx++);
-    uint32_t size_be = cpu_to_be<uint32_t>(block_size);
+    uint32_t seq_be = cpu_to_be(idx++);
+    uint32_t size_be = cpu_to_be((uint32_t)block_size);
     memcpy(raw + offset, &seq_be, 4);
     memcpy(raw + offset + 4, &size_be, 4);
     memcpy(raw + offset + 8, ptr.first, block_size);
@@ -81,9 +81,9 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
     OMS_DEBUG << "compress packet raw from size:" << total_size << " to compressed size:" << compressed_size;
   }
 
-  uint32_t packet_len_be = cpu_to_be<uint32_t>(compressed_size + 9);
-  uint32_t orginal_size_be = cpu_to_be<uint32_t>(total_size);
-  uint32_t compressed_size_be = cpu_to_be<uint32_t>(compressed_size);
+  uint32_t packet_len_be = cpu_to_be((uint32_t)compressed_size + 9);
+  uint32_t orginal_size_be = cpu_to_be(total_size);
+  uint32_t compressed_size_be = cpu_to_be((uint32_t)compressed_size);
   char* buf = (char*)malloc(13);
   memcpy(buf, &packet_len_be, 4);
   memset(buf + 4, (uint8_t)CompressType::LZ4, 1);
@@ -170,8 +170,8 @@ LegacyEncoder::LegacyEncoder()
                   << ", size: " << header->m_size;
       }
 
-      uint32_t seq_be = cpu_to_be<uint32_t>(idx++);
-      uint32_t size_be = cpu_to_be<uint32_t>(size);
+      uint32_t seq_be = cpu_to_be(idx++);
+      uint32_t size_be = cpu_to_be((uint32_t)size);
       buffer.push_back_copy((char*)&seq_be, 4);
       buffer.push_back_copy((char*)&size_be, 4);
       buffer.push_back((char*)logmsg_buf, size, false);
@@ -179,8 +179,8 @@ LegacyEncoder::LegacyEncoder()
       total_size += (size + 8);
     }
 
-    uint32_t packet_len_be = cpu_to_be<uint32_t>(total_size + 9);
-    total_size = cpu_to_be<uint32_t>(total_size);
+    uint32_t packet_len_be = cpu_to_be(total_size + 9);
+    total_size = cpu_to_be(total_size);
 
     char* buf = (char*)malloc(4 + 1 + 4 + 4);
     memcpy(buf, &packet_len_be, 4);
@@ -208,9 +208,9 @@ LegacyEncoder::LegacyEncoder()
     }
 
     // Error message
-    uint32_t code_be = cpu_to_be<uint32_t>(msg.code);
+    uint32_t code_be = cpu_to_be((uint32_t)msg.code);
     memcpy(buf, &code_be, 4);
-    uint32_t varlen_be = cpu_to_be<uint32_t>(msg.message.size());
+    uint32_t varlen_be = cpu_to_be((uint32_t)msg.message.size());
     memcpy(buf + 4, &varlen_be, 4);
     if (msg.message.size() != 0) {
       memcpy(buf + 8, msg.message.c_str(), msg.message.size());
@@ -237,7 +237,7 @@ int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer)
   memset(buf, 0, 2);
 
   // response type code
-  uint32_t msg_type_be = cpu_to_be<uint32_t>((uint32_t)msg.type());
+  uint32_t msg_type_be = cpu_to_be((uint32_t)msg.type());
   memcpy(buf + 2, &msg_type_be, 4);
   buffer.push_front(buf, len);
   return ret;

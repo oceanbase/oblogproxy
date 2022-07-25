@@ -51,7 +51,7 @@ int do_sha_password(const std::string& pswd, std::string& sha_password)
 }
 
 void login(const std::string& host, int port, const std::string& user, const std::string& passwd,
-    const std::string& sql, MysqlResultSet& rs)
+    const std::string& sql, MySQLResultSet& rs)
 {
   std::string sha_password;
   int ret = do_sha_password(passwd, sha_password);
@@ -65,7 +65,7 @@ void login(const std::string& host, int port, const std::string& user, const std
 
   LogStream ls(0, "", 0, nullptr);
   ls << "| column counts:" << rs.cols.size() << " |\n";
-  for (MysqlRow& row : rs.rows) {
+  for (MySQLRow& row : rs.rows) {
     ls << "| ";
     for (const std::string& field : row.fields()) {
       ls << field << " | ";
@@ -89,31 +89,34 @@ static std::string sys_password_sha1;
 
 static std::string cluster_url = "";
 
-static std::vector<std::string> sqls = {"show tenant",
-    "select version()",
+// static std::vector<std::string> sqls = {"select 1"};
+static std::vector<std::string> sqls = {"show tenant", "select version()"};
+static std::vector<std::string> sqls_for_sys = {
     "SELECT server.svr_ip, server.svr_port, server.zone, tenant.tenant_id, tenant.tenant_name from "
     "oceanbase.__all_resource_pool AS pool, oceanbase.__all_unit AS unit, oceanbase.__all_server AS "
     "server, oceanbase.__all_tenant AS tenant WHERE tenant.tenant_id = pool.tenant_id AND "
     "unit.resource_pool_id = pool.resource_pool_id AND unit.svr_ip = server.svr_ip AND "
     "unit.svr_port = server.svr_port AND tenant.tenant_name='" +
-        tenant + "'"};
+    tenant + "'"};
 
 TEST(MYSQL_AUTH, query)
 {
-  MysqlResultSet rs;
+  MySQLResultSet rs;
   for (auto& sql : sqls) {
     login(host, port, user, password, sql, rs);
+  }
+  for (auto& sql : sqls_for_sys) {
     login(host, port, sys_user, sys_password, sql, rs);
   }
 }
 
 TEST(MYSQL_AUTH, auth_ok)
 {
-  do_sha_password(password, password_sha1);
-  do_sha_password(sys_password, sys_password_sha1);
-
   Config::instance().ob_sys_username.set(sys_user);
   Config::instance().ob_sys_password.set(sys_password);
+
+  do_sha_password(password, password_sha1);
+  do_sha_password(sys_password, sys_password_sha1);
 
   OblogConfig config("first_start_timestamp=0 rootserver_list=" + host + ":2881:" + std::to_string(port) +
                      " cluster_user=" + user + " cluster_password=" + dumphex(password_sha1) +

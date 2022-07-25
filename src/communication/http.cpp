@@ -75,7 +75,7 @@ static void http_request_error_cb(enum evhttp_request_error error, void* arg)
 
 void http_conn_close_cb(struct evhttp_connection*, void* arg)
 {
-  OMS_WARN << "HTTP request conn closed";
+  OMS_DEBUG << "HTTP request conn closed";
   event_base_loopexit(((HttpContext*)arg)->base, nullptr);
 }
 

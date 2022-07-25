@@ -74,6 +74,34 @@ stop() {
   kill_proc_9
 }
 
+do_config_sys() {
+  username=$1
+  password=$2
+  if [[ -z "${username}" ]] || [[ -z "${password}" ]]; then
+    echo "No input sys username or password"
+    exit -1
+  fi
+
+  username_x=`./bin/${BIN} -x ${username}`
+  password_x=`./bin/${BIN} -x ${password}`
+
+  cp ./conf/conf.json ./conf/conf.json.new
+  sed -r -i 's/"ob_sys_username"[ ]*:[ ]*"[0-9a-zA-Z]+/"ob_sys_username": "'${username_x}'/' ./conf/conf.json.new
+  sed -r -i 's/"ob_sys_password"[ ]*:[ ]*"[0-9a-zA-Z]+/"ob_sys_password": "'${password_x}'/' ./conf/conf.json.new
+  diff ./conf/conf.json ./conf/conf.json.new
+  echo ""
+
+  read -r -p "!!DANGER!! About to update logproxy conf/conf.json, Please confirm? [Y/n] " response
+  if [ "${response}" != "y" ] && [ "${response}" != "Y" ]; then
+      echo "Cancel!"
+      rm -rf ./conf/conf.json.new
+      exit 0
+  fi
+
+  cp ./conf/conf.json ./conf/conf.json.bak
+  mv ./conf/conf.json.new ./conf/conf.json
+}
+
 case C"$1" in
 Cstop)
   stop
@@ -92,6 +120,9 @@ Cstatus)
   status=$?
   echo "status : ${status}"
   exit ${status}
+  ;;
+Cconfig_sys)
+  do_config_sys $2 $3
   ;;
 C*)
   echo "Usage: $0 {start|stop|status}"

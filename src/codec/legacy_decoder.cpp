@@ -30,7 +30,7 @@ static PacketError decode_v1(Channel* ch, Message*& message)
     OMS_ERROR << "Failed to read message payload size, ch:" << ch->peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
-  payload_size = be_to_cpu<uint32_t>(payload_size);
+  payload_size = be_to_cpu(payload_size);
   // FIXME.. use an mem pool
   char* payload_buf = (char*)malloc(payload_size);
   if (nullptr == payload_buf) {
@@ -86,12 +86,12 @@ PacketError LegacyDecoder::decode(Channel* ch, MessageVersion version, Message*&
   }
 
   // type
-  int32_t type = -1;
+  uint32_t type = -1;
   if (ch->readn((char*)&type, 4) != OMS_OK) {
     OMS_ERROR << "Failed to read message header, ch:" << ch->peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
-  type = be_to_cpu<int32_t>(type);
+  type = be_to_cpu(type);
   if (!is_type_available(type)) {
     OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch->peer().id();
     return PacketError::PROTOCOL_ERROR;
@@ -117,7 +117,7 @@ static int read_varstr(Channel* ch, std::string& val)
   if (ch->readn((char*)&len, 4) != OMS_OK) {
     return OMS_FAILED;
   }
-  len = be_to_cpu<uint32_t>(len);
+  len = be_to_cpu(len);
 
   char* buf = (char*)malloc(len);
   FreeGuard<char*> ff(buf);

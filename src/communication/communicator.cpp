@@ -392,7 +392,7 @@ PacketError Communicator::receive_message(Channel* ch, Message*& msg)
     }
   }
 
-  version = be_to_cpu<uint16_t>(version);
+  version = be_to_cpu(version);
   if (!is_version_available(version)) {
     OMS_ERROR << "Invalid packet version:" << version << ", ch:" << ch->peer().id();
     return PacketError::PROTOCOL_ERROR;

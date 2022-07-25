@@ -7,7 +7,7 @@ endif ()
 SET(OBLOGMSG_SOURCES_DIR ${THIRD_PARTY_PATH}/oblogmsg)
 SET(OBLOGMSG_DOWNLOAD_DIR "${OBLOGMSG_SOURCES_DIR}/src/extern_oblogmsg")
 SET(OBLOGMSG_INSTALL_DIR ${THIRD_PARTY_PATH}/install/oblogmsg)
-SET(OBLOGMSG_INCLUDE_DIR "${OBLOGMSG_INSTALL_DIR}/include" CACHE PATH "oblogmsg include directory." FORCE)
+SET(OBLOGMSG_INCLUDE_DIR "${OBLOGMSG_INSTALL_DIR}/include;${THIRD_PARTY_PATH}/install/oblogmsg/drcmessage" CACHE PATH "oblogmsg include directory." FORCE)
 
 SET(OBLOGMSG_LIB_DIR "${OBLOGMSG_INSTALL_DIR}/lib/" CACHE FILEPATH "oblogmsg library directory." FORCE)
 SET(OBLOGMSG_LIBRARIES "liboblogmsg.a" CACHE FILEPATH "oblogmsg library." FORCE)

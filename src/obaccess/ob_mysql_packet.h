@@ -21,9 +21,8 @@ namespace logproxy {
 class MsgBuf;
 
 /**
- * 接收一个mysql消息包
- * 参考: https://dev.mysql.com/doc/internals/en/mysql-packet.html
- * @param fd 接收消息的描述符
+ * rece a mysql protocol packet
+ * @param fd
  * @param timout 等待有消息的超时时间(一旦判断有消息到达，就不再关注timeout). 单位 毫秒
  * @param[out] packet_length 消息包长度
  * @param[out] sequence 消息sequence，参考mysql说明
@@ -34,9 +33,9 @@ int recv_mysql_packet(int fd, int timeout, uint32_t& packet_length, uint8_t& seq
 
 int recv_mysql_packet(int fd, int timeout, MsgBuf& msgbuf);
 
-int send_mysql_packet(int fd, MsgBuf& msgbuf);
+int send_mysql_packet(int fd, MsgBuf& msgbuf, uint8_t sequence);
 
-class MysqlResponse {
+class MySQLResponse {
 public:
   friend class MysqlProtocol;
 
@@ -44,12 +43,12 @@ protected:
   virtual int decode(const MsgBuf& msgbuf) = 0;
 };
 
-class MysqlOkPacket : public MysqlResponse {
+class MySQLOkPacket : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
 };
 
-class MysqlEofPacket : public MysqlResponse {
+class MySQLEofPacket : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
 
@@ -60,7 +59,7 @@ private:
   uint16_t _status_flags;
 };
 
-class MysqlErrorPacket : public MysqlResponse {
+class MySQLErrorPacket : public MySQLResponse {
 public:
   friend class MysqlProtocol;
 
@@ -74,17 +73,13 @@ private:
   std::string _message;
 };
 
-class MysqlInitialHandShakePacket {
+class MySQLInitialHandShakePacket {
 public:
-  /**
-   * 连接上mysql之后，mysql就向客户端发送一个握手数据包。握手数据包中包含了一个随机生成的字符串(20字节）。
-   * 这个随机字符串称为scramble，与密码一起做运算后，发送给mysql server做鉴权
-   */
   int decode(const MsgBuf& msgbuf);
 
-  bool scramble_buffer_valid() const;
+  bool scramble_valid() const;
 
-  const std::vector<char>& scramble_buffer() const;
+  const std::vector<char>& scramble() const;
 
   uint8_t sequence() const;
 
@@ -92,34 +87,28 @@ private:
   uint8_t _sequence = 0;
   uint8_t _protocol_version = 0;
   uint32_t _capabilities_flag = 0;
-  std::vector<char> _scramble_buffer;
-  bool _scramble_buffer_valid = false;
+  std::string _auth_plugin_name;
+
+  bool _scramble_valid = false;
+  std::vector<char> _scramble;
 };
 
-class MysqlHandShakeResponsePacket {
+class MySQLHandShakeResponsePacket {
 public:
-  MysqlHandShakeResponsePacket(const std::string& username, const std::string& database,
-      const std::vector<char>& auth_response, int8_t sequence);
+  MySQLHandShakeResponsePacket(
+      const std::string& username, const std::string& database, const std::vector<char>& auth_response);
 
-  /**
-   * 客户端创建socket连接成功mysql server后，MySQL会发一个握手包，之后客户端向MySQL server回复一个消息。
-   * 这里就负责这条消息的编码。
-   */
   int encode(MsgBuf& msgbuf);
-
-private:
-  uint32_t calc_capabilities_flag();
 
 private:
   std::string _username;
   std::string _database;
   std::vector<char> _auth_response;
-  int8_t _sequence = 0;
 };
 
-class MysqlQueryPacket {
+class MySQLQueryPacket {
 public:
-  explicit MysqlQueryPacket(const std::string& sql);
+  explicit MySQLQueryPacket(const std::string& sql);
 
   // use memory in-stack, none any heap memory would be alloc
   int encode_inplace(MsgBuf& msgbuf);
@@ -129,7 +118,7 @@ private:
   const std::string& _sql;
 };
 
-class MysqlCol : public MysqlResponse {
+class MySQLCol : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
 
@@ -149,11 +138,11 @@ private:
   uint16_t _filler;
 };
 
-class MysqlRow : public MysqlResponse {
+class MySQLRow : public MySQLResponse {
 public:
   friend class MysqlProtocol;
 
-  explicit MysqlRow(uint64_t col_count);
+  explicit MySQLRow(uint64_t col_count);
 
   int decode(const MsgBuf& msgbuf) override;
 
@@ -172,7 +161,7 @@ private:
   std::vector<std::string> _fields;
 };
 
-class MysqlQueryResponsePacket : public MysqlResponse {
+class MySQLQueryResponsePacket : public MySQLResponse {
 public:
   friend class MysqlProtocol;
 
@@ -186,15 +175,15 @@ public:
 private:
   uint64_t _col_count = 0;
 
-  MysqlErrorPacket _err;
+  MySQLErrorPacket _err;
 };
 
-struct MysqlResultSet {
+struct MySQLResultSet {
   void reset();
 
   uint64_t col_count = 0;
-  std::vector<MysqlCol> cols;
-  std::vector<MysqlRow> rows;
+  std::vector<MySQLCol> cols;
+  std::vector<MySQLRow> rows;
 };
 
 }  // namespace logproxy
