@@ -174,7 +174,8 @@ int ObAccess::init(const OblogConfig& hs_config)
 int ObAccess::auth()
 {
   for (auto& server : _servers) {
-    int ret = _table_whites.all_tenant ? auth_sys(server) : auth_tenant(server);
+    bool auth_by_sys = _table_whites.all_tenant || _table_whites.with_sys;
+    int ret = auth_by_sys ? auth_sys(server) : auth_tenant(server);
     if (ret != OMS_OK) {
       return OMS_FAILED;
     }
@@ -201,7 +202,7 @@ int ObAccess::auth_sys(const ServerInfo& server)
   const MySQLRow& row = rs.rows.front();
   const std::string& tenant = row.fields().front();
   if (tenant.size() < 3 || strncasecmp("sys", tenant.c_str(), 3) != 0) {
-    OMS_ERROR << "Failed to auth, all tenant mode must be sys tenant, current: " << tenant;
+    OMS_ERROR << "Failed to auth, all tenant mode or sys tenant must be connected as sys tenant, current: " << tenant;
     return OMS_FAILED;
   }
   return OMS_OK;

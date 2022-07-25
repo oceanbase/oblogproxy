@@ -113,7 +113,11 @@ int TenantDbTable::from(const std::string& table_whites)
     }
 
     const std::string& tenant = items[0];
+    if (tenant == "sys") {
+      with_sys = true;
+    }
     if (tenant == "*") {
+      with_sys = true;
       all_tenant = true;
       tenants.clear();
       return OMS_OK;
