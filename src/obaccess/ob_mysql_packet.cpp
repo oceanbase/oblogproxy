@@ -129,9 +129,9 @@ int send_mysql_packet(int fd, MsgBuf& msgbuf, uint8_t sequence)
   packet_length = packet_length | (sequence << 3);
 
   ////// DEBUG ONLY ///////
-  std::string hexstr;
-  dumphex((char*)&packet_length, 4, hexstr);
-  OMS_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
+//  std::string hexstr;
+//  dumphex((char*)&packet_length, 4, hexstr);
+//  OMS_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
   ////// DEBUG ONLY ///////
 
   int ret = writen(fd, &packet_length, 4);

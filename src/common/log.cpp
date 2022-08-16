@@ -61,8 +61,8 @@ void init_log(const char* argv0, bool restart)
   google::SetLogDestination(google::GLOG_ERROR, "log/logproxy_error.");
   google::SetLogDestination(google::GLOG_FATAL, "log/logproxy_error.");
 
-  google::InstallFailureSignalHandler();
-  google::InstallFailureWriter(dump_writer);
+  //  google::InstallFailureSignalHandler();
+  //  google::InstallFailureWriter(dump_writer);
 
   FileGcRoutine log_gc("./log", {"logproxy_", bin_name + ".log"});
   //    log_gc.start();

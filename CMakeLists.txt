@@ -57,9 +57,9 @@ if (WITH_DEPS)
     SET(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel/)
 
     # make protoc found libstdc++
-    SET(PROTOC_LINK_FLAGS "-L${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ -static-libstdc++")
+    SET(PROTOC_LINK_FLAGS "-L${DEP_VAR}/usr/local/oceanbase/deps/devel/lib64/ -L${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/5.2.0/ -static-libstdc++")
 
-    SET(DEP_LIB_PATH ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib64/)
+    SET(DEP_LIB_PATH ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib64/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/5.2.0/)
 endif ()
 
 message(STATUS "DEP_VAR: ${DEP_VAR}")
@@ -175,6 +175,7 @@ add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
 # oblogmsg
+option(LOGMSG_BY_LIBOBLOG "use logmsg provide by liboblog" ON)
 set(LOGMSG_BY_LIBOBLOG_DEFINE "")
 if (LOGMSG_BY_LIBOBLOG)
     set(LOGMSG_BY_LIBOBLOG_DEFINE "-DLOGMSG_BY_LIBOBLOG=1")
@@ -213,7 +214,7 @@ execute_process(
 
 if (NOT GIT_VERSION)
     message(WARNING "oblogproxy fetch git version empty, use current time as program version")
-    STRING(TIMESTAMP GIT_VERSION "%Y-%m-%d %H:%M:%S")
+    STRING(TIMESTAMP GIT_VERSION "%Y-%m-%d_%H:%M:%S")
 endif ()
 
 if (NOT GIT_VERSION)
