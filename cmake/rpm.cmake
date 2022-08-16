@@ -61,7 +61,7 @@ set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script "/sbin/ldconfig")
 set(CPACK_RPM_UTILS_POST_UNINSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script)
 if(USE_OBCDC_NS)
-    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel = 3.1.3")
+    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel >= 3.1.3")
 else()
     set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel = 3.1.2")
 endif()
