@@ -10,11 +10,10 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "MsgHeader.h"
-
 #include "common/log.h"
 #include "common/config.h"
 #include "common/counter.h"
+#include "arranger/client_meta.h"
 #include "oblogreader/oblogreader.h"
 
 namespace oceanbase {
@@ -22,15 +21,16 @@ namespace logproxy {
 
 ObLogReader::~ObLogReader()
 {
-  stop();
-  join();
+  //  stop();
+  //  join();
 }
 
-int ObLogReader::init(const std::string& id, MessageVersion packet_version, Channel* ch, const OblogConfig& config)
+int ObLogReader::init(
+    const std::string& id, MessageVersion packet_version, const ClientMeta& meta, const OblogConfig& config)
 {
-  Counter::instance().register_gauge("RecordQueueSize", [this]() { return _queue.size(); });
+  Counter::instance().register_gauge("NRecordQ", [this]() { return _queue.size(); });
 
-  int ret = _sender.init(packet_version, ch);
+  int ret = _sender.init(packet_version, meta.peer);
   if (ret != OMS_OK) {
     return ret;
   }

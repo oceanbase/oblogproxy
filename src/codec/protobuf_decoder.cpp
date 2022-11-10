@@ -31,11 +31,11 @@ static Config& _s_config = Config::instance();
  */
 const size_t MESSAGE_HEADER_SIZE_V2 = 1 + 4;
 
-PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message*& message)
+PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message*& message)
 {
   char header_buf[MESSAGE_HEADER_SIZE_V2];
-  if (ch->readn(header_buf, MESSAGE_HEADER_SIZE_V2) != OMS_OK) {
-    OMS_ERROR << "Failed to read message header, ch:" << ch->peer().id() << ", error:" << strerror(errno);
+  if (ch.readn(header_buf, MESSAGE_HEADER_SIZE_V2) != OMS_OK) {
+    OMS_ERROR << "Failed to read message header, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
 
@@ -43,7 +43,7 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
   int8_t type = -1;
   memcpy(&type, header_buf, 1);
   if (!is_type_available(type)) {
-    OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch->peer().id();
+    OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -62,12 +62,12 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
   // FIXME.. use an mem pool
   char* payload_buf = (char*)malloc(payload_size);
   if (nullptr == payload_buf) {
-    OMS_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch->peer().id();
+    OMS_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch.peer().id();
     return PacketError::OUT_OF_MEMORY;
   }
   FreeGuard<char*> payload_buf_guard(payload_buf);
-  if (ch->readn(payload_buf, payload_size) != 0) {
-    OMS_ERROR << "Failed to read message. ch:" << ch->peer().id() << ", error:" << strerror(errno);
+  if (ch.readn(payload_buf, payload_size) != 0) {
+    OMS_ERROR << "Failed to read message. ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
 
@@ -80,7 +80,7 @@ PacketError ProtobufDecoder::decode(Channel* ch, MessageVersion version, Message
 
   int ret = decode_payload((MessageType)type, buffer, message);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to decode_payload message, ch:" << ch->peer().id();
+    OMS_ERROR << "Failed to decode_payload message, ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -179,6 +179,7 @@ int ProtobufDecoder::decode_handshake_response(MsgBufReader& buffer_reader, Mess
     return OMS_FAILED;
   }
 
+  // copy field
   ClientHandshakeResponseMessage* response_msg = new (std::nothrow)
       ClientHandshakeResponseMessage((int)pb_msg.code(), pb_msg.ip().c_str(), pb_msg.version().c_str());
 
@@ -224,7 +225,8 @@ int ProtobufDecoder::decode_data_client(MsgBufReader& buffer_reader, Message*& _
     return OMS_FAILED;
   }
 
-  RecordDataMessage* msg = new (std::nothrow) RecordDataMessage();
+  std::vector<ILogRecord*> records;
+  RecordDataMessage* msg = new (std::nothrow) RecordDataMessage(records);
   if (nullptr == msg) {
     OMS_ERROR << "Failed to create RecordDataMessage.";
     return OMS_FAILED;
@@ -240,7 +242,7 @@ int ProtobufDecoder::decode_data_client(MsgBufReader& buffer_reader, Message*& _
     return ret;
   }
 
-  ILogRecord* record = msg->records.front();
+  ILogRecord* record = msg->records[msg->offset()];
   if (_s_config.verbose_packet.val()) {
     OMS_INFO << "Fetched record from LogProxy, "
              << "compress type: " << pb_msg.compress_type() << ","

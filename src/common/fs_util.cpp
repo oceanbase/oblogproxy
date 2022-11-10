@@ -15,6 +15,8 @@
 #include "openssl/md5.h"
 #include "common/log.h"
 #include "common/fs_util.h"
+#include "common/common.h"
+#include "str.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -151,6 +153,69 @@ std::string FsUtil::file_md5(const std::string& filename)
     idx += snprintf(md5 + idx, 32, "%02x", buf[i]);
   }
   return {md5};
+}
+
+bool FsUtil::read_file(const std::string& filename, std::string& content, bool trim_content)
+{
+  std::ifstream ifs(filename);
+  if (!ifs.good()) {
+    OMS_ERROR << "Failed to open: " << filename << " errno:" << errno;
+    return false;
+  }
+
+  std::stringstream buffer;
+  buffer << ifs.rdbuf();
+  content = buffer.str();
+  if (trim_content) {
+    trim(content);
+  }
+  return true;
+}
+
+bool FsUtil::read_number(const std::string& filename, int64_t& number)
+{
+  std::string val;
+  if (!read_file(filename, val)) {
+    return false;
+  }
+  number = strtoll(val.c_str(), nullptr, 10);
+  return true;
+}
+
+bool FsUtil::read_lines(const std::string& filename, std::vector<std::string>& lines)
+{
+  std::ifstream ifs(filename);
+  if (!ifs.good()) {
+    OMS_ERROR << "Failed to open: " << filename << " errno:" << errno;
+    return false;
+  }
+
+  for (std::string line; std::getline(ifs, line);) {
+    lines.emplace_back(std::move(line));
+  }
+  return true;
+}
+
+bool FsUtil::read_kvs(const std::string& filename, const std::string& sep, std::map<std::string, std::string>& kvs)
+{
+  if (sep.empty()) {
+    OMS_ERROR << "Invalid empty seperator";
+    return false;
+  }
+
+  std::vector<std::string> lines;
+  if (!read_lines(filename, lines)) {
+    return false;
+  }
+  for (const std::string& line : lines) {
+    std::vector<std::string> kv(2);
+    split_by_str(line, sep, kv);
+    if (kv.size() != 2) {
+      continue;
+    }
+    kvs.emplace(std::move(kv[0]), std::move(kv[1]));
+  }
+  return true;
 }
 
 }  // namespace logproxy

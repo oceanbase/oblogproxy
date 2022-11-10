@@ -14,22 +14,26 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
-#include "config.h"
-#include "log.h"
-#include "file_gc.h"
+#include "common/config.h"
+#include "common/log.h"
+#include "common/file_gc.h"
 
 namespace oceanbase {
 namespace logproxy {
 
 static Config& _s_config = Config::instance();
 
-FileGcRoutine::FileGcRoutine(const std::string& path, const std::set<std::string>& prefixs)
-    : _path(path), _prefixs(prefixs)
-{}
+FileGcRoutine::FileGcRoutine(std::string path, std::set<std::string> prefixs)
+{
+  _path = std::move(path);
+  _prefixs = std::move(prefixs);
+}
 
 void FileGcRoutine::run()
 {
-  OMS_INFO << "file gc size quota: " << _s_config.log_quota_size_mb.val() * 1024;
+  OMS_INFO << "file gc size quota MB: " << _s_config.log_quota_size_mb.val() * 1024;
+  OMS_INFO << "file gc time quota day: " << _s_config.log_quota_day.val();
+  OMS_INFO << "file gc path: " << _path;
   for (auto& prefix : _prefixs) {
     OMS_INFO << "file gc prefixs: " << prefix;
   }
@@ -75,6 +79,7 @@ void FileGcRoutine::run()
     }
     closedir(dir);
 
+    // from new to old
     uint64_t size_count = 0;
     for (auto iter = todels.rbegin(); iter != todels.rend(); ++iter) {
       if (std::get<2>(iter->second)) {
@@ -83,6 +88,7 @@ void FileGcRoutine::run()
       size_count += std::get<1>(iter->second);
       if (size_count >= (_s_config.log_quota_size_mb.val() * 1024LL)) {
         std::get<2>(iter->second) = true;
+        // rest of files all will be marked to delete as size_count are still accumulating
       }
     }
 

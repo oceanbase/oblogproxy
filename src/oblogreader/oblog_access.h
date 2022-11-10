@@ -20,8 +20,20 @@
 #include "LogRecord.h"
 #ifdef USE_OBCDC_NS
 #include "libobcdc.h"
+
+typedef oceanbase::libobcdc::IObCDCInstance IObLog;
+typedef oceanbase::libobcdc::ObCDCFactory ObLogFactory;
+typedef oceanbase::libobcdc::ObCDCError ObLogError;
+
+#define construct_oblog construct_obcdc
+
 #else
 #include "liboblog.h"
+
+using oceanbase::liboblog::IObLog;
+using oceanbase::liboblog::ObLogError;
+using oceanbase::liboblog::ObLogFactory;
+
 #endif
 
 #ifndef OB_TIMEOUT
@@ -46,6 +58,8 @@ public:
   virtual ~OblogAccess();
 
   int init(const std::map<std::string, std::string>& configs, uint64_t start_timestamp);
+
+  int init_with_us(const std::map<std::string, std::string>& configs, uint64_t start_timestamp_us);
 
   int start();
 
@@ -78,18 +92,19 @@ public:
   }
 
 private:
-  static void handle_error(const oceanbase::liboblog::ObLogError& error);
+  static void handle_error(const ObLogError& error);
 
 private:
   // state
   uint64_t _start_timestamp = 0;
+  uint64_t _start_timestamp_us = 0;
 
   // params
   uint64_t _wait_timeout_us = 100;
 
   // liboblog
-  oceanbase::liboblog::IObLog* _oblog;
-  oceanbase::liboblog::ObLogFactory* _oblog_factory;
+  IObLog* _oblog;
+  ObLogFactory* _oblog_factory;
 };
 
 }  // namespace logproxy

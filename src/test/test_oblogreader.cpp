@@ -31,15 +31,15 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
   OMS_INFO << "OB Log Config: " << oblog_config.debug_str(true);
 
   ObLogReader reader;
-  PeerInfo peer(0);
-  ChannelFactory channel_factory;
+  Peer peer(0);
+  ChannelFactory& channel_factory = ChannelFactory::instance();
   int ret = channel_factory.init(Config::instance());
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to init channel factory";
     return ret;
   }
-  Channel* ch = channel_factory.create(peer);
-  ret = reader.init("test_oblogreader", MessageVersion::V2, ch, oblog_config);
+  Channel& ch = channel_factory.add(peer.id(), peer);
+  ret = reader.init("test_oblogreader", MessageVersion::V2, peer, oblog_config);
   if (ret != OMS_OK) {
     return ret;
   }

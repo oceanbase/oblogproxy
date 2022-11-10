@@ -26,14 +26,14 @@ class SenderRoutine : public Thread {
 public:
   SenderRoutine(ObLogReader&, OblogAccess&, BlockingQueue<ILogRecord*>&);
 
-  int init(MessageVersion packet_version, Channel* ch);
+  int init(MessageVersion packet_version, const Peer& peer);
 
   void stop() override;
 
 private:
   void run() override;
 
-  int do_send(const std::vector<ILogRecord*>& records, size_t offset, size_t count);
+  int do_send(std::vector<ILogRecord*>& records, size_t offset, size_t count);
 
 private:
   ObLogReader& _reader;
@@ -41,10 +41,10 @@ private:
 
   BlockingQueue<ILogRecord*>& _rqueue;
 
-  Communicator _comm;
+  Comm _comm;
 
   MessageVersion _packet_version;
-  PeerInfo _client_peer;
+  Peer _client_peer;
 
   Timer _stage_timer;
 

@@ -22,14 +22,14 @@ namespace logproxy {
 class FileGcRoutine : public Thread {
 
 public:
-  FileGcRoutine(const std::string& path, const std::set<std::string>& prefixs);
+  FileGcRoutine(std::string path, std::set<std::string> prefixs);
 
 protected:
   void run() override;
 
 private:
-  const std::string& _path;
-  const std::set<std::string>& _prefixs;
+  std::string _path;
+  std::set<std::string> _prefixs;
 };
 
 }  // namespace logproxy

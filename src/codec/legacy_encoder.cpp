@@ -22,13 +22,15 @@ namespace logproxy {
 
 static Config& _s_config = Config::instance();
 
-static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
+static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& raw_len)
 {
   std::vector<std::pair<const char*, size_t>> ptrs;
-  ptrs.reserve(msg.records.size());
+  ptrs.reserve(msg.count());
 
   uint32_t total_size = 0;
-  for (auto record : msg.records) {
+  for (size_t i = 0; i < msg.count(); ++i) {
+    auto& record = msg.records[i + msg.offset()];
+
     size_t size = 0;
     // got independ address
     const char* logmsg_buf = record->getFormatedString(&size);
@@ -37,9 +39,9 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
       return OMS_FAILED;
     }
     if (_s_config.verbose_packet.val()) {
-      const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
-      OMS_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
-                << ", size: " << header->m_size;
+      //      const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
+      //      OMS_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
+      //                << ", size: " << header->m_size;
     }
     ptrs.emplace_back(logmsg_buf, size);
     total_size += (size + 8);
@@ -91,6 +93,8 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer)
   memcpy(buf + 9, &compressed_size_be, 4);
   buffer.push_back(buf, 13);
 
+  raw_len = total_size + 13;
+
   // transfer ownership to Msgbuf
   fg.release();
   buffer.push_back(compressed, compressed_size);
@@ -104,7 +108,7 @@ LegacyEncoder::LegacyEncoder()
    * [1+varstr] Server IP
    * [1+varstr] Server Version
    */
-  _funcs.emplace((int8_t)MessageType::HANDSHAKE_RESPONSE_CLIENT, [](const Message& in_msg, MsgBuf& buffer) {
+  _funcs.emplace((int8_t)MessageType::HANDSHAKE_RESPONSE_CLIENT, [](const Message& in_msg, MsgBuf& buffer, size_t&) {
     const ClientHandshakeResponseMessage& msg = (const ClientHandshakeResponseMessage&)in_msg;
     size_t len = 4 + 1 + msg.server_ip.size() + 1 + msg.server_version.size();
     char* buf = (char*)malloc(len);
@@ -147,16 +151,17 @@ LegacyEncoder::LegacyEncoder()
    *    [4] Message Len
    *    [Message Len] LogMsg
    */
-  _funcs.emplace((int8_t)MessageType::DATA_CLIENT, [](const Message& in_msg, MsgBuf& buffer) {
+  _funcs.emplace((int8_t)MessageType::DATA_CLIENT, [](const Message& in_msg, MsgBuf& buffer, size_t& raw_len) {
     const RecordDataMessage& msg = (const RecordDataMessage&)in_msg;
 
     if (msg.compress_type == CompressType::LZ4) {
-      return compress_data(msg, buffer);
+      return compress_data(msg, buffer, raw_len);
     }
 
     uint32_t idx = msg.idx;
     uint32_t total_size = 0;
-    for (auto record : msg.records) {
+    for (size_t i = 0; i < msg.count(); ++i) {
+      auto& record = msg.records[i + msg.offset()];
       size_t size = 0;
       // got independ address
       const char* logmsg_buf = record->getFormatedString(&size);
@@ -191,13 +196,13 @@ LegacyEncoder::LegacyEncoder()
     return OMS_OK;
   });
 
-  _funcs.emplace((int8_t)MessageType::STATUS, [](const Message& in_msg, MsgBuf& buffer) { return OMS_OK; });
+  _funcs.emplace((int8_t)MessageType::STATUS, [](const Message& in_msg, MsgBuf& buffer, size_t&) { return OMS_OK; });
 
   /*
    * [4] Reponse code
    * [4+varstr] Error message
    */
-  _funcs.emplace((int8_t)MessageType::ERROR_RESPONSE, [](const Message& in_msg, MsgBuf& buffer) {
+  _funcs.emplace((int8_t)MessageType::ERROR_RESPONSE, [](const Message& in_msg, MsgBuf& buffer, size_t&) {
     const ErrorMessage& msg = (const ErrorMessage&)in_msg;
 
     size_t len = 4 + 4 + msg.message.size();
@@ -222,9 +227,9 @@ LegacyEncoder::LegacyEncoder()
   });
 }
 
-int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer)
+int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer, size_t& raw_len)
 {
-  int ret = _funcs[(int8_t)msg.type()](msg, buffer);
+  int ret = _funcs[(int8_t)msg.type()](msg, buffer, raw_len);
   if (ret == OMS_FAILED) {
     return OMS_FAILED;
   }

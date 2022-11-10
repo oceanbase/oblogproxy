@@ -75,13 +75,16 @@ static void http_request_error_cb(enum evhttp_request_error error, void* arg)
 
 void http_conn_close_cb(struct evhttp_connection*, void* arg)
 {
-  OMS_DEBUG << "HTTP request conn closed";
   event_base_loopexit(((HttpContext*)arg)->base, nullptr);
 }
 
 int HttpClient::get(const std::string& url, HttpResponse& response)
 {
   evhttp_uri* uri = evhttp_uri_parse(url.c_str());
+  if (uri == nullptr) {
+    OMS_ERROR << "Failed to http GET, failed to parse url:" << url.c_str();
+    return OMS_FAILED;
+  }
   FreeGuard<evhttp_uri*> uri_fg(uri, evhttp_uri_free);
   const char* host = evhttp_uri_get_host(uri);
   if (host == nullptr) {
@@ -107,12 +110,11 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
   }
 
   struct evdns_base* dnsbase = evdns_base_new(base, 1);
-  FreeGuard<evdns_base*> dnsbase_fg(dnsbase, [](struct evdns_base* ptr) { evdns_base_free(ptr, 0); });
   if (dnsbase == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to evdns_base_new";
-    return OMS_FAILED;
+    OMS_WARN << "Failed to invoke evdns_base_new, just skip";
   }
 
+  FreeGuard<evdns_base*> dnsbase_fg(dnsbase, [](struct evdns_base* ptr) { evdns_base_free(ptr, 0); });
   HttpContext context;
   context.base = base;
   context.response = &response;

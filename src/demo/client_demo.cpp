@@ -15,7 +15,7 @@
 #include "common/option.h"
 #include "codec/encoder.h"
 #include "communication/io.h"
-#include "communication/communicator.h"
+#include "communication/comm.h"
 #include "obaccess/oblog_config.h"
 #include "obaccess/mysql_protocol.h"
 
@@ -31,7 +31,7 @@ void debug_record(const RecordDataMessage& record)
   //    << ", tbname: " << record->tbname();
 }
 
-EventResult on_msg(const PeerInfo& peer, const Message& message)
+EventResult on_msg(const Peer& peer, const Message& message)
 {
   switch (message.type()) {
     case MessageType::HANDSHAKE_RESPONSE_CLIENT:
@@ -60,7 +60,7 @@ EventResult on_msg(const PeerInfo& peer, const Message& message)
   return EventResult::ER_SUCCESS;
 }
 
-EventResult on_err(const PeerInfo& peer, PacketError err)
+EventResult on_err(const Peer& peer, PacketError err)
 {
   OMS_ERROR << "Error occured peer: " << peer.to_string() << ", err: " << (int)err;
   return EventResult::ER_CLOSE_CHANNEL;
@@ -68,7 +68,7 @@ EventResult on_err(const PeerInfo& peer, PacketError err)
 
 int run(const std::string& host, uint16_t port, const std::string& client_id, const std::string& config)
 {
-  Communicator comm;
+  Comm comm;
   int ret = comm.init();
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to init Communicator";
@@ -83,14 +83,23 @@ int run(const std::string& host, uint16_t port, const std::string& client_id, co
   }
 
   set_non_block(sockfd);
-
   OMS_INFO << "Connected to " << host << ":" << port << " with sockfd: " << sockfd;
-  PeerInfo peer(sockfd);
-  ret = comm.add_channel(peer);
-  if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to add channel with sockfd: " << sockfd << ", ret: " << ret;
-    return -1;
+  struct sockaddr_in peer_addr;
+  socklen_t len;
+  ret = getpeername(sockfd, (struct sockaddr*)&peer_addr, &len);
+  if (ret == 0 && peer_addr.sin_addr.s_addr != 0) {
+    Peer p(peer_addr.sin_addr.s_addr, ntohs(peer_addr.sin_port), sockfd);
+    OMS_INFO << "fetched peer: " << p.to_string();
+  } else {
+    OMS_WARN << "Failed to fetch peer info of fd:" << sockfd << ", errno:" << errno << ", error:" << strerror(errno);
   }
+  Peer peer(peer_addr.sin_addr.s_addr, htons(peer_addr.sin_port), sockfd);
+  //  ret = comm.add(peer);
+  //  if (ret != OMS_OK) {
+  //    OMS_ERROR << "Failed to add channel with sockfd: " << sockfd << ", ret: " << ret;
+  //    return -1;
+  //  }
+  //
 
   ClientHandshakeRequestMessage handshake((int)LogType::OCEANBASE,
       host.c_str(),
@@ -98,20 +107,14 @@ int run(const std::string& host, uint16_t port, const std::string& client_id, co
       "1.0.0",
       false,
       config.c_str());
-  comm.set_read_callback(on_msg);
-  comm.set_error_callback(on_err);
+  comm.listen(port + 1);
+  ret = comm.start();
   ret = comm.send_message(peer, handshake);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to send handshake: " << handshake.to_string();
     return -1;
   }
-
-  ret = comm.start();
-  //  while (ret == OMS_AGAIN) {
-  //    OMS_INFO << "No event, sleeping...";
-  //    ::sleep(2);
-  //    ret = comm.start();
-  //  }
+  comm.set_read_callback(on_msg);
   return ret;
 }
 
@@ -180,5 +183,12 @@ int main(int argc, char** argv)
   Config::instance().tls_cert_file.set(tls_cert_file);
   Config::instance().tls_ca_cert_file.set(tls_ca_cert_file);
   Config::instance().packet_magic.set(false);
+
+  int ret = ChannelFactory::instance().init(Config::instance());
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to init channel factory";
+    return OMS_FAILED;
+  }
+
   return run(host, port, client_id, oblog_config.generate_config_str());
 }

@@ -28,7 +28,7 @@ class MessageEncoder {
 public:
   virtual ~MessageEncoder() = default;
 
-  virtual int encode(const Message& msg, MsgBuf& buffer) = 0;
+  virtual int encode(const Message& msg, MsgBuf& buffer, size_t& raw_len) = 0;
 };
 
 class LegacyEncoder : public MessageEncoder {
@@ -45,10 +45,10 @@ private:
   LegacyEncoder();
 
 public:
-  int encode(const Message& msg, MsgBuf& buffer) override;
+  int encode(const Message& msg, MsgBuf& buffer, size_t& raw_len) override;
 
 private:
-  std::unordered_map<int8_t, std::function<int(const Message&, MsgBuf&)>> _funcs;
+  std::unordered_map<int8_t, std::function<int(const Message&, MsgBuf&, size_t&)>> _funcs;
 };
 
 class ProtobufEncoder : public MessageEncoder {
@@ -56,7 +56,7 @@ class ProtobufEncoder : public MessageEncoder {
   OMS_SINGLETON(ProtobufEncoder);
 
 public:
-  int encode(const Message& msg, MsgBuf& buffer) override;
+  int encode(const Message& msg, MsgBuf& buffer, size_t& raw_len) override;
 
 private:
   static int encode_message(const google::protobuf::Message& pb_msg, MessageType type, MsgBuf& buffer, bool magic);
@@ -67,9 +67,9 @@ private:
 
   static int encode_client_handshake_response(const Message& msg, MsgBuf& buffer);
 
-  static int encode_runtime_status(const Message& msg, MsgBuf& buffer);
+  static int encode_runtime_status(const Message& msg, MsgBuf& buffer, size_t& raw_len);
 
-  static int encode_data_client(const Message& msg, MsgBuf& buffer);
+  static int encode_data_client(const Message& msg, MsgBuf& buffer, size_t& raw_len);
 };
 
 }  // namespace logproxy

@@ -86,8 +86,8 @@ do_config_sys() {
   password_x=`./bin/${BIN} -x ${password}`
 
   cp ./conf/conf.json ./conf/conf.json.new
-  sed -r -i 's/"ob_sys_username"[ ]*:[ ]*"[0-9a-zA-Z]+/"ob_sys_username": "'${username_x}'/' ./conf/conf.json.new
-  sed -r -i 's/"ob_sys_password"[ ]*:[ ]*"[0-9a-zA-Z]+/"ob_sys_password": "'${password_x}'/' ./conf/conf.json.new
+  sed -r -i 's/"ob_sys_username"[ ]*:[ ]*"[0-9a-zA-Z]*/"ob_sys_username": "'${username_x}'/' ./conf/conf.json.new
+  sed -r -i 's/"ob_sys_password"[ ]*:[ ]*"[0-9a-zA-Z]*/"ob_sys_password": "'${password_x}'/' ./conf/conf.json.new
   diff ./conf/conf.json ./conf/conf.json.new
   echo ""
 

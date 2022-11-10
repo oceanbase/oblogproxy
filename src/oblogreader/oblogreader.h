@@ -13,21 +13,23 @@
 #pragma once
 
 #include "common/common.h"
-#include "communication/communicator.h"
-#include "oblogreader/oblog_access.h"
+#include "communication/comm.h"
 #include "obaccess/oblog_config.h"
+#include "oblogreader/oblog_access.h"
 #include "oblogreader/reader_routine.h"
 #include "oblogreader/sender_routine.h"
 
 namespace oceanbase {
 namespace logproxy {
 
+struct ClientMeta;
+
 class ObLogReader {
 
 public:
   virtual ~ObLogReader();
 
-  int init(const std::string& id, MessageVersion packet_version, Channel* ch, const OblogConfig& config);
+  int init(const std::string& id, MessageVersion packet_version, const ClientMeta&, const OblogConfig& config);
 
   int stop();
 

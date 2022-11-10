@@ -19,9 +19,8 @@
 #include "common/config.h"
 #include "common/counter.h"
 #include "codec/encoder.h"
-#include "communication/communicator.h"
+#include "communication/comm.h"
 #include "oblogreader/oblogreader.h"
-#include "oblogreader/sender_routine.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -36,10 +35,10 @@ SenderRoutine::SenderRoutine(ObLogReader& reader, OblogAccess& oblog, BlockingQu
     : Thread("SenderRoutine"), _reader(reader), _oblog(oblog), _rqueue(rqueue)
 {}
 
-int SenderRoutine::init(MessageVersion packet_version, Channel* ch)
+int SenderRoutine::init(MessageVersion packet_version, const Peer& peer)
 {
   _packet_version = packet_version;
-  _client_peer = ch->peer();
+  _client_peer = peer;
 
   if (_s_config.readonly.val()) {
     return OMS_OK;
@@ -51,12 +50,15 @@ int SenderRoutine::init(MessageVersion packet_version, Channel* ch)
     return ret;
   }
 
-  ret = _comm.add_channel(_client_peer, ch);
+  //  _comm.set_write_callback();
+
+  ret = _comm.add(peer);
   if (ret == OMS_FAILED) {
     OMS_ERROR << "Failed to init Sender Routine caused by failed to add channel, ret: " << ret
               << ", peer: " << _client_peer.id();
     return OMS_FAILED;
   }
+
   return OMS_OK;
 }
 
@@ -67,7 +69,6 @@ void SenderRoutine::stop()
     if (_s_config.readonly.val()) {
       return;
     }
-    _comm.clear_channels();
     _comm.stop();
   }
 }
@@ -133,15 +134,15 @@ void SenderRoutine::run()
       const char* rbuf = r->toString(&size, true);
 #endif
       if (rbuf == nullptr) {
-        OMS_ERROR << "failed parse logmsg Record, !!!EXIT!!!";
+        OMS_ERROR << "failed to parse logmsg Record, !!!EXIT!!!";
         stop();
         break;
       }
 
       if (packet_size + size > _s_config.max_packet_bytes.val()) {
         if (packet_size == 0) {
-          OMS_WARN << "Huge package occured, size of: " << size
-                   << " just exceed max_packet_bytes: " << _s_config.max_packet_bytes.val() << ", try to send";
+          OMS_WARN << "Huge package occured with size of: " << size
+                   << ", exceed max_packet_bytes: " << _s_config.max_packet_bytes.val() << ", try to send directly";
           if (do_send(records, i, 1) != OMS_OK) {
             OMS_ERROR << "Failed to write LogMessage to client: " << _client_peer.to_string();
             stop();
@@ -181,19 +182,17 @@ void SenderRoutine::run()
   _reader.stop();
 }
 
-int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offset, size_t count)
+int SenderRoutine::do_send(std::vector<ILogRecord*>& records, size_t offset, size_t count)
 {
   if (_s_config.verbose.val()) {
     OMS_DEBUG << "send record range[" << offset << ", " << offset + count << ")";
   }
 
-  _stage_timer.reset();
   RecordDataMessage msg(records, offset, count);
   msg.set_version(_packet_version);
   msg.compress_type = CompressType::LZ4;
   msg.idx = _msg_seq;
   int ret = _comm.send_message(_client_peer, msg, true);
-  Counter::instance().count_key(Counter::SENDER_SEND_US, _stage_timer.elapsed());
 
   _msg_seq += count;
 
@@ -202,8 +201,9 @@ int SenderRoutine::do_send(const std::vector<ILogRecord*>& records, size_t offse
     Counter::instance().count_write(count);
     Counter::instance().mark_timestamp(last->getTimestamp());
     Counter::instance().mark_checkpoint(last->getCheckpoint1());
+
   } else {
-    OMS_WARN << "Failed to send record data message to client. peer=" << _client_peer.id();
+    OMS_WARN << "Failed to send record data message to client, peer: " << _client_peer.id();
   }
   return ret;
 }

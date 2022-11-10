@@ -46,12 +46,15 @@ public:
 
   void count_write_io(int bytes);
 
+  void count_xwrite_io(int bytes);
+
   // MUST BE as same order as _counts
   enum CountKey {
     READER_FETCH_US = 0,
     READER_OFFER_US = 1,
     SENDER_POLL_US = 2,
-    SENDER_SEND_US = 3,
+    SENDER_ENCODE_US = 3,
+    SENDER_SEND_US = 4,
   };
 
   void count_key(CountKey key, uint64_t count);
@@ -78,10 +81,11 @@ private:
   std::atomic<uint64_t> _write_count{0};
   std::atomic<uint64_t> _read_io{0};
   std::atomic<uint64_t> _write_io{0};
+  std::atomic<uint64_t> _xwrite_io{0};
   volatile int _timestamp = time(nullptr);
   volatile int _checkpoint = time(nullptr);
 
-  CountItem _counts[4]{{"RFETCH"}, {"ROFFER"}, {"SPOLL"}, {"SSEND"}};
+  CountItem _counts[5]{{"RFETCH"}, {"ROFFER"}, {"SPOLL"}, {"SENCODE"}, {"SSEND"}};
 
   std::map<std::string, std::function<int64_t()>> _gauges;
 

@@ -21,12 +21,7 @@ namespace oceanbase {
 namespace logproxy {
 
 /**
- * 以代理的身份对客户端做鉴权
- * 拿到使用sha1加密后的password，根据鉴权信息，向指定OceanBase服务器发起鉴权
- * 鉴权协议参考
- * https://dev.mysql.com/doc/internals/en/secure-password-authentication.html#packet-Authentication::Native41
- * NOTE: 这里有个缺陷，不能对用户的IP地址做校验
- * NOTE: 使用明文保存sha1加密后的密码，仍然不安全
+ * see: https://dev.mysql.com/doc/internals/en/secure-password-authentication.html#packet-Authentication::Native41
  */
 class MysqlProtocol {
 public:
@@ -39,9 +34,6 @@ public:
 
   int query(const std::string& sql, MySQLResultSet& rs);
 
-  /**
-   * 设置接收网络消息包时，首次检测是否有消息到达的超时时间。单位毫秒
-   */
   inline void set_detect_timeout(int t)
   {
     _detect_timeout = t;

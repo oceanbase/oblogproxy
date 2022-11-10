@@ -70,7 +70,7 @@ int JniHint::to_map(JNIEnv* env, jobject jmap, std::map<std::string, std::string
     jobject jentry = env->CallObjectMethod(jiter, JniMethod::IteratorNext);
 
     jstring jkey = (jstring)env->CallObjectMethod(jentry, JniMethod::MapEntryGetKey);
-    if (jkey == nullptr) {  // HashMap允许null类型
+    if (jkey == nullptr) {  // HashMap can be null
       continue;
     }
     const char* key = env->GetStringUTFChars(jkey, nullptr);

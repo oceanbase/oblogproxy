@@ -14,6 +14,7 @@
 
 #include "common/config.h"
 #include "common/thread.h"
+#include "obaccess//oblog_config.h"
 #include "arranger/client_meta.h"
 
 namespace oceanbase {
@@ -22,34 +23,7 @@ namespace logproxy {
 class SourceInvoke {
 
 public:
-  static int invoke(Communicator& communicator, const ClientMeta& client, const std::string& configuration);
-};
-
-class SourceWaiter {
-  OMS_SINGLETON(SourceWaiter);
-  OMS_AVOID_COPY(SourceWaiter);
-
-public:
-  void add(int pid, const ClientMeta& client);
-
-private:
-  void remove(int pid);
-
-private:
-  class WaitThread : public Thread {
-  public:
-    WaitThread(int pid, const ClientMeta& client);
-
-    void run() override;
-
-  private:
-    const int _pid;
-    ClientMeta _client;
-  };
-
-private:
-  std::mutex _op_lock;
-  std::unordered_map<int, WaitThread*> _childs;
+  static int invoke(Comm&, const ClientMeta&, const OblogConfig&);
 };
 
 }  // namespace logproxy

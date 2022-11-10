@@ -24,8 +24,7 @@ Thread::Thread(const std::string& name) : _name(name)
   _tid = ::getpid() + OMS_ATOMIC_INC(_s_tid_idx);
 }
 
-Thread::~Thread()
-{}
+Thread::~Thread() = default;
 
 void Thread::stop()
 {
@@ -37,27 +36,29 @@ void Thread::stop()
 
 int Thread::join()
 {
-  if (is_run() && _thd.joinable()) {
+  if (is_run()) {
     OMS_DEBUG << "<< Joining thread: " << _name << "(" << tid() << ")";
-    _thd.join();
+    pthread_join(_thd, nullptr);
     OMS_DEBUG << ">> Joined thread: " << _name << "(" << tid() << ")";
   }
   return _ret;
+}
+
+void* Thread::_thd_rotine(void* arg)
+{
+  Thread& thd = *(Thread*)arg;
+  OMS_DEBUG << "+++ Create thread: " << thd._name << "(" << thd.tid() << ")";
+  // cast child class poiter to base class pointer
+  thd.run();
+  return nullptr;
 }
 
 void Thread::start()
 {
   if (!is_run()) {
     set_run(true);
-    _thd = std::thread(std::bind(&Thread::routine, this));
+    pthread_create(&_thd, nullptr, _thd_rotine, this);
   }
-}
-
-void Thread::routine()
-{
-  OMS_DEBUG << "+++ Create thread: " << _name << "(" << tid() << ")";
-  // cast child class poiter to base class pointer
-  run();
 }
 
 bool Thread::is_run()
@@ -72,7 +73,7 @@ void Thread::set_run(bool run_flag)
 
 void Thread::detach()
 {
-  _thd.detach();
+  pthread_detach(_thd);
 }
 
 void Thread::set_ret(int ret)

@@ -129,9 +129,9 @@ int send_mysql_packet(int fd, MsgBuf& msgbuf, uint8_t sequence)
   packet_length = packet_length | (sequence << 3);
 
   ////// DEBUG ONLY ///////
-//  std::string hexstr;
-//  dumphex((char*)&packet_length, 4, hexstr);
-//  OMS_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
+  //  std::string hexstr;
+  //  dumphex((char*)&packet_length, 4, hexstr);
+  //  OMS_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
   ////// DEBUG ONLY ///////
 
   int ret = writen(fd, &packet_length, 4);
@@ -255,8 +255,8 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
   }
   OMS_DEBUG << "Observer version: " << server_version;
 
-  int32_t connection_id;
-  ret = buffer_reader.read_int<int32_t>(connection_id);
+  uint32_t connection_id;
+  ret = buffer_reader.read_int<uint32_t>(connection_id);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to read connection id while decoding mysql InitialHandShakePacket";
     return ret;
@@ -290,7 +290,7 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
 
   _scramble_valid = false;
   if (!buffer_reader.has_more()) {
-    OMS_DEBUG << "Decode done. field end with capabilities flag lower byte_size";
+    OMS_DEBUG << "Decode done. field end with capabilities evflag lower byte_size";
     _scramble_valid = true;
     return OMS_OK;
   }
@@ -352,7 +352,7 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
       }
       _auth_plugin_name.append(1, c);
     }
-    OMS_DEBUG << "auth plugin name: " << _auth_plugin_name;
+    OMS_DEBUG << "Auth plugin name: " << _auth_plugin_name;
   }
 
   if (_auth_plugin_name != "mysql_native_password") {
@@ -382,10 +382,6 @@ uint8_t MySQLInitialHandShakePacket::sequence() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/**
- * 在buffer中写入一个\0结尾的字符串
- * @return 返回非负数，表示写入的数据大小，否则失败
- */
 
 static inline int write_null_terminate_string(char* buf, size_t capacity, const char* s, size_t len)
 {
@@ -484,7 +480,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
                                CLIENT_SECURE_CONNECTION | CLIENT_MULTI_STATEMENTS | CLIENT_MULTI_RESULTS |
                                CLIENT_PS_MULTI_RESULTS | CLIENT_PLUGIN_AUTH | CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA |
                                CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |
-                               CLIENT_SUPPORT_ORACLE_MODE;  // MySQL 鉴权加上这个flag不影响
+                               CLIENT_SUPPORT_ORACLE_MODE;  // MySQL mode dosen't concern this flag
   if (!_database.empty()) {
     capabilities_flag |= CLIENT_CONNECT_WITH_DB;
   }

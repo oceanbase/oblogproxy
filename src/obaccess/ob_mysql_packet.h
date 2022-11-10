@@ -20,15 +20,6 @@ namespace logproxy {
 
 class MsgBuf;
 
-/**
- * rece a mysql protocol packet
- * @param fd
- * @param timout 等待有消息的超时时间(一旦判断有消息到达，就不再关注timeout). 单位 毫秒
- * @param[out] packet_length 消息包长度
- * @param[out] sequence 消息sequence，参考mysql说明
- * @param[out] msgbuf 接收到的消息包
- * @return 成功返回0
- */
 int recv_mysql_packet(int fd, int timeout, uint32_t& packet_length, uint8_t& sequence, MsgBuf& msgbuf);
 
 int recv_mysql_packet(int fd, int timeout, MsgBuf& msgbuf);
@@ -184,6 +175,9 @@ struct MySQLResultSet {
   uint64_t col_count = 0;
   std::vector<MySQLCol> cols;
   std::vector<MySQLRow> rows;
+
+  uint16_t code;
+  std::string message;
 };
 
 }  // namespace logproxy

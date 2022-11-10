@@ -30,5 +30,5 @@ void get(const std::string& url)
 
 TEST(HTTP, get)
 {
-  get("https://www.oceanbase.com");
+  get("http://127.0.0.1:8080/services?Action=xxxx");
 }

@@ -39,10 +39,14 @@ void Counter::run()
     uint64_t wcount = _write_count.load();
     uint64_t rio = _read_io.load();
     uint64_t wio = _write_io.load();
-    uint64_t rtps = interval_s == 0 ? rcount : (rcount / interval_s);
-    uint64_t wtps = interval_s == 0 ? wcount : (wcount / interval_s);
+    uint64_t xwio = _xwrite_io.load();
+    uint64_t avg_size = wcount == 0 ? 0 : (wio / wcount);
+    uint64_t xavg_size = wcount == 0 ? 0 : (xwio / wcount);
+    uint64_t rrps = interval_s == 0 ? rcount : (rcount / interval_s);
+    uint64_t wrps = interval_s == 0 ? wcount : (wcount / interval_s);
     uint64_t rios = interval_s == 0 ? rio : (rio / interval_s);
     uint64_t wios = interval_s == 0 ? wio : (wio / interval_s);
+    uint64_t xwios = interval_s == 0 ? xwio : (xwio / interval_s);
     int nowtm = time(nullptr);
     int delay = nowtm - _timestamp;
     int chk_delay = nowtm - _checkpoint;
@@ -51,8 +55,8 @@ void Counter::run()
 
     ss.str("");
     ss << "Counter:[Span:" << interval_ms << "ms][Delay:" << delay << "," << chk_delay << "][RCNT:" << rcount
-       << "][RTPS:" << rtps << "][RIOS:" << rios << "][WCNT:" << wcount << "][WTPS:" << wtps << "][WIOS:" << wios
-       << "]";
+       << "][RRPS:" << rrps << "][RIOS:" << rios << "][WCNT:" << wcount << "][WRPS:" << wrps << "][WIOS:" << wios
+       << ",AVG:" << avg_size << "][XWIOS:" << xwios << ",AVG:" << xavg_size << "]";
     for (auto& count : _counts) {
       uint64_t c = count.count.load();
       ss << "[" << count.name << ":" << c << "]";
@@ -68,6 +72,7 @@ void Counter::run()
     _write_count.fetch_sub(wcount);
     _read_io.fetch_sub(rio);
     _write_io.fetch_sub(wio);
+    _xwrite_io.fetch_sub(xwio);
   }
 
   OMS_INFO << "#### Counter thread stop, tid: " << tid();
@@ -96,6 +101,11 @@ void Counter::count_read_io(int bytes)
 void Counter::count_write_io(int bytes)
 {
   _write_io.fetch_add(bytes);
+}
+
+void Counter::count_xwrite_io(int bytes)
+{
+  _xwrite_io.fetch_add(bytes);
 }
 
 void Counter::count_key(Counter::CountKey key, uint64_t count)

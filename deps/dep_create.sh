@@ -126,10 +126,12 @@ do
     echo -e "download package <${pkg}>... \c"
     TEMP=$(mktemp -p "/" -u ".${pkg}.XXXX")
 
-    if [[ -z `echo "${pkg}" | grep 'oceanbase-ce-devel'` ]]; then
-      wget "$REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
-    else
+    if [[ ! -z `echo "${pkg}" | grep 'oceanbase-ce-devel'` ]]; then
       wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
+    elif [[ ! -z `echo "${pkg}" | grep 'oceanbase-ce-cdc'` ]]; then
+      wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
+    else
+      wget "$REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
     fi
 
     if [[ $? -eq 0 ]]; then

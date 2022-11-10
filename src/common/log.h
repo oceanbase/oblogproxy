@@ -20,8 +20,10 @@
 #include <unordered_set>
 #include <sstream>
 #include <iostream>
+#if __cplusplus >= 201703L
+#include <list>
+#endif
 #include <sys/time.h>
-#include "common/file_gc.h"
 
 namespace oceanbase {
 namespace logproxy {

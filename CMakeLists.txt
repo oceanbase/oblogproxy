@@ -17,6 +17,7 @@ option(WITH_JNI_LIB "With oblogreader jni lib" OFF)
 option(WITH_GLOG "With google log" ON)
 option(WITH_DEPS "With precompiled deps" ON)
 option(WITH_LOGMSG "compiled logmsg from source files" OFF)
+option(WITH_US_TIMESTAMP "Enable microseconds start timestamp" ON)
 option(USE_OBCDC_NS "With libobcdc" ON)
 option(USE_LIBOBLOG "With precompiled liboblog" OFF)
 option(USE_CXX11_ABI "Build with C++11 ABI" OFF)
@@ -28,6 +29,8 @@ SET(LIBRARY_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
 
 SET(DEP_VAR $ENV{DEP_VAR})
 SET(JAVA_HOME $ENV{JAVA_HOME})
+message(STATUS "DEP_VAR: ${DEP_VAR}")
+message(STATUS "JAVA_HOME: ${JAVA_HOME}")
 
 SET(FIND_LIBOBLOG ON)
 if (USE_OBCDC_NS)
@@ -45,37 +48,44 @@ if (WITH_DEPS)
     )
     SET(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
 
+    SET(THIRD_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/)
+
     # make liboblog found
     if (NOT USE_LIBOBLOG)
         SET(FIND_LIBOBLOG OFF)
-        SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include/)
-        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
+        SET(LIBOBLOG_INCLUDE_PATH "${DEP_VAR}/home/admin/oceanbase/include")
+        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}.so)
+        SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
+
+        FILE(GLOB LIBOBLOG_DEPS ${THIRD_LIB_DIR}/*.so ${THIRD_LIB_DIR}/*/*.so)
+
+        # FIXME... auto detected
+        # version before 4.0
+#        SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include/)
+#        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
     endif ()
 
     # make openssl found
     CMAKE_POLICY(SET CMP0074 NEW)
     SET(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel/)
 
-    # make protoc found libstdc++
-    SET(PROTOC_LINK_FLAGS "-L${DEP_VAR}/usr/local/oceanbase/deps/devel/lib64/ -L${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/5.2.0/ -static-libstdc++")
 
-    SET(DEP_LIB_PATH ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib64/ ${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/5.2.0/)
-endif ()
-
-message(STATUS "DEP_VAR: ${DEP_VAR}")
-message(STATUS "JAVA_HOME: ${JAVA_HOME}")
-
+    # compiler
+    SET(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)
+else ()
 # compiler
 execute_process(
         COMMAND which gcc
         OUTPUT_VARIABLE GCC_BIN
 )
 GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
+endif ()
+
 message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
 
-find_program(CC NAMES gcc PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(CXX NAMES g++ PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(AR NAMES gcc-ar ar PATHS ${DEP_VAR}/usr/local/oceanbase/devtools/bin/ ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(CC NAMES gcc PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(CXX NAMES g++ PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(AR NAMES gcc-ar ar PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
 SET(CMAKE_C_COMPILER ${CC})
 SET(CMAKE_CXX_COMPILER ${CXX})
 SET(CMAKE_C_COMPILER_AR ${AR})
@@ -83,6 +93,18 @@ SET(CMAKE_CXX_COMPILER_AR ${AR})
 message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
 message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER}")
 message(STATUS "AR compiler: ${CMAKE_C_COMPILER_AR}")
+
+GET_FILENAME_COMPONENT(COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
+GET_FILENAME_COMPONENT(COMPILER_BASE_DIR ${COMPILER_DIR} DIRECTORY)
+SET(CXX_LIB_DIR ${COMPILER_BASE_DIR}/lib64/)
+
+# make protoc found libstdc++
+SET(PROTOC_LINK_FLAGS "-L${CXX_LIB_DIR} -static-libstdc++")
+if (THIRD_LIB_DIR)
+    SET(PROTOC_LINK_FLAGS "${PROTOC_LINK_FLAGS} -L${THIRD_LIB_DIR}")
+endif ()
+
+SET(DEP_LIB_PATH ${THIRD_LIB_DIR} ${CXX_LIB_DIR})
 
 if (NOT USE_CXX11_ABI)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
@@ -174,13 +196,22 @@ endforeach ()
 add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
 message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
 
-# oblogmsg
+
+# oblog
+if (FIND_LIBOBLOG)
+    find_path(LIBOBLOG_INCLUDE_PATH NAMES ${OBCDC_NAME}.h ${OBCDC_NAME}/${OBCDC_NAME}.h)
+    find_library(LIBOBLOG_LIBRARIES NAMES ${OBCDC_NAME}.so)
+    if ((NOT LIBOBLOG_INCLUDE_PATH) OR (NOT LIBOBLOG_LIBRARIES))
+        message(FATAL_ERROR "Fail to find ${OBCDC_NAME}")
+    endif ()
+endif ()
+
 option(LOGMSG_BY_LIBOBLOG "use logmsg provide by liboblog" ON)
 set(LOGMSG_BY_LIBOBLOG_DEFINE "")
 if (LOGMSG_BY_LIBOBLOG)
-    set(LOGMSG_BY_LIBOBLOG_DEFINE "-DLOGMSG_BY_LIBOBLOG=1")
+    set(LOGMSG_BY_LIBOBLOG_DEFINE "-DLOGMSG_BY_LIBOBLOG=1 -DOB_BUILD_OPENSOURCE=1")
     SET(OBLOGMSG_MAPPING "${LOGMSG_BY_LIBOBLOG_DEFINE} -DLogMsgLocalInit=\"if((_t_s_lmb=new(std::nothrow)LogMsgBuf())==nullptr){OMS_ERROR<<\\\"Failed to alloc LogMsgBuf\\\";stop();return;}\" -DLogMsgLocalDestroy=\"delete _t_s_lmb\"")
-    SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg)
+    SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg ${LIBOBLOG_INCLUDE_PATH}/../oblogmsg)
 
     SET(OBLOGMSG_LIBRARIES ${LIBOBLOG_LIBRARIES})
     GET_FILENAME_COMPONENT(OBLOGMSG_LIB_DIR ${OBLOGMSG_LIBRARIES} DIRECTORY)
@@ -192,15 +223,16 @@ else ()
     include(oblogmsg)
 endif ()
 
-# oblog
-if (FIND_LIBOBLOG)
-    find_path(LIBOBLOG_INCLUDE_PATH NAMES ${OBCDC_NAME}.h)
-    find_library(LIBOBLOG_LIBRARIES NAMES ${OBCDC_NAME}.so)
-    if ((NOT LIBOBLOG_INCLUDE_PATH) OR (NOT LIBOBLOG_LIBRARIES))
-        message(FATAL_ERROR "Fail to find ${OBCDC_NAME}")
-    endif ()
+GET_FILENAME_COMPONENT(LIBOBLOG_INCLUDE_PATH_NAME ${LIBOBLOG_INCLUDE_PATH} NAME)
+if (${LIBOBLOG_INCLUDE_PATH_NAME} STREQUAL "${OBCDC_NAME}")
+    set(LIBOBLOG_INCLUDE_PATH ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/..)
+else ()
+    set(LIBOBLOG_INCLUDE_PATH ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/${OBCDC_NAME})
 endif ()
-GET_FILENAME_COMPONENT(LIBOBLOG_LIB_DIR ${LIBOBLOG_LIBRARIES} DIRECTORY)
+
+if (WITH_US_TIMESTAMP)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_US_TIMESTAMP")
+endif()
 
 message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
 message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIBRARIES}")
@@ -236,14 +268,15 @@ if (WITH_ASAN)
     SET(ASAN_LINK_OPTION "-fsanitize=address")
 endif ()
 
-SET(CMAKE_CXX_STANDARD 11)
+SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_STANDARD_REQUIRED ON)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -static-libstdc++ ${DEBUG_SYMBOL} -pipe -m64 -Wall -fPIC -Wno-reorder ${ASAN_COMPILE_OPTION} -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -static-libstdc++ ${DEBUG_SYMBOL} -pipe -m64 -Wall -fPIC -Wno-reorder ${ASAN_COMPILE_OPTION} -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} -pipe -m64 -Wall -fPIC ${ASAN_COMPILE_OPTION} -D__STDC_LIMIT_MACROS -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     SET(PLATFORM_SPEC rt)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static-libgcc")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     SET(PLATFORM_SPEC ${DEP_LIB}
             "-framework CoreFoundation"
@@ -311,6 +344,7 @@ file(GLOB COMMON_SRC
         ./src/codec/*.cpp
         ./src/communication/*.cpp
         ./src/obaccess/*.cpp
+        ./src/metric/*.cpp
         )
 add_library(common STATIC ${COMMON_SRC} $<TARGET_OBJECTS:PROTO_OBJS>)
 add_dependencies(common oblogmsg lz4 jsoncpp libevent protobuf)
@@ -320,9 +354,9 @@ endif ()
 target_include_directories(common PUBLIC ${COMMON_INC})
 
 if (USE_OBCDC_NS)
-    set(DEP_OBCDC_LIB obcdc)
+    set(DEP_OBCDC_LIB obcdc ${LIBOBLOG_DEPS})
 else ()
-    set(DEP_OBCDC_LIB oblog)
+    set(DEP_OBCDC_LIB oblog ${LIBOBLOG_DEPS})
 endif ()
 # oblogreader
 set(OBLOGREADER_INC ${COMMON_INC} ./src/oblogreader/ ${LIBOBLOG_INCLUDE_PATH})
@@ -385,16 +419,16 @@ if (WITH_TEST)
     target_include_directories(test_base PUBLIC ${LOGPROXY_INC})
     target_link_directories(test_base PUBLIC ${DEP_LIB_PATH})
     target_link_libraries(test_base libcommon.a ${DEP_LIBS})
-    target_link_options(test_base PUBLIC ${ASAN_LINK_OPTION})
+    target_link_options(test_base PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
 
     # test_oblogreader
-    file(GLOB TEST_OBLOGREADER_SRC ./src/test/test_oblogreader.cpp)
-    add_executable(test_oblogreader ${TEST_OBLOGREADER_SRC})
-    add_dependencies(test_oblogreader logproxy_static gtest)
-    target_include_directories(test_oblogreader PUBLIC ${LOGPROXY_INC})
-    target_link_directories(test_oblogreader PUBLIC ${DEP_LIB_PATH})
-    target_link_libraries(test_oblogreader ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
-    target_link_options(test_oblogreader PUBLIC ${ASAN_LINK_OPTION})
+    #    file(GLOB TEST_OBLOGREADER_SRC ./src/test/test_oblogreader.cpp)
+    #    add_executable(test_oblogreader ${TEST_OBLOGREADER_SRC})
+    #    add_dependencies(test_oblogreader logproxy_static gtest)
+    #    target_include_directories(test_oblogreader PUBLIC ${LOGPROXY_INC})
+    #    target_link_directories(test_oblogreader PUBLIC ${DEP_LIB_PATH})
+    #    target_link_libraries(test_oblogreader ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
+    #    target_link_options(test_oblogreader PUBLIC ${ASAN_LINK_OPTION})
 endif ()
 
 include(rpm)

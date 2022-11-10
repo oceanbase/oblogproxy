@@ -15,18 +15,18 @@
 namespace oceanbase {
 namespace logproxy {
 
-void Timer::sleep(uint64_t interval)
+void Timer::sleep(uint64_t interval_us)
 {
-  sleepto(now() + interval);
+  sleepto(now() + interval_us);
 }
 
-void Timer::sleepto(uint64_t nexttime)
+void Timer::sleepto(uint64_t nexttime_us)
 {
-  _next_schedule_time = nexttime;
+  _next_schedule_time_us = nexttime_us;
 
   uint64_t current = now();
 
-  while (current < _next_schedule_time) {
+  while (current < _next_schedule_time_us) {
     timeval tv;
     timespec timeout;
     gettimeofday(&tv, nullptr);
@@ -48,7 +48,7 @@ void Timer::sleepto(uint64_t nexttime)
 
 void Timer::interrupt()
 {
-  _next_schedule_time = 0;
+  _next_schedule_time_us = 0;
   pthread_cond_signal(&_cond);
 }
 

@@ -96,12 +96,14 @@ static int parse_cluster_url(const std::string& cluster_url, std::vector<ObAcces
   return OMS_OK;
 }
 
-int ObAccess::init(const OblogConfig& hs_config)
+int ObAccess::init(const OblogConfig& hs_config, const std::string& password_sha1, const std::string& sys_password_sha1)
 {
   _user = hs_config.user.val();
   _user_to_conn = _user;
-  std::vector<std::string> sections;
+  _password_sha1 = password_sha1;
+  _sys_password_sha1 = sys_password_sha1;
 
+  std::vector<std::string> sections;
   if (!hs_config.cluster_url.empty()) {
     if (parse_cluster_url(hs_config.cluster_url.val(), _servers) != OMS_OK) {
       return OMS_FAILED;
@@ -143,21 +145,12 @@ int ObAccess::init(const OblogConfig& hs_config)
     }
   }
 
-  hex2bin(hs_config.password.val().c_str(), hs_config.password.val().size(), _password_sha1);
-
   if (_user_to_conn.empty() || _password_sha1.empty()) {
     OMS_ERROR << "Failed to init ObAccess caused by empty user or password";
     return OMS_FAILED;
   }
 
   _sys_user = !hs_config.sys_user.empty() ? hs_config.sys_user.val() : Config::instance().ob_sys_username.val();
-
-  // preconfiged sys password was encrypted, otherwise was plain text as handshake param
-  if (!hs_config.sys_password.empty()) {
-    MysqlProtocol::do_sha_password(hs_config.sys_password.val(), _sys_password_sha1);
-  } else {
-    MysqlProtocol::do_sha_password(Config::instance().ob_sys_password.val(), _sys_password_sha1);
-  }
   if (_sys_user.empty() || _sys_password_sha1.empty()) {
     OMS_ERROR << "Failed to init ObAccess caused by empty sys_user or sys_password";
     return OMS_FAILED;
@@ -185,6 +178,8 @@ int ObAccess::auth()
 
 int ObAccess::auth_sys(const ServerInfo& server)
 {
+  OMS_INFO << "About to auth sys: " << _user_to_conn << " for observer: " << server.host << ":" << server.port;
+
   MysqlProtocol auther;
   // all tenant must be sys tenant;
   int ret = auther.login(server.host, server.port, _user_to_conn, _password_sha1);
@@ -210,6 +205,8 @@ int ObAccess::auth_sys(const ServerInfo& server)
 
 int ObAccess::auth_tenant(const ServerInfo& server)
 {
+  OMS_INFO << "About to auth user: " << _user << " for observer: " << server.host << ":" << server.port;
+
   // 1. found tenant server using sys
   MysqlProtocol sys_auther;
   int ret = sys_auther.login(server.host, server.port, _sys_user, _sys_password_sha1);
@@ -252,8 +249,96 @@ int ObAccess::auth_tenant(const ServerInfo& server)
       OMS_ERROR << "Failed to auth from tenant server: " << host << ":" << sql_port << ", ret:" << ret;
       return ret;
     }
+
+    if (!tenant_entry.second.all_database) {
+      if (auth_tables(tenant_entry.second.databases, ob_user.username, user_auther) != OMS_OK) {
+        return OMS_FAILED;
+      }
+    }
   }
   return OMS_OK;
+}
+
+int ObAccess::auth_tables(
+    const std::map<std::string, std::set<std::string>>& tables, const std::string& username, MysqlProtocol& connection)
+{
+  MySQLResultSet rs;
+  int ret = connection.query("show tenant", rs);
+  if (ret != OMS_OK || rs.rows.empty()) {
+    if (rs.message.find("syntax") != std::string::npos) {
+      // syntax error means oracle mode,
+      // TODO...
+      return OMS_OK;
+    }
+  }
+
+  /**
+    SELECT * FROM information_schema.user_privileges;
+    +--------------------------------------+---------------+----------------------+--------------+
+    | GRANTEE                              | TABLE_CATALOG | PRIVILEGE_TYPE       | IS_GRANTABLE |
+    +--------------------------------------+---------------+----------------------+--------------+
+    | 'root'@'%'                           | def           | ALTER                | YES          |
+    | 'root'@'%'                           | def           | CREATE               | YES          |
+    | 'root'@'%'                           | def           | CREATE USER          | YES          |
+    | 'root'@'%'                           | def           | DELETE               | YES          |
+    | 'root'@'%'                           | def           | DROP                 | YES          |
+    | 'root'@'%'                           | def           | INSERT               | YES          |
+    | 'root'@'%'                           | def           | UPDATE               | YES          |
+    | 'root'@'%'                           | def           | SELECT               | YES          |
+    | 'root'@'%'                           | def           | INDEX                | YES          |
+    | 'root'@'%'                           | def           | CREATE VIEW          | YES          |
+    | 'root'@'%'                           | def           | SHOW VIEW            | YES          |
+    | 'root'@'%'                           | def           | SHOW DB              | YES          |
+    | 'root'@'%'                           | def           | SUPER                | YES          |
+    | 'root'@'%'                           | def           | PROCESS              | YES          |
+    | 'root'@'%'                           | def           | CREATE SYNONYM       | YES          |
+    | 'root'@'%'                           | def           | FILE                 | YES          |
+    | 'root'@'%'                           | def           | ALTER TENANT         | YES          |
+    | 'root'@'%'                           | def           | ALTER SYSTEM         | YES          |
+    | 'root'@'%'                           | def           | CREATE RESOURCE POOL | YES          |
+    | 'root'@'%'                           | def           | CREATE RESOURCE UNIT | YES          |
+   */
+
+  std::string username_pattern = "'" + username + "'@%";
+  for (auto& db_entry : tables) {
+    if (db_entry.first == "*") {
+      continue;
+    }
+    for (const std::string& tb : db_entry.second) {
+      if (tb == "*") {
+        continue;
+      }
+      std::string tb_priv_sql = "SELECT upper(privilege_type) AS priv FROM information_schema.user_privileges WHERE "
+                                "privilege_type='SELECT' AND grantee LIKE \"";
+      tb_priv_sql.append(username_pattern);
+      tb_priv_sql.append("\" UNION ");
+      tb_priv_sql.append(" SELECT upper(privilege_type) AS priv FROM information_schema.schema_privileges WHERE "
+                         "privilege_type='SELECT' AND grantee LIKE \"");
+      tb_priv_sql.append(username_pattern + "\" AND table_schema='" + db_entry.first);
+      tb_priv_sql.append("' UNION ");
+      tb_priv_sql.append(" SELECT upper(privilege_type) AS priv FROM information_schema.table_privileges WHERE "
+                         "privilege_type='SELECT' AND grantee LIKE \"");
+      tb_priv_sql.append(username_pattern);
+      tb_priv_sql.append("\" AND table_schema='" + db_entry.first + "' AND table_name='" + tb + "'");
+
+      connection.query(tb_priv_sql, rs);
+      if (ret != OMS_OK || rs.rows.empty()) {
+        OMS_ERROR << "Failed to auth, fetch user_privileges failure or empty result, ret:" << rs.code
+                  << ", error: " << rs.message;
+        return OMS_FAILED;
+      }
+    }
+  }
+  return OMS_OK;
+}
+
+int ObAccess::fetch_connection(MysqlProtocol& mysql_protocol)
+{
+  ServerInfo server_info;
+  if (!_servers.empty()) {
+    server_info = _servers.front();
+  }
+  return mysql_protocol.login(server_info.host, server_info.port, _sys_user, _sys_password_sha1);
 }
 
 ObUsername::ObUsername(const std::string& full_name)

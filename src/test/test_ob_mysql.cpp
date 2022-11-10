@@ -78,13 +78,13 @@ void login(const std::string& host, int port, const std::string& user, const std
 
 static std::string host = "127.0.0.1";
 static uint16_t port = 2883;
-static std::string user = "root@tenant#cluster";
-static std::string password = "password";
-static std::string password_sha1;
 static std::string tenant = "tenant";
-
-static std::string sys_user = "root@sys";
+static std::string user = "root";
+static std::string password = "root";
+static std::string sys_user = "root";
 static std::string sys_password = "root";
+
+static std::string password_sha1;
 static std::string sys_password_sha1;
 
 static std::string cluster_url = "";
@@ -127,7 +127,7 @@ TEST(MYSQL_AUTH, auth_ok)
   ASSERT_TRUE(strncmp(password_sha1.c_str(), config.password.val().c_str(), SHA1::SHA1_HASH_SIZE));
 
   ObAccess ob_access;
-  int ret = ob_access.init(config);
+  int ret = ob_access.init(config, password_sha1, sys_password_sha1);
   ASSERT_EQ(0, ret);
 
   ret = ob_access.auth();
@@ -146,7 +146,7 @@ TEST(MYSQL_AUTH, auth_all_ok)
                      " cluster_user=" + sys_user + " cluster_password=" + dumphex(sys_password_sha1) +
                      " tb_white_list=*.*.*");
   ObAccess ob_access;
-  int ret = ob_access.init(config);
+  int ret = ob_access.init(config, password_sha1, sys_password_sha1);
   ASSERT_EQ(0, ret);
 
   ret = ob_access.auth();
@@ -164,7 +164,7 @@ TEST(MYSQL_AUTH, auth_all_failed)
   OblogConfig config("first_start_timestamp=0 rootserver_list=" + host + ":2881:" + std::to_string(port) +
                      " cluster_user=" + user + " cluster_password=" + dumphex(password_sha1) + " tb_white_list=*.*.*");
   ObAccess ob_access;
-  int ret = ob_access.init(config);
+  int ret = ob_access.init(config, password_sha1, sys_password_sha1);
   ASSERT_EQ(0, ret);
 
   ret = ob_access.auth();
@@ -183,7 +183,7 @@ TEST(MYSQL_AUTH, auth_by_cluster_url)
                      " cluster_user=" + sys_user + " cluster_password=" + dumphex(sys_password_sha1) +
                      " tb_white_list=*.*.* cluster_url=" + cluster_url);
   ObAccess ob_access;
-  int ret = ob_access.init(config);
+  int ret = ob_access.init(config, password_sha1, sys_password_sha1);
   ASSERT_EQ(0, ret);
 
   ret = ob_access.auth();

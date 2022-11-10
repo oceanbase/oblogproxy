@@ -16,6 +16,7 @@
 #include <functional>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <fstream>
 
 namespace oceanbase {
 namespace logproxy {
@@ -37,6 +38,14 @@ public:
   static void dir_foreach(const std::string& dir, const std::function<void(const std::string&, const FileType)>& func);
 
   static std::string file_md5(const std::string& filename);
+
+  static bool read_file(const std::string& filename, std::string& content, bool trim_content = true);
+
+  static bool read_number(const std::string& filename, int64_t& number);
+
+  static bool read_lines(const std::string& filename, std::vector<std::string>& lines);
+
+  static bool read_kvs(const std::string& filename, const std::string& sep, std::map<std::string, std::string>& kvs);
 };
 
 }  // namespace logproxy

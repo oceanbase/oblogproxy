@@ -103,19 +103,13 @@ RuntimeStatusMessage::RuntimeStatusMessage(const char* ip, int port, int stream_
     : Message(MessageType::STATUS), ip(ip), port(port), stream_count(stream_count), worker_count(worker_count)
 {}
 
-RecordDataMessage::RecordDataMessage() : Message(MessageType::DATA_CLIENT)
+RecordDataMessage::RecordDataMessage(std::vector<ILogRecord*>& in_records)
+    : Message(MessageType::DATA_CLIENT), records(in_records), _offset(0), _count(in_records.size())
 {}
 
-RecordDataMessage::RecordDataMessage(std::vector<ILogRecord*>&& in_records)
-    : Message(MessageType::DATA_CLIENT), records(in_records)
+RecordDataMessage::RecordDataMessage(std::vector<ILogRecord*>& in_records, size_t offset, size_t count)
+    : Message(MessageType::DATA_CLIENT), records(in_records), _offset(offset), _count(count)
 {}
-
-RecordDataMessage::RecordDataMessage(const std::vector<ILogRecord*>& in_records, size_t offset, size_t count)
-    : Message(MessageType::DATA_CLIENT)
-{
-  records.reserve(count);
-  records.assign(in_records.begin() + offset, in_records.begin() + count);
-}
 
 RecordDataMessage::~RecordDataMessage() = default;
 
@@ -141,11 +135,9 @@ int RecordDataMessage::encode_log_records(MsgBuf& buffer, size_t& raw_len) const
 
 int RecordDataMessage::encode_log_records_plain(MsgBuf& buffer) const
 {
-  const size_t count = records.size();
   MsgBuf tmp_buffer;
-
-  for (size_t i = 0; i < count; ++i) {
-    ILogRecord* log_record = records[i];
+  for (size_t i = 0; i < _count; ++i) {
+    ILogRecord* log_record = records[i + _offset];
 
     size_t size = 0;
     // got independ address
@@ -160,7 +152,6 @@ int RecordDataMessage::encode_log_records_plain(MsgBuf& buffer) const
       OMS_DEBUG << "Encode LogMessage Header, type: " << header->m_msgType << ", version: " << header->m_version
                 << ", size: " << header->m_size;
     }
-
     size_t calc_size = header->m_size + sizeof(MsgHeader);
     if (calc_size != size) {
       if (calc_size > size) {
@@ -307,6 +298,7 @@ int RecordDataMessage::decode_log_records_plain(const char* buffer, size_t size,
   OMS_DEBUG << "Total " << log_records.size() << " log records have been decoded from buffer with size: " << size;
   records.swap(log_records);
 
+  _count = count;
   return OMS_OK;
 }
 

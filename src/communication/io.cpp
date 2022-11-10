@@ -134,10 +134,10 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
   return OMS_OK;
 }
 
-int listen(const char* host, int port, bool block_mode, bool reuse_address, int& sockfd)
+int listen(const char* host, int port, bool block_mode, bool reuse_address)
 {
   if (port < 0 || port > 65536) {
-    OMS_ERROR << "port is invalid: " << port;
+    OMS_ERROR << "Invalid listen port: " << port;
     return OMS_FAILED;
   }
 
@@ -176,30 +176,36 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address, int&
   }
 
   ret = bind(sock, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
-  if (ret != 0) {
-    OMS_ERROR << "Failed to bind address '" << host << ":" << port << "'. error=" << strerror(errno);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to bind address '" << host << ":" << port << "', error: " << strerror(errno);
     ::close(sock);
     return OMS_FAILED;
   }
 
   ret = ::listen(sock, 10);
-  if (ret != 0) {
-    OMS_ERROR << "Failed to listen on '" << host << ':' << port << "'. error=" << strerror(errno);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to listen on '" << host << ':' << port << "', error: " << strerror(errno);
     ::close(sock);
     return OMS_FAILED;
   }
 
   if (!block_mode) {
     ret = set_non_block(sock);
-    if (ret != 0) {
-      OMS_ERROR << "Failed to set listen socket non-block mode. error=" << strerror(errno);
+    if (ret != OMS_OK) {
+      OMS_ERROR << "Failed to set listen socket non-block mode, error: " << strerror(errno);
       ::close(sock);
       return OMS_FAILED;
     }
   }
 
-  sockfd = sock;
-  return OMS_OK;
+  ret = set_close_on_exec(sock);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to set listen socket close on exec mode, error: " << strerror(errno);
+    ::close(sock);
+    return OMS_FAILED;
+  }
+
+  return sock;
 }
 
 int set_reuse_addr(int sock)
@@ -212,6 +218,7 @@ int set_reuse_addr(int sock)
   }
   return OMS_OK;
 }
+
 int set_non_block(int fd)
 {
   int flags = fcntl(fd, F_GETFL);
@@ -223,6 +230,22 @@ int set_non_block(int fd)
   flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
   if (flags == -1) {
     OMS_WARN << "Failed to set non-block flags of fd(" << fd << "). error=" << strerror(errno);
+    return OMS_FAILED;
+  }
+  return OMS_OK;
+}
+
+int set_close_on_exec(int fd)
+{
+  int flags = fcntl(fd, F_GETFL);
+  if (flags == -1) {
+    OMS_WARN << "Failed to get flags of fd(" << fd << "). error=" << strerror(errno);
+    return OMS_FAILED;
+  }
+
+  flags = fcntl(fd, F_SETFL, flags | O_CLOEXEC);
+  if (flags == -1) {
+    OMS_WARN << "Failed to set close on exec flags of fd(" << fd << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
   return OMS_OK;
