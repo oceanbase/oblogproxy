@@ -22,7 +22,7 @@ class Channel;
 
 class MessageDecoder {
 public:
-  virtual PacketError decode(Channel* ch, MessageVersion version, Message*& message) = 0;
+  virtual PacketError decode(Channel& ch, MessageVersion version, Message*& message) = 0;
 
 protected:
   size_t _header_len;
@@ -33,10 +33,10 @@ class LegacyDecoder : public MessageDecoder {
   OMS_SINGLETON(LegacyDecoder);
 
 public:
-  PacketError decode(Channel* ch, MessageVersion version, Message*& message) override;
+  PacketError decode(Channel& ch, MessageVersion version, Message*& message) override;
 
 private:
-  static int decode_handshake_request(Channel* ch, Message*& message);
+  static int decode_handshake_request(Channel& ch, Message*& message);
 };
 
 class ProtobufDecoder : public MessageDecoder {
@@ -44,7 +44,7 @@ class ProtobufDecoder : public MessageDecoder {
   OMS_SINGLETON(ProtobufDecoder);
 
 public:
-  PacketError decode(Channel* ch, MessageVersion version, Message*& message) override;
+  PacketError decode(Channel& ch, MessageVersion version, Message*& message) override;
 
 private:
   int decode_payload(MessageType type, const MsgBuf& buffer, Message*& msg);

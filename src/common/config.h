@@ -42,11 +42,12 @@ public:
 public:
   OMS_CONFIG_UINT16(service_port, 2983);
   OMS_CONFIG_UINT32(encode_threadpool_size, 8);
-  OMS_CONFIG_UINT32(encode_queue_size, 50000);
+  OMS_CONFIG_UINT32(encode_queue_size, 20000);
   OMS_CONFIG_UINT32(max_packet_bytes, 1024 * 1024 * 64);  // 64MB
   OMS_CONFIG_UINT32(command_timeout_s, 10);
+  OMS_CONFIG_UINT64(accept_interval_us, 500000);
 
-  OMS_CONFIG_UINT32(record_queue_size, 512);
+  OMS_CONFIG_UINT32(record_queue_size, 20000);
   OMS_CONFIG_UINT64(read_timeout_us, 2000000);
   OMS_CONFIG_UINT64(read_fail_interval_us, 1000000);
   OMS_CONFIG_UINT32(read_wait_num, 20000);
@@ -54,14 +55,20 @@ public:
   OMS_CONFIG_UINT64(send_timeout_us, 2000000);
   OMS_CONFIG_UINT64(send_fail_interval_us, 1000000);
 
+  OMS_CONFIG_BOOL(check_quota_enable, false);
+
   OMS_CONFIG_BOOL(log_to_stdout, false);
   OMS_CONFIG_UINT32(log_quota_size_mb, 5120);
   OMS_CONFIG_UINT32(log_quota_day, 30);
   OMS_CONFIG_UINT32(log_gc_interval_s, 43200);
 
-  OMS_CONFIG_STR(oblogreader_path, "/home/ds/logreader");
+  OMS_CONFIG_STR(oblogreader_path, "./run");
   OMS_CONFIG_UINT32(oblogreader_path_retain_hour, 168);  // 7 Days
   OMS_CONFIG_UINT32(oblogreader_lease_s, 300);           // 5 mins
+  OMS_CONFIG_UINT32(oblogreader_max_count, 100);
+
+  OMS_CONFIG_UINT32(max_cpu_ratio, 0);
+  OMS_CONFIG_UINT64(max_mem_quota_mb, 0);
 
   OMS_CONFIG_BOOL(allow_all_tenant, false);
   OMS_CONFIG_BOOL(auth_user, true);
@@ -71,8 +78,15 @@ public:
   OMS_CONFIG_ENCRYPT(ob_sys_username, "");
   OMS_CONFIG_ENCRYPT(ob_sys_password, "");
 
-  OMS_CONFIG_UINT32(counter_interval_s, 2);   // 2s
+  OMS_CONFIG_UINT64(ob_clog_fetch_interval_s, 600);  // 10 mins
+  OMS_CONFIG_UINT64(ob_clog_expr_s, 43200);          // 12 h
+
+  OMS_CONFIG_UINT32(counter_interval_s, 2);  // 2s
+  OMS_CONFIG_BOOL(metric_enable, true);
   OMS_CONFIG_UINT32(metric_interval_s, 120);  // 2mins
+
+  // when builtin_cluster_url_prefix not empty, we read cluster_id in handshake to make an complete cluster_url
+  OMS_CONFIG_STR(builtin_cluster_url_prefix, "");
 
   OMS_CONFIG_STR(communication_mode, "server");  // server mode or client mode
 
@@ -97,6 +111,11 @@ public:
   // for inner use
   OMS_CONFIG_UINT64(process_name_address, 0);
   OMS_CONFIG_BOOL(packet_magic, true);
+
+  OMS_CONFIG_UINT32(node_mem_limit_minimum_mb, 2048);
+  OMS_CONFIG_UINT32(node_mem_limit_threshold_percent, 85);
+  OMS_CONFIG_UINT32(node_cpu_limit_threshold_percent, 90);
+  OMS_CONFIG_UINT32(node_disk_limit_threshold_percent, 85);
 };
 
 }  // namespace logproxy

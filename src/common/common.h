@@ -22,6 +22,7 @@ namespace logproxy {
 #define OMS_FAILED (-1)
 #define OMS_TIMEOUT (-2)
 #define OMS_CONNECT_FAILED (-3)
+#define OMS_INVALID (-4)
 
 #define OMS_UNUSED(x) (void)(x)
 

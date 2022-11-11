@@ -18,6 +18,7 @@
 #include "test/test_aes.cpp"
 #include "test/test_message_buffer.cpp"
 #include "test/test_ob_sha1.cpp"
+#include "test/test_net.cpp"
 
 #include "test/test_ob_mysql.cpp"
 //#include "test/test_codec.cpp"

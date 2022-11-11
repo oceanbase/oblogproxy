@@ -10,6 +10,7 @@
  * See the Mulan PubL v2 for more details.
  */
 
+#include <algorithm>
 #include "common/str.h"
 
 namespace oceanbase {
@@ -60,6 +61,38 @@ size_t split(const std::string& str, char sep, std::vector<std::string>& vec, bo
   }
   vec.emplace_back(p_pre);
   return vec.size();
+}
+size_t split_by_str(std::string str, const std::string& sep, std::vector<std::string>& vec, bool first)
+{
+  vec.clear();
+  if (str.empty()) {
+    return 0;
+  }
+  size_t pos = 0;
+  std::string temp;
+  while ((pos = str.find(sep)) != std::string::npos) {
+    temp = str.substr(0, pos);
+    vec.emplace_back(temp);
+    str.erase(0, pos + sep.length());
+  }
+  vec.emplace_back(str);
+  return vec.size();
+}
+
+void ltrim(std::string& s)
+{
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+}
+
+void rtrim(std::string& s)
+{
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+}
+
+void trim(std::string& s)
+{
+  ltrim(s);
+  rtrim(s);
 }
 
 }  // namespace logproxy

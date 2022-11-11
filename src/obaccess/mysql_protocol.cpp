@@ -212,6 +212,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
 {
 
   OMS_INFO << "Query obmysql SQL:" << sql;
+  rs.reset();
 
   MsgBuf msgbuf;
   MySQLQueryPacket packet(sql);
@@ -223,13 +224,13 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   ret = send_mysql_packet(_sockfd, msgbuf, 0);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to send query packet to server:" << _hostname << ':' << _port;
-    return OMS_FAILED;
+    return OMS_CONNECT_FAILED;
   }
 
   ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to recv query packet from server:" << _hostname << ':' << _port;
-    return OMS_FAILED;
+    return OMS_CONNECT_FAILED;
   }
 
   MySQLQueryResponsePacket query_resp;
@@ -237,6 +238,8 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   if (ret != OMS_OK || query_resp.col_count() == 0) {
     OMS_ERROR << "Failed to query observer:" << query_resp._err._message
               << (query_resp.col_count() == 0 ? ", unexpected column count: 0" : "");
+    rs.code = query_resp._err._code;
+    rs.message = query_resp._err._message;
     return OMS_FAILED;
   }
 
@@ -247,7 +250,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
     ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
     if (ret != OMS_OK) {
       OMS_ERROR << "Failed to recv column defines packet from server:" << _hostname << ':' << _port;
-      return OMS_FAILED;
+      return OMS_CONNECT_FAILED;
     }
 
     MySQLCol column;
@@ -259,7 +262,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
   if (ret != OMS_OK) {
     OMS_ERROR << "Failed to recv eof packet from server:" << _hostname << ':' << _port;
-    return OMS_FAILED;
+    return OMS_CONNECT_FAILED;
   }
   MySQLEofPacket eof;
   ret = eof.decode(msgbuf);
@@ -273,7 +276,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
     ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
     if (ret != OMS_OK || msgbuf.begin()->buffer() == nullptr) {
       OMS_ERROR << "Failed to recv row packet from server:" << _hostname << ':' << _port;
-      return OMS_FAILED;
+      return OMS_CONNECT_FAILED;
     }
     uint8_t eof_code = msgbuf.begin()->buffer()[0];
     if (eof_code == 0xfe) {

@@ -33,17 +33,17 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
 
 /**
  * create a socket, bind the address and listen on it
- * @param host The hostname to bind. If null，then bind ANY_ADDRESS
+ * @param host The hostname to bind. If null, then bind ANY_ADDRESS
  * @param port The port to bind
  * @param block_mode the blocking mode of socket
  * @param reuse_address Whether to set option SO_REUSEADDR
- * @param sockfd[out] If success, return the socket descriptor
- * @return If success return OMS_OK
+ * @return sockfd If success, return the socket descriptor
  */
-int listen(const char* host, int port, bool block_mode, bool reuse_address, int& sockfd);
+int listen(const char* host, int port, bool block_mode, bool reuse_address);
 
 int set_reuse_addr(int fd);
 int set_non_block(int fd);
+int set_close_on_exec(int fd);
 
 }  // namespace logproxy
 }  // namespace oceanbase

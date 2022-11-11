@@ -30,12 +30,21 @@ public:
   // from here to beflow, params use to send to liboblog
   OMS_CONFIG_UINT64_K(start_timestamp, "first_start_timestamp", 0);
 
+  OMS_CONFIG_UINT64_K(start_timestamp_us, "first_start_timestamp_us", 0);
+
+  // when Conf.builtin_cluster_url_prefix not empty, we need cluster_id to make an cluster_url
+  OMS_CONFIG_STR_K(cluster_id, "cluster_id", "");
   OMS_CONFIG_STR_K(cluster_url, "cluster_url", "");
   // syntax: rs1:rpc_port1:sql_port1;rs2:rpc_port2:sql_port2
   OMS_CONFIG_STR_K(root_servers, "rootserver_list", "");
   OMS_CONFIG_STR_K(user, "cluster_user", "");
   OMS_CONFIG_STR_K(password, "cluster_password", "");
   OMS_CONFIG_STR_K(table_whites, "tb_white_list", "");
+
+public:
+  // for inner use
+  std::string password_sha1;
+  std::string sys_password_sha1;
 
 public:
   explicit OblogConfig(const std::string& str);

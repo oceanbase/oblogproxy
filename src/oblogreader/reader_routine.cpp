@@ -16,7 +16,6 @@
 #include "common/config.h"
 #include "common/counter.h"
 #include "oblogreader/oblogreader.h"
-#include "oblogreader/reader_routine.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -31,7 +30,21 @@ int ReaderRoutine::init(const OblogConfig& config)
 {
   std::map<std::string, std::string> configs;
   config.generate_configs(configs);
-  return _oblog.init(configs, config.start_timestamp.val());
+
+  int ret = _clog_meta.init(config);
+  if (ret != OMS_OK) {
+    OMS_ERROR << "Failed to init clog check ,ret:" << ret;
+    return ret;
+  }
+
+  uint64_t clog_min_timestamp_us = 0;
+  ret = _clog_meta.fetch_once(clog_min_timestamp_us);
+
+  if (config.start_timestamp_us.val() != 0) {
+    return _oblog.init_with_us(configs, config.start_timestamp_us.val());
+  } else {
+    return _oblog.init(configs, config.start_timestamp.val());
+  }
 }
 
 void ReaderRoutine::stop()
@@ -39,12 +52,15 @@ void ReaderRoutine::stop()
   if (is_run()) {
     Thread::stop();
     _oblog.stop();
+    _clog_meta.stop();
     _queue.clear([this](ILogRecord* record) { _oblog.release(record); });
   }
 }
 
 void ReaderRoutine::run()
 {
+  _clog_meta.start();
+
   if (_oblog.start() != OMS_OK) {
     OMS_ERROR << "Failed to start ReaderRoutine";
     return;
@@ -53,7 +69,15 @@ void ReaderRoutine::run()
   Counter& counter = Counter::instance();
   Timer stage_tm;
 
+  uint64_t record_us = 0;
+
   while (is_run()) {
+    if (record_us != 0 && !_clog_meta.check(record_us)) {
+      OMS_ERROR << "Failed to check clog available of last record with timestamp is us:" << record_us
+                << ", exit oblogreader";
+      break;
+    }
+
     stage_tm.reset();
     ILogRecord* record = nullptr;
     int ret = _oblog.fetch(record, _s_config.read_timeout_us.val());
@@ -79,6 +103,8 @@ void ReaderRoutine::run()
     counter.count_key(Counter::READER_OFFER_US, offer_us);
     counter.count_read_io(record->getRealSize());
     counter.count_read(1);
+
+    record_us = record->getTimestamp() * 1000000 + record->getRecordUsec();
   }
 
   _reader.stop();

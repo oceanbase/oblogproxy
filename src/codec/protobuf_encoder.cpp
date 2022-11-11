@@ -27,7 +27,7 @@ namespace logproxy {
 static const size_t PB_PACKET_HEADER_SIZE = PACKET_VERSION_SIZE + 1 /*type*/ + 4 /*packet size */;
 static const size_t PB_PACKET_HEADER_SIZE_MAGIC = PACKET_MAGIC_SIZE + PB_PACKET_HEADER_SIZE;
 
-int ProtobufEncoder::encode(const Message& msg, MsgBuf& buffer)
+int ProtobufEncoder::encode(const Message& msg, MsgBuf& buffer, size_t& raw_len)
 {
   switch (msg.type()) {
     case MessageType::ERROR_RESPONSE: {
@@ -40,10 +40,10 @@ int ProtobufEncoder::encode(const Message& msg, MsgBuf& buffer)
       return encode_client_handshake_response(msg, buffer);
     }
     case MessageType::STATUS: {
-      return encode_runtime_status(msg, buffer);
+      return encode_runtime_status(msg, buffer, raw_len);
     }
     case MessageType::DATA_CLIENT: {
-      return encode_data_client(msg, buffer);
+      return encode_data_client(msg, buffer, raw_len);
     }
     default: {
       OMS_ERROR << "Unknown message type: " << (int)msg.type();
@@ -144,7 +144,7 @@ int ProtobufEncoder::encode_client_handshake_response(const Message& msg, MsgBuf
   return encode_message(pb_msg, response_message.type(), buffer, false);
 }
 
-int ProtobufEncoder::encode_runtime_status(const Message& msg, MsgBuf& buffer)
+int ProtobufEncoder::encode_runtime_status(const Message& msg, MsgBuf& buffer, size_t& raw_len)
 {
   const RuntimeStatusMessage& runtime_status_message = (const RuntimeStatusMessage&)msg;
   RuntimeStatus pb_msg;
@@ -152,13 +152,14 @@ int ProtobufEncoder::encode_runtime_status(const Message& msg, MsgBuf& buffer)
   pb_msg.set_port(runtime_status_message.port);
   pb_msg.set_stream_count(runtime_status_message.stream_count);
   pb_msg.set_worker_count(runtime_status_message.worker_count);
-  return encode_message(pb_msg, runtime_status_message.type(), buffer, false);
+  int ret = encode_message(pb_msg, runtime_status_message.type(), buffer, false);
+  raw_len = buffer.byte_size();
+  return ret;
 }
 
-int ProtobufEncoder::encode_data_client(const Message& msg, MsgBuf& buffer)
+int ProtobufEncoder::encode_data_client(const Message& msg, MsgBuf& buffer, size_t& raw_len)
 {
   RecordDataMessage& record_data_message = (RecordDataMessage&)msg;
-  size_t raw_len = 0;
   MsgBuf records_buffer;
   int ret = record_data_message.encode_log_records(records_buffer, raw_len);
   if (ret != OMS_OK) {

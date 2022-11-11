@@ -25,5 +25,31 @@ size_t split_all(const std::string& str, const std::string& seps, std::vector<st
 
 size_t split(const std::string& str, char sep, std::vector<std::string>& vec, bool first = false);
 
+size_t split_by_str(std::string str, const std::string& sep, std::vector<std::string>& vec, bool first = false);
+
+/*
+ * @param str
+ * @return null
+ * @description trim from begin
+ * @date 2022/9/19 15:36
+ */
+void ltrim(std::string& s);
+
+/*
+ * @param str
+ * @return null
+ * @description trim from end
+ * @date 2022/9/19 15:36
+ */
+void rtrim(std::string& s);
+
+/*
+ * @param str
+ * @return null
+ * @description trim from both begin and end
+ * @date 2022/9/19 15:36
+ */
+void trim(std::string& s);
+
 }  // namespace logproxy
 }  // namespace oceanbase

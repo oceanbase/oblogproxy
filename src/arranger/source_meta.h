@@ -23,7 +23,7 @@ struct SourceMeta {
 public:
   const LogType type;
   const int pid;
-  const ClientId client_id;
+  const std::string client_id;
 
   /**
    * last checkd alive time
@@ -31,7 +31,7 @@ public:
   time_t _last_time;
 
 public:
-  SourceMeta(LogType t, int p, const ClientId& cid) : type(t), pid(p), client_id(cid)
+  SourceMeta(LogType t, int p, const std::string& cid) : type(t), pid(p), client_id(cid)
   {
     id_str = std::to_string(pid);
   }

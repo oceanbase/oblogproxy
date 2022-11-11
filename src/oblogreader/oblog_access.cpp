@@ -20,7 +20,7 @@ namespace logproxy {
 
 OblogAccess::OblogAccess()
 {
-  _oblog_factory = new oceanbase::liboblog::ObLogFactory();
+  _oblog_factory = new ObLogFactory();
   assert(_oblog_factory != nullptr);
   _oblog = _oblog_factory->construct_oblog();
   assert(_oblog != nullptr);
@@ -30,6 +30,7 @@ OblogAccess::~OblogAccess()
 {
   if (_oblog != nullptr) {
     assert(_oblog_factory != nullptr);
+    _oblog->stop();
     _oblog->destroy();
     _oblog_factory->deconstruct(_oblog);
     _oblog = nullptr;
@@ -40,7 +41,7 @@ OblogAccess::~OblogAccess()
   }
 }
 
-void OblogAccess::handle_error(const liboblog::ObLogError& error)
+void OblogAccess::handle_error(const ObLogError& error)
 {
   // TODO...
 }
@@ -52,19 +53,46 @@ int OblogAccess::init(const std::map<std::string, std::string>& configs, uint64_
   OMS_INFO << "======== Start liboblog configs ======== ";
   for (auto& entry : configs) {
     if (entry.first == "first_start_timestamp") {
-      OMS_INFO << entry.first << "=" << start_timestamp;
+      OMS_INFO << entry.first << "=" << _start_timestamp;
     } else {
       OMS_INFO << entry.first << "=" << entry.second;
     }
   }
   OMS_INFO << "======== End Start liboblog configs ======== ";
-  int ret = _oblog->init(configs, start_timestamp, &handle_error);
+  int ret = _oblog->init(configs, _start_timestamp, &handle_error);
   if (ret != 0) {
     OMS_FATAL << "Failed to init liboblog, ret: " << ret;
     return ret;
   }
   OMS_INFO << "Successfully init liboblog";
   return OMS_OK;
+}
+
+int OblogAccess::init_with_us(const std::map<std::string, std::string>& configs, uint64_t start_timestamp_us)
+{
+#ifndef WITH_US_TIMESTAMP
+  OMS_FATAL << "Unsupported start time in us for current version";
+  return OMS_FAILED;
+#else
+  _start_timestamp_us = start_timestamp_us;
+
+  OMS_INFO << "======== Start liboblog configs with us ======== ";
+  for (auto& entry : configs) {
+    if (entry.first == "first_start_timestamp_us") {
+      OMS_INFO << entry.first << "=" << _start_timestamp_us;
+    } else {
+      OMS_INFO << entry.first << "=" << entry.second;
+    }
+  }
+  OMS_INFO << "======== End Start liboblog configs ======== ";
+  int ret = _oblog->init_with_start_tstamp_usec(configs, _start_timestamp_us, &handle_error);
+  if (ret != 0) {
+    OMS_FATAL << "Failed to init liboblog, ret: " << ret;
+    return ret;
+  }
+  OMS_INFO << "Successfully init liboblog";
+  return OMS_OK;
+#endif
 }
 
 int OblogAccess::start()

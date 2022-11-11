@@ -30,10 +30,14 @@ public:
   {}
   Model& operator=(const Model& rhs)
   {
+    _to_str_flag = false;
+    _to_str_buf.clear();
     return *this;
   }
   Model& operator=(Model&& rhs) noexcept
   {
+    _to_str_flag = false;
+    _to_str_buf.clear();
     return *this;
   }
 

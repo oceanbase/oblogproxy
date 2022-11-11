@@ -22,13 +22,15 @@ yum install -y oblogproxy-xxxx.系统版本.x86_64.rpm
 
 oblogproxy会安装在目录 `/usr/local/oblogproxy` 。
 
-需要注意的是，oblogproxy 对 [obcdc](https://github.com/oceanbase/oceanbase/tree/master/tools/obcdc) (原liboblog) 有版本依赖，当通过 oceanbase-ce-devel 引入该依赖时，默认的安装流程可能会安装最新版，因此建议先安装指定版本的 oceanbase-ce-devel，版本对应关系：
+需要注意的是，oblogproxy 对 [obcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (原liboblog) 有版本依赖，当通过 oceanbase-ce-devel 引入该依赖时，默认的安装流程可能会安装最新版，因此建议先安装指定版本的 oceanbase-ce-devel，版本对应关系：
 
 | obcdc (devel) | oblogproxy |
 |---------------|------------|
 | 3.1.1         | 1.0.0      |
 | 3.1.2         | 1.0.1      |
 | 3.1.3         | 1.0.2      |
+| 3.1.4         | 1.0.3      |
+| 4.0           | 1.1.0      |
 
 ### 3. 配置系统租户
 获得observer的sys租户账号密码，通常在创建observer集群时创建，也可以单独创建。oblogproxy需要加密的配置，执行以下命令即可得到：

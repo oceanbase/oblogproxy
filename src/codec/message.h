@@ -148,6 +148,11 @@ public:
     _version = version;
   }
 
+  virtual uint64_t size()
+  {
+    return 0;
+  }
+
   virtual const std::string& debug_string() const;
 
 protected:
@@ -214,17 +219,20 @@ class MsgBuf;
 
 class RecordDataMessage : public Message {
 public:
-  RecordDataMessage();
-
-  explicit RecordDataMessage(std::vector<ILogRecord*>&& records);
-
-  RecordDataMessage(const std::vector<ILogRecord*>& records, size_t offset, size_t count);
-
   ~RecordDataMessage() override;
+
+  explicit RecordDataMessage(std::vector<ILogRecord*>& records);
+
+  RecordDataMessage(std::vector<ILogRecord*>& records, size_t offset, size_t count);
+
+  inline size_t offset() const
+  {
+    return _offset;
+  }
 
   inline size_t count() const
   {
-    return records.size();
+    return _count;
   }
 
   int encode_log_records(MsgBuf& buffer, size_t& raw_len) const;
@@ -242,7 +250,9 @@ protected:
 
 public:
   CompressType compress_type = CompressType::PLAIN;
-  std::vector<ILogRecord*> records;
+  std::vector<ILogRecord*>& records;
+  size_t _offset = 0;
+  size_t _count = 0;
 
   // index to count message seq for a client session
   uint32_t idx = 0;

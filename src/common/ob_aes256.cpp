@@ -115,7 +115,7 @@ int AES::decrypt(const char* key, const char* encrypted, int encrypted_len, char
   int final_buffer_len = 0;
   ret = EVP_DecryptFinal_ex(_cipher_ctx, buffer + used_buffer_len, &final_buffer_len);
   if (ret != 1) {
-    OMS_ERROR << "Failed to decrypt(final). return=" << ret;
+    OMS_ERROR << "Failed to decrypt(final), ret:" << ret;
     free(buffer);
     return OMS_FAILED;
   }

@@ -6,11 +6,16 @@
 
 bin
 target
+store-log-capture.out
 
 ./log
 
-cmake-build-debug/
-buildenv/
+cmake-build-*/
+buildenv*/
 build/
+runenv/
+
+src/common/LogRecord.h
 
 *.pb.*
+cmake/

@@ -15,11 +15,11 @@
 namespace oceanbase {
 namespace logproxy {
 
-ClientMeta ClientMeta::from_handshake(const PeerInfo& peer, ClientHandshakeRequestMessage& handshake)
+ClientMeta ClientMeta::from_handshake(const Peer& peer, ClientHandshakeRequestMessage& handshake)
 {
   ClientMeta meta;
   meta.type = (LogType)handshake.log_type;
-  meta.id = ClientId::of(handshake.id);
+  meta.id = handshake.id;
   meta.ip = handshake.ip;
   meta.version = handshake.version;
   meta.configuration = handshake.configuration;

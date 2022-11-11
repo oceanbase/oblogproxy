@@ -37,15 +37,15 @@ public:
 
   inline void reset()
   {
-    _start_time = now();
+    _start_time_us = now();
   }
 
   inline void reset(uint64_t us)
   {
-    _start_time = us;
+    _start_time_us = us;
   }
 
-  inline uint64_t now() const
+  static inline uint64_t now()
   {
     struct timeval tm;
     gettimeofday(&tm, nullptr);
@@ -54,31 +54,37 @@ public:
 
   inline int64_t elapsed() const
   {
-    return now() - _start_time;
+    return now() - _start_time_us;
   }
 
   inline int64_t elapsed(uint64_t us) const
   {
-    return us - _start_time;
+    return us - _start_time_us;
+  }
+
+  inline int64_t stopwatch()
+  {
+    reset();
+    return elapsed();
   }
 
   // sleep & interrupt
-  void sleep(uint64_t interval);
+  void sleep(uint64_t interval_us);
 
-  void sleepto(uint64_t nexttime);
+  void sleepto(uint64_t nexttime_us);
 
   void interrupt();
 
   inline uint64_t start_time() const
   {
-    return _start_time;
+    return _start_time_us;
   }
 
 private:
-  uint64_t _start_time = 0;
+  uint64_t _start_time_us = 0;
   pthread_mutex_t _lock;
   pthread_cond_t _cond;
-  uint64_t _next_schedule_time;
+  uint64_t _next_schedule_time_us;
 };
 
 }  // namespace logproxy

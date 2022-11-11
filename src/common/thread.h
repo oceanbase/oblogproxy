@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include <thread>
+#include <pthread.h>
 #include <string>
 
 namespace oceanbase {
@@ -50,11 +50,11 @@ protected:
   void set_ret(int ret);
 
 private:
-  void routine();
+  static void* _thd_rotine(void* arg);
 
   std::string _name;
   uint32_t _tid;
-  std::thread _thd;
+  pthread_t _thd;
   volatile bool _run_flag = false;
   int _ret = 0;
 

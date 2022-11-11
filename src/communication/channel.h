@@ -21,101 +21,38 @@
 #include "common/log.h"
 #include "common/model.h"
 #include "common/config.h"
+#include "communication/peer.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-struct PeerInfo : public Model {
-  OMS_MF_ENABLE_COPY(PeerInfo);
-
-  OMS_MF_DFT(int, file_desc, -1);
-
-public:
-  explicit PeerInfo(int fd = -1) : file_desc(fd)
-  {}
-
-  inline int id() const
-  {
-    return file_desc;
-  }
-
-  inline bool operator==(const PeerInfo& other) const
-  {
-    return this->file_desc == other.file_desc;
-  }
-
-  inline bool operator!=(const PeerInfo& other) const
-  {
-    return this->file_desc != other.file_desc;
-  }
-
-  inline bool operator<(const PeerInfo& rhs) const
-  {
-    return file_desc < rhs.file_desc;
-  }
-
-  inline std::size_t operator()(const PeerInfo& p) const
-  {
-    return p.file_desc;
-  }
-
-  inline friend LogStream& operator<<(LogStream& ss, const PeerInfo& o)
-  {
-    ss << "fd:" << o.file_desc;
-    return ss;
-  }
-};
-
-class Communicator;
+class Comm;
 class Message;
 
 class Channel {
 public:
-  explicit Channel(const PeerInfo& peer);
-
-  virtual ~Channel();
-
-  Channel* get();
-
-  void put();
-
-  /**
-   * release the connection
-   * @param owned true means the Channel who hold the connection will close it, otherwise will just leave it when
-   * destructing
-   */
-  void release(bool owned);
-
-  Communicator* get_communicator() const
+  explicit Channel(const Peer& peer) : _peer(peer)
   {
-    return _communicator;
-  }
-  void set_communicator(Communicator* c)
-  {
-    _communicator = c;
-  }
-  inline const PeerInfo& peer() const
-  {
-    return _peer;
+    _read_event = static_cast<event*>(malloc(event_get_struct_event_size()));
+    _read_event->ev_fd = 0;
+    _write_event = static_cast<event*>(malloc(event_get_struct_event_size()));
+    _write_event->ev_fd = 0;
   }
 
-  int flag() const
+  virtual ~Channel()
   {
-    return _flag;
-  }
-
-  void set_flag(int flag)
-  {
-    _flag = flag;
-  }
-
-  inline void set_write_msg(const Message* write_msg)
-  {
-    _write_msg = write_msg;
+    if (_owned_fd && _peer.fd != 0) {
+      close(_peer.fd);
+      OMS_INFO << "Closed fd: " << _peer.fd;
+    }
+    free(_read_event);
+    free(_write_event);
   }
 
   virtual int after_accept() = 0;
+
   virtual int after_connect() = 0;
+
   /**
    * read data from the channel
    * @return >0 the bytes has been read
@@ -146,47 +83,59 @@ public:
    */
   virtual int writen(const char* buf, int size) = 0;
 
-  virtual const char* last_error() = 0;
-
-protected:
-  friend Communicator;
-  PeerInfo _peer;
-  Communicator* _communicator = nullptr;
-
-private:
-  int _flag = 0;
-  struct event _read_event;
-  struct event _write_event;
-  const Message* _write_msg = nullptr;
-
-  bool _owned = true;
-  std::atomic<int> _refcount;
-};
-
-class PlainChannel : public Channel {
-public:
-  explicit PlainChannel(const PeerInfo& peer);
-
-  int after_accept() override;
-  int after_connect() override;
-  int read(char* buf, int size) override;
-  int readn(char* buf, int size) override;
-  int write(const char* buf, int size) override;
-  int writen(const char* buf, int size) override;
-
   /**
    * Get the last error message.
    * It will use the errno internal.
    */
-  const char* last_error() override;
+  virtual const char* last_error() = 0;
 
-private:
+  /**
+   * determin if current channel useable
+   * if we got nothing from channelFactory through peer-id, we got an DummyChannel which is not ok
+   */
+  virtual bool ok() const
+  {
+    return true;
+  }
+
+  inline const Peer& peer() const
+  {
+    return _peer;
+  }
+
+  inline void set_communicator(Comm* communicator)
+  {
+    _communicator = communicator;
+  }
+
+  inline Comm* communicator()
+  {
+    return _communicator;
+  }
+
+  void disable_owned_fd()
+  {
+    _owned_fd = false;
+  }
+
+protected:
+  friend Comm;
+
+  bool _owned_fd = true;
+
+  // copy when construct
+  Peer _peer;
+
+  // for Event context
+  Comm* _communicator = nullptr;
+
+  struct event* _read_event = nullptr;
+  struct event* _write_event = nullptr;
 };
 
-class TlsChannel : public Channel {
+class PlainChannel : public Channel {
 public:
-  explicit TlsChannel(const PeerInfo& peer);
-  ~TlsChannel() override;
+  explicit PlainChannel(const Peer&);
 
   int after_accept() override;
   int after_connect() override;
@@ -195,54 +144,88 @@ public:
   int write(const char* buf, int size) override;
   int writen(const char* buf, int size) override;
 
-  /**
-   * Get the last error message.
-   * The return buffer cannot be freed
-   */
+  const char* last_error() override;
+};
+
+class TlsChannel : public Channel {
+public:
+  explicit TlsChannel(const Peer&);
+
+  ~TlsChannel() override;
+
+  static void close_global();
+
+  static int init_global(const Config&);
+
+  int init();
+
+  int after_accept() override;
+  int after_connect() override;
+  int read(char* buf, int size) override;
+  int readn(char* buf, int size) override;
+  int write(const char* buf, int size) override;
+  int writen(const char* buf, int size) override;
+
   const char* last_error() override;
 
-public:
-  int init_tls(SSL_CTX* ssl_context);
+private:
   // int verify(int preverify_ok, X509_STORE_CTX* ctx);
 
-private:
+  static void log_tls_errors();
+
   int handle_error(int ret);
 
 private:
+  static SSL_CTX* _s_ssl_ctx;
+
   SSL* _ssl = nullptr;
 
   int _last_error = 0;
   char _error_string[256];
 };
 
-class ChannelFactory {
-public:
-  ChannelFactory();
-  ~ChannelFactory();
-
-  int init(const Config& config);
-
-  Channel* create(const PeerInfo& peer);
+class DummyChannel : public Channel {
+  OMS_AVOID_COPY(DummyChannel);
 
 public:
-  /**
-   * log error information of TLS
-   * used by ChannelFactory and TlsChannel
-   */
-  static void log_tls_errors();
+  DummyChannel() : Channel(Peer(-1))
+  {}
 
-private:
-  Channel* create_plain(const PeerInfo& peer);
-  Channel* create_tls(const PeerInfo& peer);
+  explicit DummyChannel(const Peer& peer) : Channel(peer)
+  {}
 
-private:
-  int init_tls_context(const char* ca_cert_file, const char* cert_file, const char* key_file, bool verify_peer);
-
-private:
-  Channel* (ChannelFactory::*_channel_creator)(const PeerInfo& peer);
-
-  SSL_CTX* _ssl_context = nullptr;
-  bool _is_server_mode = true;
+  int after_accept() override
+  {
+    return 0;
+  }
+  int after_connect() override
+  {
+    return 0;
+  }
+  int read(char* buf, int size) override
+  {
+    return 0;
+  }
+  int readn(char* buf, int size) override
+  {
+    return 0;
+  }
+  int write(const char* buf, int size) override
+  {
+    return 0;
+  }
+  int writen(const char* buf, int size) override
+  {
+    return 0;
+  }
+  const char* last_error() override
+  {
+    return nullptr;
+  }
+  inline bool ok() const override
+  {
+    return false;
+  }
 };
 
 }  // namespace logproxy

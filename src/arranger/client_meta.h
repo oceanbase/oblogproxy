@@ -17,61 +17,11 @@
 
 #include "common/model.h"
 #include "common/config.h"
-#include "communication/communicator.h"
+#include "communication/comm.h"
 #include "codec/message.h"
 
 namespace oceanbase {
 namespace logproxy {
-
-struct ClientId {
-
-public:
-  static ClientId of(const std::string& id)
-  {
-    ClientId clientId;
-    clientId.set(id);
-    return clientId;
-  }
-
-  bool operator==(const ClientId& rhs) const
-  {
-    return _id == rhs._id;
-  }
-
-  bool operator<(const ClientId& rhs) const
-  {
-    return _id < rhs._id;
-  }
-
-  std::size_t operator()(const ClientId& a) const
-  {
-    return std::hash<std::string>{}(a._id);
-  }
-
-  friend LogStream& operator<<(LogStream& ss, const ClientId& id)
-  {
-    ss << id._id;
-    return ss;
-  }
-
-  const std::string& to_string() const
-  {
-    return _id;
-  }
-
-  std::string get() const
-  {
-    return _id;
-  }
-
-  void set(const std::string& id)
-  {
-    _id = id;
-  }
-
-private:
-  std::string _id;
-};
 
 struct ClientMeta : public Model {
   OMS_MF_ENABLE_COPY(ClientMeta);
@@ -80,20 +30,21 @@ public:
   ClientMeta() = default;
 
   OMS_MF(LogType, type);
-  OMS_MF(ClientId, id);
+  OMS_MF(std::string, id);
 
   OMS_MF(std::string, ip);
   OMS_MF(std::string, version);
   OMS_MF(std::string, configuration);
 
-  OMS_MF(PeerInfo, peer);
+  OMS_MF_DFT(int, pid, 0);
+  OMS_MF(Peer, peer);
 
   OMS_MF(time_t, register_time);
   OMS_MF_DFT(bool, enable_monitor, false);
   OMS_MF_DFT(MessageVersion, packet_version, MessageVersion::V2);
 
 public:
-  static ClientMeta from_handshake(const PeerInfo&, ClientHandshakeRequestMessage&);
+  static ClientMeta from_handshake(const Peer&, ClientHandshakeRequestMessage&);
 };
 
 LogStream& operator<<(LogStream& ss, MessageVersion version);

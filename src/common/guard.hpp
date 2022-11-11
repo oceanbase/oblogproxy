@@ -29,7 +29,7 @@ public:
 
   ~FreeGuard()
   {
-    if (_own) {
+    if (_own && _ptr != nullptr) {
       if (_free_func) {
         _free_func(_ptr);
       } else {

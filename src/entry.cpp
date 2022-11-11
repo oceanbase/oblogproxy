@@ -10,8 +10,10 @@
  * See the Mulan PubL v2 for more details.
  */
 
+#include <signal.h>
 #include <functional>
 #include "common/log.h"
+#include "common/file_gc.h"
 #include "common/option.h"
 #include "common/config.h"
 #include "common/ob_aes256.h"
@@ -112,7 +114,15 @@ int main(int argc, char** argv)
     }
   }
 
+  signal(SIGPIPE, SIG_IGN);
+  signal(SIGCHLD, SIG_IGN);
+
   init_log(argv[0]);
+
+  std::set<std::string> prefixs{"logproxy_", std::string(argv[0]) + ".log", "liboblog.log.2"};
+  FileGcRoutine log_gc("./log", prefixs);
+  log_gc.start();
+  log_gc.detach();
 
   if (Arranger::instance().init() != OMS_OK) {
     ::exit(-1);

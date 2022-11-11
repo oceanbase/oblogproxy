@@ -14,12 +14,14 @@
 
 #include "common/thread.h"
 #include "common/blocking_queue.hpp"
-#include "oblogreader/oblog_access.h"
 #include "obaccess/oblog_config.h"
+#include "obaccess/clog_meta_routine.h"
+#include "oblogreader/oblog_access.h"
 
 namespace oceanbase {
 namespace logproxy {
 
+class ClogMetaRoutine;
 class ObLogReader;
 
 class ReaderRoutine : public Thread {
@@ -36,6 +38,8 @@ private:
 private:
   ObLogReader& _reader;
   OblogAccess& _oblog;
+
+  ClogMetaRoutine _clog_meta;
 
   BlockingQueue<ILogRecord*>& _queue;
 };

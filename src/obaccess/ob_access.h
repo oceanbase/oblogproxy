@@ -16,6 +16,7 @@
 #include <vector>
 #include <unordered_set>
 #include "obaccess/oblog_config.h"
+#include "obaccess/mysql_protocol.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -31,17 +32,18 @@ public:
   ObAccess() = default;
   ~ObAccess() = default;
 
-  int init(const OblogConfig&);
+  int init(const OblogConfig&, const std::string& password_sha1, const std::string& sys_password_sha1);
 
-  /**
-   * 按照提供的ob server集群，校验客户端发来的用户名和密码，是否合法
-   */
+  int fetch_connection(MysqlProtocol& mysql_protocol);
+
   int auth();
 
 private:
   int auth_sys(const ServerInfo&);
 
   int auth_tenant(const ServerInfo&);
+
+  int auth_tables(const std::map<std::string, std::set<std::string>>&, const std::string&, MysqlProtocol&);
 
 private:
   std::vector<ServerInfo> _servers;
