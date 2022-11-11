@@ -21,4 +21,4 @@ jobs:
           yum install -y devtoolset-9
           echo "source /opt/rh/devtoolset-9/enable" >> /etc/bashrc
       - name: Build with cmake
-        run: mkdir buildenv && cd buildenv && gcc -v && cmake .. && make -j6
+        run: scl enable devtoolset-9 'mkdir buildenv && cd buildenv && gcc -v && cmake .. && make -j6'
