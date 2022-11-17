@@ -1,127 +1,102 @@
-# OceanBase Migration Serivce LogProxy
+# OceanBase LogProxy
 
-OceanBase增量日志代理服务，是 [OMS](https://www.oceanbase.com/product/oms) 的一部分。基于 [liboblog](https://github.com/oceanbase/oceanbase), 以服务的形式，提供实时增量链路接入和管理能力，方便应用接入OceanBase增量日志；能够解决网络隔离的情况下，订阅增量日志的需求；并提供多种链路接入方式：
- - [oblogclient](https://github.com/oceanbase/oblogclient)
- - Canal
- - More...
+OceanBase LogProxy (CE) is a proxy service of [OceanBase CE](https://github.com/oceanbase/oceanbase). It is a part of [OMS](https://www.oceanbase.com/product/oms), and it can establish and manage connections with OceanBase for incremental log reading even with a isolated network.
 
-## Quick start
+## Instructions before use
 
-### 1. 配置OceanBase社区版yum源
+### Version compatibility
+
+LogProxy is based on [libobcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (former `liboblog`), so you should install the corresponding version of it firstly. The libobcdc is packaged in `oceanbase-ce-devel` before 4.0.0, and is packaged in `oceanbase-ce-cdc` in 4.0.0 and the later version, both of which can be found in the [official download page](https://open.oceanbase.com/softwareCenter/community) or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/).
+
+| libobcdc | oblogproxy |
+|----------|------------|
+| 3.1.1    | 1.0.0      |
+| 3.1.2    | 1.0.1      |
+| 3.1.3    | 1.0.2      |
+| 3.1.4    | 1.0.3      |
+| 4.0.0    | 1.1.0      |
+
+### Installation
+
+LogProxy service doesn't need params about OceanBase cluster to get started, one LogProxy can subscribe to multiple OceanBase clusters at the same time, and the connection configuration is passed from the client.
+
+LogProxy will use a lot of memory, so it is strongly recommended to deploy it separately from the OceanBase server.
+
+## Getting started
+
+### Install
+
+You can install a released version of LogProxy or build it from the source code.
+
+#### Install a released version
+
+If you want to install a released version, firstly you need to configure the yum repo.
+
 ```bash
 yum install -y yum-utils
 yum-config-manager --add-repo https://mirrors.aliyun.com/oceanbase/OceanBase.repo
 ```
 
-### 2. 下载预编译包
+Then you can install the rpm file by one of the following way:
+  + Download from [release page](https://github.com/oceanbase/oblogproxy/releases), [official download page](https://open.oceanbase.com/softwareCenter/community) or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/), and install it with `yum install -y oblogproxy-{version}.{arch}.rpm`
+  + Install it with `yum install -y oblogproxy-{version}`
 
-预编译的产出在：[Release](http://mirrors.aliyun.com/oceanbase/community/stable/el/7/x86_64/) ，oblogproxy的包名是"oblogproxy-xxxx.系统版本.x86_64.rpm"，根据自己的系统选取，安装：
+The installation directory is `/usr/local/oblogproxy` by default.
+
+#### Build from source code
+
+See [How to build](docs/build.md).
+
+### Configure
+
+For security reasons, LogProxy needs to configure the username and password of a certain user, which must be a sys tenant user of the OceanBase to connect with. Note that the username here should not contain cluster name or tenant name.
+
+You can configure the username and password by one of the following ways:
+- Add it to local conf at `conf/conf.json`.
+- Set it in the client params. See the [client doc](https://github.com/oceanbase/oblogclient/blob/master/docs/quickstart/logproxy-client-tutorial.md) for details.
+
+#### Add it to local conf
+
+Firstly, get the encrypted username and password.
+
 ```bash
-yum install -y oblogproxy-xxxx.系统版本.x86_64.rpm
+./bin/logproxy -x username
+./bin/logproxy -x password
 ```
 
-oblogproxy会安装在目录 `/usr/local/oblogproxy` 。
+Then add the outputs to `ob_sys_username` and `ob_sys_password` at `conf/conf.json`.
 
-需要注意的是，oblogproxy 对 [obcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (原liboblog) 有版本依赖，当通过 oceanbase-ce-devel 引入该依赖时，默认的安装流程可能会安装最新版，因此建议先安装指定版本的 oceanbase-ce-devel，版本对应关系：
+### Start
 
-| obcdc (devel) | oblogproxy |
-|---------------|------------|
-| 3.1.1         | 1.0.0      |
-| 3.1.2         | 1.0.1      |
-| 3.1.3         | 1.0.2      |
-| 3.1.4         | 1.0.3      |
-| 4.0           | 1.1.0      |
+You can start the service by the following command.
 
-### 3. 配置系统租户
-获得observer的sys租户账号密码，通常在创建observer集群时创建，也可以单独创建。oblogproxy需要加密的配置，执行以下命令即可得到：
 ```bash
-# 这里假设账号密码分别为：user，pswd
-./logproxy -x user
-# 会输出 4B9C75F64934174F4E77EE0E9A588118
-./logproxy -x pswd
-# 会输出 DCE2AF09D006D6A440816880B938E7B3
-```
-把获得账号密码密文分别配置到`/usr/local/oblogproxy/conf/conf.json`中的`ob_sys_username`和`ob_sys_password`字段，例如：
-```json
-{
-  "ob_sys_username": "4B9C75F64934174F4E77EE0E9A588118",
-  "ob_sys_password": "DCE2AF09D006D6A440816880B938E7B3"
-}
-```
-
-### 4. 运行
-```bash
-cd /usr/local/oblogproxy
 bash ./run.sh start
 ```
 
-### 5. 用oblogclient订阅
-此时可以使用 [oblogclient](https://github.com/oceanbase/oblogclient) 进行OB数据订阅。 Maven依赖，见： [Maven Repo](https://search.maven.org/search?q=g:com.oceanbase.logclient)
-```xml
-<dependency>
-  <groupId>com.oceanbase.logclient</groupId>
-  <artifactId>logproxy-client</artifactId>
-  <version>1.0.1</version>
-</dependency>
-```
-编写代码，参考：
-```Java
-ObReaderConfig config = new ObReaderConfig();
-// 设置OceanBase root server 地址列表，格式为（可以支持多个，用';'分隔）：ip1:rpc_port1:sql_port1;ip2:rpc_port2:sql_port2
-config.setRsList("127.0.0.1:2882:2881;127.0.0.2:2882:2881");
-// 设置用户名和密码（非系统租户）
-config.setUsername("root");
-config.setPassword("root");
-// 设置启动位点（UNIX时间戳，单位s）, 0表示从当前时间启动。
-config.setStartTimestamp(0L);
-// 设置订阅表白名单，格式为：tenant.db.table, '*'表示通配.
-config.setTableWhiteList("sys.*.*");
+You can also start LogProxy with customized libobcdc by executing the following command.
 
-// 指定oblogproxy服务地址，创建实例.
-LogProxyClient client = new LogProxyClient("127.0.0.1", 2983, config);
-// 添加 RecordListener
-client.addListener(new RecordListener() {
-    @Override
-    public void notify(LogMessage message){
-        // 处理消息
-    }
-
-    @Override
-    public void onException(LogProxyClientException e) {
-        // 处理错误
-        if (e.needStop()) {
-            // 不可恢复异常，需要停止Client
-            client.stop();
-        }
-    }
-});
-
-// 启动
-client.start();
-client.join();
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libobcdc
+bash ./run.sh start
 ```
 
-更多详情见 [使用文档](https://github.com/oceanbase/oblogclient)
+Then you can use [oblogclient](https://github.com/oceanbase/oblogclient) to subscribe the log data from LogProxy, and the service is bind to port `2983` by default. 
 
-## 注意
-- 配置里面无需指定具体的OB集群信息，理论上oblogproxy能同时订阅多个OB集群，只要与所有observer网络通，且OB集群包含配置中的sys租户账号密码。（需要配置sys租户账号密码由于安全原因，通常不对oblogclient侧的用户暴露）
-- 本身是无状态，订阅哪个OB，哪个库表都由oblogclient传入，且增量链路的位点等信息也需要oblogclient端自行保存。断开重连后，对于oblogproxy来讲，是创建全新的链路。
-- 消耗内存较多，强烈建议和observer分开部署。
-
-## 文档
-- [编译](./docs/manual.md#编译)
-- [运行](./docs/manual.md#运行)
-- [配置](./docs/manual.md#配置)
+The service log of LogProxy is located at `logs/`, and the service log of LogReader (task thread) is located at `run/{client-id}/logs/`.
 
 ## Licencing
+
 OceanBase Database is under MulanPubL - 2.0 license. You can freely copy and use the source code. When you modify or distribute the source code, please obey the MulanPubL - 2.0 license.
 
 ## Contributing
+
 Contributions are warmly welcomed and greatly appreciated. Here are a few ways you can contribute:
 - Raise us an [issue](https://github.com/oceanbase/oblogproxy/issues).
 - Submit Pull Requests. 
 
 ## Support
-In case you have any problems when using OceanBase Database, welcome reach out for help:
+
+In case you have any problems when using OceanBase LogProxy, welcome reach out for help:
 - [GitHub Issue](https://github.com/oceanbase/oblogproxy/issues)
 - [Official Website](https://open.oceanbase.com/)
