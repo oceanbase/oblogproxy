@@ -45,7 +45,7 @@ The installation directory is `/usr/local/oblogproxy` by default.
 
 #### Build from source code
 
-See the [manual](docs/manual.md).
+See [How to build](docs/build.md).
 
 ### Configure
 
@@ -74,7 +74,14 @@ You can start the service by the following command.
 bash ./run.sh start
 ```
 
-Then you can use [oblogclient](https://github.com/oceanbase/oblogclient) to subscribe the log data from LogProxy. 
+You can also start LogProxy with customized libobcdc by executing the following command.
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libobcdc
+bash ./run.sh start
+```
+
+Then you can use [oblogclient](https://github.com/oceanbase/oblogclient) to subscribe the log data from LogProxy, and the service is bind to port `2983` by default. 
 
 The service log of LogProxy is located at `logs/`, and the service log of LogReader (task thread) is located at `run/{client-id}/logs/`.
 
