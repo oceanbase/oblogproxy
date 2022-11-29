@@ -194,7 +194,9 @@ int Comm::add(const Peer& peer)
   }
   ch.set_communicator(this);
 
-  OMS_INFO << "Add channel, peer: " << ch.peer().to_string();
+  if (_s_conf.verbose.val()) {
+    OMS_INFO << "Add channel, peer: " << ch.peer().to_string();
+  }
 
   // we use level trigger as simple, and expect READ first for handshake packet
   int ret = event_assign(ch._read_event, _event_base, peer.fd, EV_READ | EV_PERSIST, _s_evcb_on_event, &ch);
@@ -211,7 +213,9 @@ int Comm::add(const Peer& peer)
     return OMS_FAILED;
   }
 
-  OMS_INFO << "Add read channel to Communicator with peer: " << peer.to_string();
+  if (_s_conf.verbose.val()) {
+    OMS_INFO << "Add read channel to Communicator with peer: " << peer.to_string();
+  }
   return OMS_OK;
 }
 
@@ -241,7 +245,7 @@ void Comm::_s_evcb_on_event(int fd, short event, void* arg)
   } else {
 
     if ((event & EV_WRITE)) {
-      OMS_INFO << "On event about to write message: " << ch.peer().to_string();
+      OMS_DEBUG << "On event about to write message: " << ch.peer().to_string();
       if (!_s_msg_queue.empty()) {
         const Message* msg = _s_msg_queue.front();
         _s_msg_queue.pop_front();
@@ -263,7 +267,9 @@ void Comm::_s_evcb_on_event(int fd, short event, void* arg)
       } else if (result == PacketError::IGNORE) {
         // do nothing
       } else {
-        OMS_ERROR << "Failed to handle read message, ret: " << (int)result;
+        if (_s_conf.verbose.val()) {
+          OMS_ERROR << "Failed to handle read message, ret: " << (int)result;
+        }
         err = EventResult::ER_CLOSE_CHANNEL;
       }
       delete msg;

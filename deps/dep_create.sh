@@ -10,7 +10,9 @@ if [[ ! -z "$1" ]]; then
   mkdir -p ${TARGET_DIR}
 fi
 
-echo "dep_create.sh in ${PWD}, target dir: ${TARGET_DIR}"
+LIBOBLOG_RPM_NAME=$2
+
+echo "dep_create.sh in ${PWD}, target dir: ${TARGET_DIR}, liboblog rpm name: ${LIBOBLOG_RPM_NAME}"
 
 OS_ARCH="$(uname -p)" || exit 1
 OS_RELEASE="0"
@@ -121,15 +123,22 @@ RPMS="$(grep '\.rpm' "${DEP_FILE}" | grep -Pv '^#')"
 for pkg in $RPMS
 do
   if [[ -f "${TARGET_DIR}/pkg/${pkg}" ]]; then
-    echo "find package <${pkg}> in cache"
+    echo -e "find package <${pkg}> in cache... \c"
   else
     echo -e "download package <${pkg}>... \c"
     TEMP=$(mktemp -p "/" -u ".${pkg}.XXXX")
 
-    if [[ ! -z `echo "${pkg}" | grep 'oceanbase-ce-devel'` ]]; then
-      wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
-    elif [[ ! -z `echo "${pkg}" | grep 'oceanbase-ce-cdc'` ]]; then
-      wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
+    if [ "${LIBOBLOG_RPM_NAME}" == 'oceanbase-ce-devel' ] && [ ! -z `echo "${pkg}" | grep 'devdeps-mariadb-connector-c'` ]; then
+      echo "SKIP"
+      continue
+    fi
+    if [ ! -z `echo "${pkg}" | grep 'oceanbase-ce-devel'` ] || [ ! -z `echo "${pkg}" | grep 'oceanbase-ce-cdc'` ]; then
+      if [[ ! -z `echo "${pkg}" | grep ${LIBOBLOG_RPM_NAME}` ]]; then
+        wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
+      else
+        echo "SKIP"
+        continue
+      fi
     else
       wget "$REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
     fi

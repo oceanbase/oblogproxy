@@ -21,11 +21,21 @@
 #ifdef USE_OBCDC_NS
 #include "libobcdc.h"
 
+#ifdef USE_LIBOBLOG_3
+
+using oceanbase::liboblog::IObLog;
+using oceanbase::liboblog::ObLogError;
+using oceanbase::liboblog::ObLogFactory;
+
+#else
+
 typedef oceanbase::libobcdc::IObCDCInstance IObLog;
 typedef oceanbase::libobcdc::ObCDCFactory ObLogFactory;
 typedef oceanbase::libobcdc::ObCDCError ObLogError;
 
 #define construct_oblog construct_obcdc
+
+#endif
 
 #else
 #include "liboblog.h"

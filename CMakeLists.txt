@@ -21,6 +21,7 @@ option(WITH_US_TIMESTAMP "Enable microseconds start timestamp" ON)
 option(USE_OBCDC_NS "With libobcdc" ON)
 option(USE_LIBOBLOG "With precompiled liboblog" OFF)
 option(USE_CXX11_ABI "Build with C++11 ABI" OFF)
+option(USE_LIBOBLOG_3 "With liboblog 3.x" OFF)
 
 SET(OMS_PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 SET(OMS_PROJECT_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
@@ -36,34 +37,42 @@ SET(FIND_LIBOBLOG ON)
 if (USE_OBCDC_NS)
     SET(OBCDC_NAME "libobcdc")
     SET(OBCDC_NAME_VAR "-DUSE_OBCDC_NS")
+    if (USE_LIBOBLOG_3)
+        SET(OBCDC_NAME_VAR "${OBCDC_NAME_VAR} -DUSE_LIBOBLOG_3")
+    endif()
 else ()
     SET(OBCDC_NAME "liboblog")
 endif ()
 
 if (WITH_DEPS)
-    execute_process(
-            COMMAND bash deps/dep_create.sh ${OMS_PROJECT_BUILD_PATH}/deps
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            COMMAND_ERROR_IS_FATAL ANY
-    )
     SET(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
 
     SET(THIRD_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/)
 
-    # make liboblog found
+    SET(LIBOBLOG_RPM_NAME "oceanbase-ce-cdc")
     if (NOT USE_LIBOBLOG)
         SET(FIND_LIBOBLOG OFF)
+
+        if (USE_LIBOBLOG_3)
+            # version before 4.0
+            SET(LIBOBLOG_RPM_NAME "oceanbase-ce-devel")
+            SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include)
+            SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
+        else()
         SET(LIBOBLOG_INCLUDE_PATH "${DEP_VAR}/home/admin/oceanbase/include")
         SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}.so)
         SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
 
         FILE(GLOB LIBOBLOG_DEPS ${THIRD_LIB_DIR}/*.so ${THIRD_LIB_DIR}/*/*.so)
+        endif()
 
-        # FIXME... auto detected
-        # version before 4.0
-#        SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include/)
-#        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
     endif ()
+
+    execute_process(
+            COMMAND bash deps/dep_create.sh ${OMS_PROJECT_BUILD_PATH}/deps ${LIBOBLOG_RPM_NAME}
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            COMMAND_ERROR_IS_FATAL ANY
+    )
 
     # make openssl found
     CMAKE_POLICY(SET CMP0074 NEW)
@@ -73,12 +82,12 @@ if (WITH_DEPS)
     # compiler
     SET(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)
 else ()
-# compiler
-execute_process(
-        COMMAND which gcc
-        OUTPUT_VARIABLE GCC_BIN
-)
-GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
+    # compiler
+    execute_process(
+            COMMAND which gcc
+            OUTPUT_VARIABLE GCC_BIN
+    )
+    GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
 endif ()
 
 message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
