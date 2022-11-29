@@ -46,8 +46,7 @@ endif ()
 
 if (WITH_DEPS)
     SET(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
-
-    SET(THIRD_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/)
+    SET(THIRD_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib)
 
     SET(LIBOBLOG_RPM_NAME "oceanbase-ce-cdc")
     if (NOT USE_LIBOBLOG)
@@ -244,7 +243,7 @@ if (WITH_US_TIMESTAMP)
 endif()
 
 message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
-message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIBRARIES}")
+message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIBRARIES}, ${LIBOBLOG_DEPS}")
 
 execute_process(
         COMMAND git log -1 --format=%H

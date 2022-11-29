@@ -9,14 +9,14 @@ function compile_ce() {
   liboblog_3x_flag=$1
   name=$2
 
-  cd ${file_path}
+  echo "building and packaging ${name}"
 
-#  rm -rf packenv && mkdir packenv
-
-  cd packenv
-  rm -rf ./oblogproxy/
-  cmake -DOBLOGPROXY_INSTALL_PREFIX=`pwd`/oblogproxy -DUSE_LIBOBLOG_3=${liboblog_3x_flag} ..
-  make -j $(grep -c ^processor /proc/cpuinfo) install oblogproxy
+  cd ${file_path} && \
+  rm -rf packenv && mkdir -p packenv && \
+  cd packenv && \
+  rm -rf ./oblogproxy/ && \
+  cmake -DOBLOGPROXY_INSTALL_PREFIX=`pwd`/oblogproxy -DUSE_LIBOBLOG_3=${liboblog_3x_flag} .. && \
+  make -j $(grep -c ^processor /proc/cpuinfo) install oblogproxy && \
   tar -zcf ${name}.tar.gz oblogproxy
 }
 
