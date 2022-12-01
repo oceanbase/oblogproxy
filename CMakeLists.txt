@@ -63,8 +63,8 @@ if (WITH_DEPS)
             SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
 
             FILE(GLOB LIBOBLOG_DEPS
-                    ${THIRD_LIB_DIR}/libaio.so*
-                    ${THIRD_LIB_DIR}/mariadb/libmariadb.so*
+                    ${THIRD_LIB_DIR}/libaio.so
+                    ${THIRD_LIB_DIR}/mariadb/libmariadb.so
                     )
         endif()
 
