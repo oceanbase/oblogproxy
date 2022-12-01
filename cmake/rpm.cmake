@@ -75,8 +75,8 @@ if (WITH_DEPS)
                     )
         else()
             file(GLOB LIBOBLOG_OUTPUT_LIBS ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}*.so*
-                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/libaio.so*
-                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/mariadb/libmariadb.so*
+                    ${THIRD_LIB_DIR}/libaio.so*
+                    ${THIRD_LIB_DIR}/mariadb/libmariadb.so*
                     )
             install(FILES
                     ${LIBOBLOG_OUTPUT_LIBS}
