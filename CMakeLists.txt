@@ -58,11 +58,11 @@ if (WITH_DEPS)
             SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include)
             SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
         else()
-        SET(LIBOBLOG_INCLUDE_PATH "${DEP_VAR}/home/admin/oceanbase/include")
-        SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}.so)
-        SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
+            SET(LIBOBLOG_INCLUDE_PATH "${DEP_VAR}/home/admin/oceanbase/include")
+            SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}.so)
+            SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
 
-        FILE(GLOB LIBOBLOG_DEPS ${THIRD_LIB_DIR}/*.so ${THIRD_LIB_DIR}/*/*.so)
+            FILE(GLOB LIBOBLOG_DEPS ${THIRD_LIB_DIR}/*.so ${THIRD_LIB_DIR}/*/*.so)
         endif()
 
     endif ()
@@ -76,7 +76,6 @@ if (WITH_DEPS)
     # make openssl found
     CMAKE_POLICY(SET CMP0074 NEW)
     SET(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel/)
-
 
     # compiler
     SET(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)

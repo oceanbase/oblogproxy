@@ -25,4 +25,3 @@ tm=$(date +%Y%m%d%H%M%S)
 compile_ce ON oblogproxy-ce-for-3x-${version}-${tm}
 
 compile_ce OFF oblogproxy-ce-for-4x-${version}-${tm}
-
