@@ -33,8 +33,13 @@ set(CPACK_RPM_SPEC_MORE_DEFINE
 ## TIPS
 #
 # - PATH is relative to the **ROOT directory** of project other than the cmake directory.
+if (NOT ${OBLOGPROXY_INSTALL_PREFIX})
+    set(CPACK_PACKAGING_INSTALL_PREFIX ${OBLOGPROXY_INSTALL_PREFIX})
+endif()
 
-list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_BINARY_DIR}/logproxy)
+message("CPACK_PACKAGING_INSTALL_PREFIX: ${CPACK_PACKAGING_INSTALL_PREFIX}")
+
+list(APPEND OBLOGPROXY_BIN_FILES ${OMS_PROJECT_BUILD_PATH}/logproxy)
 list(APPEND OBLOGPROXY_CONF_FILES ${CMAKE_SOURCE_DIR}/conf/conf.json)
 list(APPEND OBLOGPROXY_SCRIPT_FILES ${CMAKE_SOURCE_DIR}/script/run.sh)
 
@@ -56,14 +61,44 @@ install(PROGRAMS
         COMPONENT oblogproxy
         )
 
+if (WITH_DEPS)
+    if (NOT USE_LIBOBLOG)
+        if (USE_LIBOBLOG_3)
+            file(GLOB LIBOBLOG_OUTPUT_LIBS
+                    ${DEP_VAR}/usr/lib/${OBCDC_NAME}*.so*
+                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/libaio.so*
+                    )
+            install(FILES
+                    ${LIBOBLOG_OUTPUT_LIBS}
+                    DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/liboblog
+                    COMPONENT oblogproxy
+                    )
+        else()
+            file(GLOB LIBOBLOG_OUTPUT_LIBS ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}*.so*
+                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/libaio.so*
+                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/mariadb/libmariadb.so*
+                    )
+            install(FILES
+                    ${LIBOBLOG_OUTPUT_LIBS}
+                    DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/liboblog
+                    COMPONENT oblogproxy
+                    )
+        endif()
+    endif()
+endif()
+
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script "/sbin/ldconfig /usr/lib")
 set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script)
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script "/sbin/ldconfig")
 set(CPACK_RPM_UTILS_POST_UNINSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script)
 if(USE_OBCDC_NS)
-    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel >= 3.1.3")
+    if (USE_LIBOBLOG_3)
+        set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112")
+    else()
+        set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112")
+    endif()
 else()
-    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, devdeps-openssl-static >= 1.0.1e, oceanbase-ce-devel = 3.1.2")
+    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, oceanbase-ce-devel = 3.1.2")
 endif()
 # install cpack to make everything work
 include(CPack)

@@ -85,8 +85,13 @@ int ClogMetaRoutine::fetch_once(uint64_t& min_clog_timestamp_us)
 
   min_clog_timestamp_us = 0;
   for (const MySQLRow& row : rs.rows) {
-    uint64_t tmp = atoll(row.fields().front().c_str());
-    min_clog_timestamp_us = std::max(min_clog_timestamp_us, tmp);
+    int64_t tmp = atoll(row.fields().front().c_str());
+    // The query result will contain -1, indicating that there is currently no clog related information. So when the
+    // result value is less than 0, the clog start point is considered to be 0
+    if (tmp < 0) {
+      tmp = 0;
+    }
+    min_clog_timestamp_us = std::max(min_clog_timestamp_us, (uint64_t)tmp);
   }
   return OMS_OK;
 }

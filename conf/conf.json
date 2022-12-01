@@ -25,7 +25,7 @@
   "ob_sys_password": "",
   "counter_interval_s": 2,
   "metric_enable": true,
-  "metric_interval_s": 120,
+  "metric_interval_s": 10,
   "debug": false,
   "verbose": false,
   "verbose_packet": false,

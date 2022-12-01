@@ -4,6 +4,8 @@ cd $(dirname $0)
 DEPLOY_PATH=$(pwd)
 echo "DEPLOY_PATH : "${DEPLOY_PATH}
 
+LIB_PATH=${DEPLOY_PATH}/liboblog
+
 BIN='logproxy'
 GPID=0
 function is_running() {
@@ -62,6 +64,9 @@ start() {
   fi
   log_path=$(readlink -f ${log_path})
 
+  if [ ! -z "${LIB_PATH}" ]; then
+    export LD_LIBRARY_PATH=${LIB_PATH}:${LD_LIBRARY_PATH}
+  fi
   chmod u+x ./bin/${BIN} && ./bin/${BIN} -f ./conf/conf.json &>${log_path}/out.log &
   if [ $? -ne 0 ]; then
     exit -1
@@ -82,6 +87,9 @@ do_config_sys() {
     exit -1
   fi
 
+  if [ ! -z "${LIB_PATH}" ]; then
+    export LD_LIBRARY_PATH=${LIB_PATH}:${LD_LIBRARY_PATH}
+  fi
   username_x=`./bin/${BIN} -x ${username}`
   password_x=`./bin/${BIN} -x ${password}`
 

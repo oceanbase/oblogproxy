@@ -23,7 +23,9 @@
 namespace oceanbase {
 namespace logproxy {
 
-static const int64_t MEM_DEFAULT = INT64_MAX;
+// The maximum value of cgoup memory limit, in KB. Greater than or equal to this value means that docker has no limit on
+// memory
+static const int64_t MEM_DEFAULT = 9223372036854771712;
 static const int64_t UNIT_GB = 1024 * 1024 * 1024L;
 static const int64_t UNIT_MB = 1024 * 1024L;
 
@@ -44,7 +46,7 @@ bool init_metric()
   }
   std::vector<std::string> nets;
   split_by_str(result, " ", nets);
-  if (nets.size() != 5 || nets[4].empty()) {
+  if (nets.size() < 5 || nets[4].empty()) {
     OMS_ERROR << "Failed to collect network for invalid content:" << result;
     return false;
   }

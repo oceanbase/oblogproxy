@@ -92,7 +92,9 @@ void ReaderRoutine::run()
       ::usleep(_s_config.read_fail_interval_us.val());
       continue;
     }
-
+    record_us = record->getTimestamp() * 1000000 + record->getRecordUsec();
+    int record_size = record->getRealSize();
+    // once put record to queue, never access it
     stage_tm.reset();
     while (!_queue.offer(record, _s_config.read_timeout_us.val())) {
       OMS_WARN << "reader transfer queue full(" << _queue.size(false) << "), retry...";
@@ -101,10 +103,8 @@ void ReaderRoutine::run()
 
     counter.count_key(Counter::READER_FETCH_US, fetch_us);
     counter.count_key(Counter::READER_OFFER_US, offer_us);
-    counter.count_read_io(record->getRealSize());
+    counter.count_read_io(record_size);
     counter.count_read(1);
-
-    record_us = record->getTimestamp() * 1000000 + record->getRecordUsec();
   }
 
   _reader.stop();
