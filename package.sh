@@ -2,6 +2,10 @@
 
 ce=$1
 version=$2
+if [ -z "${ce}" ] || [ -z "${version}" ]; then
+    echo "Invalid input arguments"
+    exit -1
+fi
 
 file_path=$(dirname $0 | xargs readlink -f)
 
@@ -12,9 +16,8 @@ function compile_ce() {
   echo "building and packaging ${name}"
 
   cd ${file_path} && \
-  rm -rf packenv && mkdir -p packenv && \
-  cd packenv && \
-  rm -rf ./oblogproxy/ && \
+  mkdir -p packenv && cd packenv && \
+  ls | grep -v *.tar.gz | xargs rm -rf && \
   cmake -DOBLOGPROXY_INSTALL_PREFIX=`pwd`/oblogproxy -DUSE_LIBOBLOG_3=${liboblog_3x_flag} .. && \
   make -j $(grep -c ^processor /proc/cpuinfo) install oblogproxy && \
   tar -zcf ${name}.tar.gz oblogproxy
