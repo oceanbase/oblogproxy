@@ -134,6 +134,7 @@ do
     fi
     if [ ! -z `echo "${pkg}" | grep 'oceanbase-ce-devel'` ] || [ ! -z `echo "${pkg}" | grep 'oceanbase-ce-cdc'` ]; then
       if [[ ! -z `echo "${pkg}" | grep ${LIBOBLOG_RPM_NAME}` ]]; then
+        echo ${TEMP}
         wget "$STABLE_REPO/${pkg}" -q -O "${TARGET_DIR}/pkg/${TEMP}"
       else
         echo "SKIP"
