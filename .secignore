@@ -1,0 +1,55 @@
+##########################################################
+#            OBFlow Secret Scan Ignore List              #
+##########################################################
+# Above the segmentation lines there are suspected privacy information #
+# Please use the file name as the first line and the igored information #
+# should be started with space or tab #
+# Under the segmentation lines there are the folders which you need to ignore #
+##########################################################
+**
+  http://license.coscl.org.cn/MulanPubL-2.0
+  https://www.oceanbase.com
+  https://www.oceanbase.com/*
+  https://open.oceanbase.com
+  https://open.oceanbase.com/*
+  https://github.com/oceanbase/oceanbase
+  https://github.com/oceanbase/oceanbase/issues
+  https://github.com/oceanbase/*
+  https://github.com/*
+  http://mirrors.aliyun.com/oceanbase*
+  https://mirrors.aliyun.com/oceanbase*
+  https://github.com/google/*
+  https://cmake.org/*
+  http://yum.tbsite.net/*
+  https://facebook.github.io/*
+  http://mirrors.aliyun.com/*
+  https://mirrors.aliyun.com/*
+  http://mirror.centos.org/*
+  https://facebook.github.io/*
+  https://yuque.antfin.com/*
+**/*.c
+  http://www.gnu.org/licenses/
+**/*.h
+  https://dev.mysql.com/*
+  https://www.openssl.org/*
+**/*.cpp
+  https://dev.mysql.com/*
+  https://www.openssl.org/*
+README.md
+  https://search.maven.org/*
+**/test/*.cpp
+  http://127.0.0.1:8080/*
+--------------------------------------------------------
+# Should use GLOB wildcard to configure and analysis the ignored folder
+# The root patch should start with '/'
+/docs/**
+/README.md
+/LICENSE
+/LEGAL.md
+--------------------------------------------------------
+# Set the ignored fold to escape the Chinese scan by GLOB wildcard
+--------------------------------------------------------
+# Set md5 of pemFile string to filter
+# This section must be end up with '--------------------------------------------------------'!!!
+
+--------------------------------------------------------
