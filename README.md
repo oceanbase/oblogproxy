@@ -6,15 +6,29 @@ OceanBase LogProxy (CE) is a proxy service of [OceanBase CE](https://github.com/
 
 ### Version compatibility
 
-LogProxy is based on [libobcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (former `liboblog`), so you should install the corresponding version of it firstly. The libobcdc is packaged in `oceanbase-ce-devel` before 4.0.0, and is packaged in `oceanbase-ce-cdc` in 4.0.0 and the later version, both of which can be found in the [official download page](https://open.oceanbase.com/softwareCenter/community) or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/).
+LogProxy is based on [libobcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (former `liboblog`), which is packaged in `oceanbase-ce-cdc` rpm file from `v4.0.0`. You can get it from the [software center](https://www.oceanbase.com/softwarecenter) or [official mirrors](https://mirrors.aliyun.com/oceanbase/community/stable/el/).
 
-| libobcdc | oblogproxy |
-|----------|------------|
-| 3.1.1    | 1.0.0      |
-| 3.1.2    | 1.0.1      |
-| 3.1.3    | 1.0.2      |
-| 3.1.4    | 1.0.3      |
-| 4.0.0    | 1.1.0      |
+For `v1.1.0` or later versions of LogProxy, we no longer provide the rpm file for installation. Users should use the compressed package at [software center](https://www.oceanbase.com/softwarecenter) or [releases page](https://github.com/oceanbase/oblogproxy/releases), which already has a suitable `libobcdc` built in, so users no longer need to install `libobcdc` manually.
+
+The version correspondence between OceanBase and LogProxy package is as follows.
+
+| OceanBase | LogProxy     |
+|-----------|--------------|
+| 4.0.x     | 1.1.0 for 4x |
+| 4.1.x     | 1.1.1 for 4x |
+
+#### For OceanBase CE 3.x Users
+
+The `libobcdc` or `liboblog` was packaged in `oceanbase-ce-devel` rpm file before `v4.0.0`, and users need to install it manually before deploy the LogProxy service.
+
+The version correspondence between libobcdc and LogProxy is as follows.
+
+| libobcdc | LogProxy |
+|----------|----------|
+| 3.1.1    | 1.0.0    |
+| 3.1.2    | 1.0.1    |
+| 3.1.3    | 1.0.2    |
+| 3.1.4    | 1.0.3    |
 
 ### Installation
 
