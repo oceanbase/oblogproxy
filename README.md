@@ -10,12 +10,7 @@ LogProxy is based on [libobcdc](https://github.com/oceanbase/oceanbase/tree/mast
 
 For `v1.1.0` or later versions of LogProxy, we no longer provide the rpm file for installation. Users should use the compressed package at [software center](https://www.oceanbase.com/softwarecenter) or [releases page](https://github.com/oceanbase/oblogproxy/releases), which already has a suitable `libobcdc` built in, so users no longer need to install `libobcdc` manually.
 
-The version correspondence between OceanBase and LogProxy package is as follows.
-
-| OceanBase | LogProxy     |
-|-----------|--------------|
-| 4.0.x     | 1.1.0 for 4x |
-| 4.1.x     | 1.1.1 for 4x |
+Please check the release note for detailed version compatibility information.
 
 #### For OceanBase CE 3.x Users
 
@@ -44,18 +39,12 @@ You can install a released version of LogProxy or build it from the source code.
 
 #### Install a released version
 
-If you want to install a released version, firstly you need to configure the yum repo.
+If you want to install a released version, you can use the compressed package at the release page or software center. Here we take `/usr/local/oblogproxy` as the deployment directory. 
 
 ```bash
-yum install -y yum-utils
-yum-config-manager --add-repo https://mirrors.aliyun.com/oceanbase/OceanBase.repo
+wget https://github.com/oceanbase/oblogproxy/releases/download/v1.1.1/oblogproxy-ce-for-4x-1.1.1-20230418115957.tar.gz
+tar -zxvf oblogproxy-ce-for-4x-1.1.1-20230418115957.tar.gz -C /usr/local
 ```
-
-Then you can install the rpm file by one of the following way:
-  + Download from [release page](https://github.com/oceanbase/oblogproxy/releases), [official download page](https://open.oceanbase.com/softwareCenter/community) or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/), and install it with `yum install -y oblogproxy-{version}.{arch}.rpm`
-  + Install it with `yum install -y oblogproxy-{version}`
-
-The installation directory is `/usr/local/oblogproxy` by default.
 
 #### Build from source code
 
@@ -71,7 +60,13 @@ You can configure the username and password by one of the following ways:
 
 #### Add it to local conf
 
-Firstly, get the encrypted username and password.
+Firstly, set the libobcdc path to environment, here we use the builtin libobcdc in the deployment directory.
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/oblogproxy/libobcdc
+```
+
+Get the encrypted username and password.
 
 ```bash
 ./bin/logproxy -x username
@@ -85,13 +80,6 @@ Then add the outputs to `ob_sys_username` and `ob_sys_password` at `conf/conf.js
 You can start the service by the following command.
 
 ```bash
-bash ./run.sh start
-```
-
-You can also start LogProxy with customized libobcdc by executing the following command.
-
-```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libobcdc
 bash ./run.sh start
 ```
 
