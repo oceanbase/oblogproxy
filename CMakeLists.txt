@@ -278,11 +278,23 @@ if (WITH_ASAN)
     SET(ASAN_LINK_OPTION "-fsanitize=address")
 endif ()
 
+######### get arch ###########################################
+execute_process(COMMAND uname -m
+        OUTPUT_VARIABLE ARCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+        )
+set(OS_ARCH ${ARCH})
+message(STATUS "os arch ${OS_ARCH}") # x86_64 or aarch64
+
+
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_STANDARD_REQUIRED ON)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -static-libstdc++ ${DEBUG_SYMBOL} -pipe -m64 -Wall -fPIC -Wno-reorder ${ASAN_COMPILE_OPTION} -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} -pipe -m64 -Wall -fPIC ${ASAN_COMPILE_OPTION} -D__STDC_LIMIT_MACROS -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
-
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -static-libstdc++ ${DEBUG_SYMBOL} -pipe -Wall -fPIC -Wno-reorder ${ASAN_COMPILE_OPTION} -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} -pipe -Wall -fPIC ${ASAN_COMPILE_OPTION} -D__STDC_LIMIT_MACROS -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
+if(OS_ARCH STREQUAL "x86_64")
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-m64>)
+endif()
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     SET(PLATFORM_SPEC rt)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc")
