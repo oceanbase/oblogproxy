@@ -8,7 +8,7 @@ stable_repo=https://mirrors.aliyun.com/oceanbase/community/stable/el/7/x86_64/
 devdeps-openssl-static-1.0.1e-12022100422.el7.x86_64.rpm
 devdeps-libaio-0.3.112-12022092915.el7.x86_64.rpm
 devdeps-mariadb-connector-c-3.1.12-12022100422.el7.x86_64.rpm
-oceanbase-ce-cdc-4.1.0.1-102000052023061516.el7.x86_64.rpm
+oceanbase-ce-cdc-4.2.0.0-100000052023080211.el7.x86_64.rpm
 oceanbase-ce-devel-3.1.4-10000092022071511.el7.x86_64.rpm
 
 [tools]
