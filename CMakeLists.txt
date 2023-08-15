@@ -92,7 +92,15 @@ else ()
 endif ()
 
 message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pipe>)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-fPIC>)
 
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pie>)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znoexecstack>)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znow>)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-fstack-protector-strong>)
+
+add_link_options($<$<COMPILE_LANGUAGE:CXX,C>:-Wl,-z,relro,-z,now>)
 find_program(CC NAMES gcc PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
 find_program(CXX NAMES g++ PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
 find_program(AR NAMES gcc-ar ar PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
@@ -421,6 +429,7 @@ target_include_directories(logproxy PUBLIC ${DEP_INC} ${LOGPROXY_INC})
 target_link_directories(logproxy PUBLIC ${DEP_LIB_PATH})
 target_link_libraries(logproxy ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
 target_link_options(logproxy PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
+target_link_options(logproxy PRIVATE -pie)
 
 if (WITH_DEMO)
     # demo client

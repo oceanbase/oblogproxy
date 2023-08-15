@@ -4,6 +4,11 @@ SET(LZ4_SOURCES_DIR ${THIRD_PARTY_PATH}/lz4)
 SET(LZ4_INSTALL_DIR ${THIRD_PARTY_PATH}/install/lz4)
 SET(LZ4_INCLUDE_DIR "${LZ4_INSTALL_DIR}/lib" CACHE PATH "lz4 include directory." FORCE)
 SET(LZ4_LIBRARIES "${LZ4_INSTALL_DIR}/lib/liblz4.a" CACHE FILEPATH "lz4 library." FORCE)
+FILE(WRITE ${LZ4_SOURCES_DIR}/src/build.sh
+        "make clean;CFLAGS=-fPIC CXXFLAGS=-fPIC make VERBOSE=1 -j${NUM_OF_PROCESSOR} liblz4.a"
+        )
+
+
 
 INCLUDE_DIRECTORIES(${LZ4_INCLUDE_DIR})
 
@@ -13,14 +18,18 @@ ExternalProject_Add(
         extern_lz4
         ${EXTERNAL_PROJECT_LOG_ARGS}
         GIT_REPOSITORY "https://github.com/lz4/lz4.git"
-        GIT_TAG "v1.9.3"
+        GIT_TAG "v1.9.4"
         PREFIX ${LZ4_SOURCES_DIR}
         BUILD_IN_SOURCE ON
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND $(MAKE) -j${NUM_OF_PROCESSOR} liblz4.a
+        BUILD_COMMAND mv ../build.sh . COMMAND sh build.sh
         INSTALL_COMMAND mkdir -p ${LZ4_INSTALL_DIR} COMMAND cp -r ${LZ4_SOURCES_DIR}/src/extern_lz4/lib ${LZ4_INSTALL_DIR}/
         ${EXTERNAL_OPTIONAL_ARGS}
+        CMAKE_ARGS
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
 )
 
 ADD_LIBRARY(lz4 STATIC IMPORTED GLOBAL)
