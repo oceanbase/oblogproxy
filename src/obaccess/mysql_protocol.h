@@ -14,12 +14,11 @@
 
 #include <string>
 #include <vector>
-#include "obaccess/ob_mysql_packet.h"
-#include "obaccess/ob_sha1.h"
+#include "ob_mysql_packet.h"
+#include "ob_sha1.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 /**
  * see: https://dev.mysql.com/doc/internals/en/secure-password-authentication.html#packet-Authentication::Native41
  */

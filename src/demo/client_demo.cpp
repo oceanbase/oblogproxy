@@ -10,20 +10,20 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/log.h"
-#include "common/config.h"
-#include "common/option.h"
+#include "log.h"
+#include "config.h"
+#include "option.h"
 #include "codec/encoder.h"
 #include "communication/io.h"
 #include "communication/comm.h"
-#include "obaccess/oblog_config.h"
+#include "oblogreader/oblog_config.h"
 #include "obaccess/mysql_protocol.h"
 
 using namespace oceanbase::logproxy;
 
 void debug_record(const RecordDataMessage& record)
 {
-  OMS_INFO << "fetch a record from liboblog: ";
+  OMS_STREAM_INFO << "fetch a record from liboblog: ";
   //    << "record_type: " << record.recordType()
   //    << ", timestamp: " << record->getTimestamp()
   //    << ", checkpoint: " << record->getFileNameOffset()
@@ -35,12 +35,12 @@ EventResult on_msg(const Peer& peer, const Message& message)
 {
   switch (message.type()) {
     case MessageType::HANDSHAKE_RESPONSE_CLIENT:
-      OMS_INFO << "Connect LogProxy Succ, response: " << ((ClientHandshakeResponseMessage&)message).to_string();
+      OMS_STREAM_INFO << "Connect LogProxy Succ, response: " << ((ClientHandshakeResponseMessage&)message).to_string();
       break;
 
     case MessageType::DATA_CLIENT: {
       const RecordDataMessage& record = (const RecordDataMessage&)message;
-      OMS_INFO << "data packet, compress: " << (int)record.compress_type << ", count: " << record.count();
+      OMS_STREAM_INFO << "data packet, compress: " << (int)record.compress_type << ", count: " << record.count();
 
       debug_record(record);
       break;
@@ -50,11 +50,11 @@ EventResult on_msg(const Peer& peer, const Message& message)
       break;
 
     case MessageType::ERROR_RESPONSE:
-      OMS_ERROR << "Error occured: " << ((ErrorMessage&)message).to_string();
+      OMS_STREAM_ERROR << "Error occured: " << ((ErrorMessage&)message).to_string();
       return EventResult::ER_CLOSE_CHANNEL;
 
     default:
-      OMS_WARN << "Unknown Event income: " << (int)message.type();
+      OMS_STREAM_WARN << "Unknown Event income: " << (int)message.type();
       break;
   }
   return EventResult::ER_SUCCESS;
@@ -62,7 +62,7 @@ EventResult on_msg(const Peer& peer, const Message& message)
 
 EventResult on_err(const Peer& peer, PacketError err)
 {
-  OMS_ERROR << "Error occured peer: " << peer.to_string() << ", err: " << (int)err;
+  OMS_STREAM_ERROR << "Error occured peer: " << peer.to_string() << ", err: " << (int)err;
   return EventResult::ER_CLOSE_CHANNEL;
 }
 
@@ -71,32 +71,32 @@ int run(const std::string& host, uint16_t port, const std::string& client_id, co
   Comm comm;
   int ret = comm.init();
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to init Communicator";
+    OMS_STREAM_ERROR << "Failed to init Communicator";
     return ret;
   }
 
   int sockfd = 0;
   ret = connect(host.c_str(), port, true, 0, sockfd);
   if (ret != OMS_OK || sockfd <= 0) {
-    OMS_ERROR << "Failed to connect " << host << ":" << port;
+    OMS_STREAM_ERROR << "Failed to connect " << host << ":" << port;
     return -1;
   }
 
   set_non_block(sockfd);
-  OMS_INFO << "Connected to " << host << ":" << port << " with sockfd: " << sockfd;
+  OMS_STREAM_INFO << "Connected to " << host << ":" << port << " with sockfd: " << sockfd;
   struct sockaddr_in peer_addr;
   socklen_t len;
   ret = getpeername(sockfd, (struct sockaddr*)&peer_addr, &len);
   if (ret == 0 && peer_addr.sin_addr.s_addr != 0) {
     Peer p(peer_addr.sin_addr.s_addr, ntohs(peer_addr.sin_port), sockfd);
-    OMS_INFO << "fetched peer: " << p.to_string();
+    OMS_STREAM_INFO << "fetched peer: " << p.to_string();
   } else {
-    OMS_WARN << "Failed to fetch peer info of fd:" << sockfd << ", errno:" << errno << ", error:" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to fetch peer info of fd:" << sockfd << ", errno:" << errno << ", error:" << strerror(errno);
   }
   Peer peer(peer_addr.sin_addr.s_addr, htons(peer_addr.sin_port), sockfd);
   //  ret = comm.add(peer);
   //  if (ret != OMS_OK) {
-  //    OMS_ERROR << "Failed to add channel with sockfd: " << sockfd << ", ret: " << ret;
+  //    OMS_STREAM_ERROR << "Failed to add channel with sockfd: " << sockfd << ", ret: " << ret;
   //    return -1;
   //  }
   //
@@ -111,7 +111,7 @@ int run(const std::string& host, uint16_t port, const std::string& client_id, co
   ret = comm.start();
   ret = comm.send_message(peer, handshake);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to send handshake: " << handshake.to_string();
+    OMS_STREAM_ERROR << "Failed to send handshake: " << handshake.to_string();
     return -1;
   }
   comm.set_read_callback(on_msg);
@@ -186,9 +186,10 @@ int main(int argc, char** argv)
 
   int ret = ChannelFactory::instance().init(Config::instance());
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to init channel factory";
+    OMS_STREAM_ERROR << "Failed to init channel factory";
     return OMS_FAILED;
   }
 
   return run(host, port, client_id, oblog_config.generate_config_str());
+  //  return binlog_convert(oblog_config.generate_config_str());
 }

@@ -10,16 +10,18 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/log.h"
-#include "common/common.h"
-#include "common/thread.h"
+#include <utility>
+#include <unistd.h>
+#include <csignal>
+#include "thread.h"
+#include "log.h"
+#include "common.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 volatile int Thread::_s_tid_idx = 0;
 
-Thread::Thread(const std::string& name) : _name(name)
+Thread::Thread(std::string name) : _name(std::move(name))
 {
   _tid = ::getpid() + OMS_ATOMIC_INC(_s_tid_idx);
 }
@@ -28,57 +30,87 @@ Thread::~Thread() = default;
 
 void Thread::stop()
 {
-  if (is_run()) {
-    _run_flag = false;
-    OMS_DEBUG << "!!! Stop OMS thread: " << _name << "(" << tid() << ")";
+  bool expected_run_flag = true;
+  if (_run_flag.compare_exchange_strong(expected_run_flag, false)) {
+    OMS_STREAM_DEBUG << "!!! Stop OMS thread: " << _name << "(" << tid() << ")";
+  } else {
+    OMS_WARN("The current thread :{}({}) has already stopped", _name, _tid);
   }
 }
 
 int Thread::join()
 {
-  if (is_run()) {
-    OMS_DEBUG << "<< Joining thread: " << _name << "(" << tid() << ")";
+  if (pthread_kill(_thd, 0) == 0) {
+    OMS_STREAM_DEBUG << "<< Joining thread: " << _name << "(" << tid() << ")";
     pthread_join(_thd, nullptr);
-    OMS_DEBUG << ">> Joined thread: " << _name << "(" << tid() << ")";
+    OMS_STREAM_DEBUG << ">> Joined thread: " << _name << "(" << tid() << ")";
   }
   return _ret;
 }
 
 void* Thread::_thd_rotine(void* arg)
 {
-  Thread& thd = *(Thread*)arg;
-  OMS_DEBUG << "+++ Create thread: " << thd._name << "(" << thd.tid() << ")";
+  Thread* thd = (Thread*)arg;
+  OMS_STREAM_DEBUG << "+++ Create thread: " << thd->_name << "(" << thd->tid() << ")";
   // cast child class poiter to base class pointer
-  thd.run();
+  thd->run();
+  if (thd->is_direct_release()) {
+    delete thd;
+  }
   return nullptr;
 }
 
 void Thread::start()
 {
-  if (!is_run()) {
-    set_run(true);
-    pthread_create(&_thd, nullptr, _thd_rotine, this);
+  bool expected_run_flag = false;
+  if (_run_flag.compare_exchange_strong(expected_run_flag, true)) {
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    if (_is_detach) {
+      pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    }
+    pthread_create(&_thd, &attr, _thd_rotine, this);
+    pthread_attr_destroy(&attr);
+  } else {
+    OMS_WARN("The current thread :{}({}) is already running", _name, _tid);
   }
 }
 
 bool Thread::is_run()
 {
-  return _run_flag;
+  return _run_flag.load();
 }
 
 void Thread::set_run(bool run_flag)
 {
-  _run_flag = run_flag;
+  _run_flag.store(run_flag);
 }
 
 void Thread::detach()
 {
-  pthread_detach(_thd);
+  if (pthread_kill(_thd, 0) == 0) {
+    pthread_detach(_thd);
+  }
 }
 
 void Thread::set_ret(int ret)
 {
   _ret = ret;
+}
+
+void Thread::set_detach_state(bool is_detach)
+{
+  this->_is_detach = is_detach;
+}
+
+void Thread::set_release_state(bool direct_release)
+{
+  this->_direct_release = direct_release;
+}
+
+bool Thread::is_direct_release()
+{
+  return this->_direct_release;
 }
 
 }  // namespace logproxy

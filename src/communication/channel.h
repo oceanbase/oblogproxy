@@ -16,16 +16,16 @@
 #include <atomic>
 
 #include <openssl/ssl.h>
+#include <event2/event_struct.h>
 
+#include "log.h"
+#include "model.h"
+#include "config.h"
 #include "event.h"
-#include "common/log.h"
-#include "common/model.h"
-#include "common/config.h"
-#include "communication/peer.h"
+#include "peer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 class Comm;
 class Message;
 
@@ -43,7 +43,7 @@ public:
   {
     if (_owned_fd && _peer.fd != 0) {
       close(_peer.fd);
-      OMS_DEBUG << "Closed fd: " << _peer.fd;
+      OMS_STREAM_DEBUG << "Closed fd: " << _peer.fd;
     }
     free(_read_event);
     free(_write_event);

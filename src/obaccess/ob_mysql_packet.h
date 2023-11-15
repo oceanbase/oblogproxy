@@ -17,6 +17,7 @@
 
 namespace oceanbase {
 namespace logproxy {
+#define MAX_PACKET_SIZE 16777215
 
 class MsgBuf;
 
@@ -26,22 +27,50 @@ int recv_mysql_packet(int fd, int timeout, MsgBuf& msgbuf);
 
 int send_mysql_packet(int fd, MsgBuf& msgbuf, uint8_t sequence);
 
+uint32_t binlog_server_capability_flags();
+
+/*
+ * @params packet_size
+ * @returns
+ * @description
+ * @date 2022/9/21 17:20
+ */
+int send_mysql_packets(int fd, MsgBuf& msgbuf, uint8_t& sequence, size_t packet_size = MAX_PACKET_SIZE);
+
 class MySQLResponse {
 public:
   friend class MysqlProtocol;
 
 protected:
   virtual int decode(const MsgBuf& msgbuf) = 0;
+  virtual int serialize(MsgBuf& msg_buf, int64_t len) = 0;
 };
 
 class MySQLOkPacket : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
+
+protected:
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+
+public:
+  uint64_t get_affected_rows() const;
+
+private:
+  uint64_t _affected_rows;
+  uint64_t _last_insert_id;
+  std::string _info;
+  std::string _session_state_changes;
 };
 
 class MySQLEofPacket : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+  uint16_t get_warnings_count() const;
+  void set_warnings_count(uint16_t warnings_count);
+  uint16_t get_status_flags() const;
+  void set_status_flags(uint16_t status_flags);
 
 private:
   static const uint8_t _s_packet_type;
@@ -55,6 +84,18 @@ public:
   friend class MysqlProtocol;
 
   int decode(const MsgBuf& msgbuf) override;
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+
+  int64_t get_serialize_size();
+  const uint8_t get_packet_type() const;
+  uint16_t get_code() const;
+  void set_code(uint16_t code);
+  const std::string& get_sql_state_marker() const;
+  void set_sql_state_marker(const std::string& sql_state_marker);
+  const std::string& get_sql_state() const;
+  void set_sql_state(const std::string& sql_state);
+  const std::string& get_message() const;
+  void set_message(const std::string& message);
 
 private:
   const uint8_t _packet_type = 0xff;
@@ -113,6 +154,9 @@ class MySQLCol : public MySQLResponse {
 public:
   int decode(const MsgBuf& msgbuf) override;
 
+protected:
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+
 private:
   std::string _catalog;
   std::string _schema;
@@ -137,6 +181,10 @@ public:
 
   int decode(const MsgBuf& msgbuf) override;
 
+protected:
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+
+public:
   inline uint64_t col_count() const
   {
     return _col_count;
@@ -158,6 +206,10 @@ public:
 
   int decode(const MsgBuf& msgbuf) override;
 
+protected:
+  int serialize(MsgBuf& msg_buf, int64_t len) override;
+
+public:
   inline uint64_t col_count() const
   {
     return _col_count;
@@ -165,7 +217,7 @@ public:
 
 private:
   uint64_t _col_count = 0;
-
+  MySQLOkPacket _ok;
   MySQLErrorPacket _err;
 };
 
@@ -175,10 +227,24 @@ struct MySQLResultSet {
   uint64_t col_count = 0;
   std::vector<MySQLCol> cols;
   std::vector<MySQLRow> rows;
+  uint64_t affect_rows;
 
   uint16_t code;
   std::string message;
 };
+
+int write_lenenc_uint(char* buf, size_t capacity, uint64_t integer);
+
+int write_null_terminate_string(char* buf, size_t capacity, const std::string& str);
+
+int write_string(char* buf, size_t capacity, const char* s, size_t str_len);
+/*
+ * @params
+ * @returns lenenc_uint
+ * @description
+ * @date 2022/9/28 15:17
+ */
+uint64_t get_lenenc_uint(unsigned char* buf, uint64_t& pos);
 
 }  // namespace logproxy
 }  // namespace oceanbase

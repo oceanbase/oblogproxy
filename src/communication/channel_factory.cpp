@@ -10,11 +10,10 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "communication/channel_factory.h"
+#include "channel_factory.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static inline Channel* _s_create_plain(const Peer& peer)
 {
   return new (std::nothrow) PlainChannel(peer);
@@ -44,25 +43,21 @@ int ChannelFactory::init(const Config& config)
   } else if (mode == "client") {
     _is_server_mode = false;
   } else {
-    OMS_ERROR << "Invalid config of communication_mode: " << mode << ". can be one of server/client";
+    OMS_STREAM_ERROR << "Invalid config of communication_mode: " << mode << ". can be one of server/client";
     return OMS_FAILED;
   }
-  OMS_INFO << "ChannelFactory init with " << mode << " mode";
+  OMS_STREAM_INFO << "ChannelFactory init with " << mode << " mode";
 
   _s_channel_type = config.channel_type.val();
   if (_s_channel_type == "plain") {
     _s_creator = _s_create_plain;
-
   } else if (_s_channel_type == "tls") {
-
     ret = TlsChannel::init_global(config);
     if (ret == OMS_OK) {
       _s_creator = _s_create_tls;
     }
-
   } else {
-
-    OMS_ERROR << "Unsupported channel type: " << _s_channel_type;
+    OMS_STREAM_ERROR << "Unsupported channel type: " << _s_channel_type;
     ret = OMS_FAILED;
   }
   return ret;
@@ -83,13 +78,13 @@ Channel& ChannelFactory::add(uint64_t id, const Peer& peer)
 
   auto iter = _channels.find(id);
   if (iter != _channels.end()) {
-    OMS_ERROR << "Duplicate channel with id: " << id;
+    OMS_STREAM_ERROR << "Duplicate channel with id: " << id;
     return _dummy;
   }
 
   Channel* ch = _s_creator(peer);
   if (ch == nullptr) {
-    OMS_ERROR << "Failed to allocate Channel memory";
+    OMS_STREAM_ERROR << "Failed to allocate Channel memory";
     return _dummy;
   }
   _channels.emplace(id, ch);

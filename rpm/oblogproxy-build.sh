@@ -26,12 +26,30 @@ case $OS_TAG in
     x86_64/7)
     wget https://mirrors.aliyun.com/oceanbase/development-kit/el/7/x86_64/obdevtools-cmake-3.20.2-3.el7.x86_64.rpm -P $DEP_DIR
     rpm2cpio ${DEP_DIR}/obdevtools-cmake-3.20.2-3.el7.x86_64.rpm | cpio -idvm
-    CMAKE_COMMAND=${CUR_DIR}/usr/local/oceanbase/devtools/bin/cmake
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/7/x86_64/obdevtools-gcc9-9.3.0-52022092914.el7.x86_64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-gcc9-9.3.0-52022092914.el7.x86_64.rpm | cpio -idvm
+    export PATH=${CUR_DIR}/usr/local/oceanbase/devtools/bin:$PATH
     ;;
     x86_64/8)
     wget https://mirrors.aliyun.com/oceanbase/development-kit/el/8/x86_64/obdevtools-cmake-3.20.2-3.el8.x86_64.rpm -P $DEP_DIR
     rpm2cpio ${DEP_DIR}/obdevtools-cmake-3.20.2-3.el8.x86_64.rpm | cpio -idvm
-    CMAKE_COMMAND=${CUR_DIR}/usr/local/oceanbase/devtools/bin/cmake
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/8/x86_64/obdevtools-gcc9-9.3.0-52022092914.el8.x86_64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-gcc9-9.3.0-52022092914.el8.x86_64.rpm | cpio -idvm
+    export PATH=${CUR_DIR}/usr/local/oceanbase/devtools/bin:$PATH
+    ;;
+    aarch64/7)
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/7/aarch64/obdevtools-cmake-3.20.2-15.el7.aarch64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-cmake-3.20.2-15.el7.aarch64.rpm | cpio -idvm
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/7/aarch64/obdevtools-gcc9-9.3.0-52022092914.el7.aarch64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-gcc9-9.3.0-52022092914.el7.aarch64.rpm | cpio -idvm
+    export PATH=${CUR_DIR}/usr/local/oceanbase/devtools/bin:$PATH
+    ;;
+    aarch64/8)
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/8/aarch64/obdevtools-cmake-3.20.2-15.el8.aarch64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-cmake-3.20.2-15.el8.aarch64.rpm | cpio -idvm
+    wget https://mirrors.aliyun.com/oceanbase/development-kit/el/8/aarch64/obdevtools-gcc9-9.3.0-52022092914.el8.aarch64.rpm -P $DEP_DIR
+    rpm2cpio ${DEP_DIR}/obdevtools-gcc9-9.3.0-52022092914.el8.aarch64.rpm | cpio -idvm
+    export PATH=${CUR_DIR}/usr/local/oceanbase/devtools/bin:$PATH
     ;;
     **)
     echo "Unsupported os arch, please prepare the building environment in advance."
@@ -43,8 +61,8 @@ cd $PROJECT_DIR
 rm -rf build_rpm
 mkdir build_rpm
 cd build_rpm
-${CMAKE_COMMAND} .. -DOBLOGPROXY_RELEASEID=$RELEASE -DUSE_OBCDC_NS=ON -DOBLOGPROXY_PACKAGE_NAME=$PROJECT_NAME -DOBLOGPROXY_PACKAGE_VERSION=$VERSION
-make -j${CPU_CORES} rpm
+${CMAKE_COMMAND} .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE=ON -DWITH_DEBUG=OFF -DWITH_US_TIMESTAMP=ON -DOBLOGPROXY_VERSION=$VERSION -DOBLOGPROXY_RELEASEID=$RELEASE
+cmake --build . --target package -j${CPU_CORES}
 
 # archiving artifacts
 cd $CUR_DIR

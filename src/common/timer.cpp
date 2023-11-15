@@ -14,7 +14,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 void Timer::sleep(uint64_t interval_us)
 {
   sleepto(now() + interval_us);

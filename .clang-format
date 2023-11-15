@@ -1,6 +1,6 @@
 ---
 Language: Cpp
-# BasedOnStyle:	LLVM
+#BasedOnStyle: Google
 SortIncludes: false
 AccessModifierOffset: -2
 AlignAfterOpenBracket: DontAlign
@@ -42,24 +42,24 @@ AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
 PointerBindsToType: true
 Cpp11BracedListStyle: true
-Standard:        Auto
-IndentWidth:     2
-TabWidth:        4
-UseTab:          Never
+Standard: Auto
+IndentWidth: 2
+TabWidth: 4
+UseTab: Never
 BreakBeforeBraces: Custom
 BraceWrapping:
-  AfterClass:      false
+  AfterClass: false
   AfterControlStatement: false
-  AfterEnum:       false
-  AfterFunction:   true
-  AfterNamespace:  false
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
   AfterObjCDeclaration: false
-  AfterStruct:     false
-  AfterUnion:      false
+  AfterStruct: false
+  AfterUnion: false
   AfterExternBlock: false
-  BeforeCatch:     false
-  BeforeElse:      false
-  IndentBraces:    false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   SplitEmptyNamespace: false
@@ -72,7 +72,7 @@ SpaceAfterControlStatementKeyword: true
 SpaceBeforeAssignmentOperators: true
 SpacesBeforeTrailingComments: 2
 ContinuationIndentWidth: 4
-CommentPragmas:  '^lint'
+CommentPragmas: '^lint'
 MacroBlockBegin: "
 
 END_CATCH_ERROR$"

@@ -10,13 +10,14 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/ob_aes256.h"
-#include "common/common.h"
-#include "common/log.h"
+#include "ob_aes256.h"
+#include "common.h"
+#include "log.h"
+
+#include <cstring>
 
 namespace oceanbase {
 namespace logproxy {
-
 static const char* default_encrypt_key = "LogProxy*";
 
 static const unsigned char iv[] = "0123456789012345";
@@ -49,21 +50,21 @@ int AES::encrypt(const char* key, const char* plain_text, int plain_text_len, ch
   memcpy(iv_copy, iv, sizeof(iv));
   int ret = EVP_EncryptInit_ex(_cipher_ctx, EVP_aes_256_cbc(), nullptr, (const unsigned char*)key, iv_copy);
   if (ret != 1) {
-    OMS_ERROR << "Failed to init encrypt, return=" << ret;
+    OMS_STREAM_ERROR << "Failed to init encrypt, return=" << ret;
     return OMS_FAILED;
   }
 
   const int buffer_len = plain_text_len + EVP_MAX_BLOCK_LENGTH;
   unsigned char* buffer = (unsigned char*)malloc(buffer_len);
   if (nullptr == buffer) {
-    OMS_ERROR << "Failed to alloc memory. size=" << buffer_len;
+    OMS_STREAM_ERROR << "Failed to alloc memory. size=" << buffer_len;
     return OMS_FAILED;
   }
 
   int used_buffer_len = 0;
   ret = EVP_EncryptUpdate(_cipher_ctx, buffer, &used_buffer_len, (const unsigned char*)plain_text, plain_text_len);
   if (ret != 1) {
-    OMS_ERROR << "Failed to encrypt. returned=" << ret;
+    OMS_STREAM_ERROR << "Failed to encrypt. returned=" << ret;
     free(buffer);
     return OMS_FAILED;
   }
@@ -71,7 +72,7 @@ int AES::encrypt(const char* key, const char* plain_text, int plain_text_len, ch
   int final_buffer_len = 0;
   ret = EVP_EncryptFinal_ex(_cipher_ctx, buffer + used_buffer_len, &final_buffer_len);
   if (ret != 1) {
-    OMS_ERROR << "Failed to encrypt(final). returned=" << ret;
+    OMS_STREAM_ERROR << "Failed to encrypt(final). returned=" << ret;
     free(buffer);
     return OMS_FAILED;
   }
@@ -93,13 +94,13 @@ int AES::decrypt(const char* key, const char* encrypted, int encrypted_len, char
   memcpy(iv_copy, iv, sizeof(iv));
   int ret = EVP_DecryptInit_ex(_cipher_ctx, EVP_aes_256_cbc(), nullptr, (const unsigned char*)key, iv_copy);
   if (ret != 1) {
-    OMS_ERROR << "Failed to init encrypt, return=" << ret;
+    OMS_ERROR("Failed to init encrypt, return= {}", ret);
     return OMS_FAILED;
   }
 
   unsigned char* buffer = (unsigned char*)malloc(encrypted_len);
   if (nullptr == buffer) {
-    OMS_ERROR << "Failed to alloc memory. size=" << encrypted_len;
+    OMS_ERROR("Failed to alloc memory. size= {}", encrypted_len);
     return OMS_FAILED;
   }
   memset(buffer, 0, encrypted_len);
@@ -107,7 +108,7 @@ int AES::decrypt(const char* key, const char* encrypted, int encrypted_len, char
   int used_buffer_len = 0;
   ret = EVP_DecryptUpdate(_cipher_ctx, buffer, &used_buffer_len, (const unsigned char*)encrypted, encrypted_len);
   if (ret != 1) {
-    OMS_ERROR << "Failed to decrypt. return=" << ret;
+    OMS_ERROR("Failed to decrypt. return= {}", ret);
     free(buffer);
     return OMS_FAILED;
   }
@@ -115,7 +116,7 @@ int AES::decrypt(const char* key, const char* encrypted, int encrypted_len, char
   int final_buffer_len = 0;
   ret = EVP_DecryptFinal_ex(_cipher_ctx, buffer + used_buffer_len, &final_buffer_len);
   if (ret != 1) {
-    OMS_ERROR << "Failed to decrypt(final), ret:" << ret;
+    OMS_ERROR("Failed to decrypt(final), ret:{}", ret);
     free(buffer);
     return OMS_FAILED;
   }

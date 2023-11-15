@@ -11,20 +11,19 @@
  */
 
 #include <sys/queue.h>
-
+#include <cstring>
 #include "event2/event.h"
 #include "event2/buffer.h"
 #include "event2/dns.h"
+#include "event2/http.h"
 #include "event2/keyvalq_struct.h"
-
-#include "common/common.h"
-#include "common/log.h"
-#include "common/guard.hpp"
+#include "common.h"
+#include "log.h"
+#include "guard.hpp"
 #include "communication/http.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 struct HttpContext {
   struct event_base* base;
 
@@ -67,7 +66,7 @@ static void http_payload_cb(struct evhttp_request* reponse, void* arg)
 
 static void http_request_error_cb(enum evhttp_request_error error, void* arg)
 {
-  OMS_ERROR << "HTTP request error:" << error;
+  OMS_STREAM_ERROR << "HTTP request error:" << error;
   HttpContext* context = (HttpContext*)arg;
   context->error = error;
   event_base_loopexit(context->base, nullptr);
@@ -82,13 +81,13 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
 {
   evhttp_uri* uri = evhttp_uri_parse(url.c_str());
   if (uri == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to parse url:" << url.c_str();
+    OMS_STREAM_ERROR << "Failed to http GET, failed to parse url:" << url.c_str();
     return OMS_FAILED;
   }
   FreeGuard<evhttp_uri*> uri_fg(uri, evhttp_uri_free);
   const char* host = evhttp_uri_get_host(uri);
   if (host == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to parse host";
+    OMS_STREAM_ERROR << "Failed to http GET, failed to parse host";
     return OMS_FAILED;
   }
   int port = evhttp_uri_get_port(uri);
@@ -105,13 +104,13 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
   struct event_base* base = event_base_new();
   FreeGuard<event_base*> base_fg(base, event_base_free);
   if (base == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to event_base_new";
+    OMS_STREAM_ERROR << "Failed to http GET, failed to event_base_new";
     return OMS_FAILED;
   }
 
   struct evdns_base* dnsbase = evdns_base_new(base, 1);
   if (dnsbase == nullptr) {
-    OMS_WARN << "Failed to invoke evdns_base_new, just skip";
+    OMS_STREAM_WARN << "Failed to invoke evdns_base_new, just skip";
   }
 
   FreeGuard<evdns_base*> dnsbase_fg(dnsbase, [](struct evdns_base* ptr) { evdns_base_free(ptr, 0); });
@@ -119,10 +118,10 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
   context.base = base;
   context.response = &response;
 
-  struct evhttp_connection* conn = evhttp_connection_base_new(base, dnsbase, host, port);
+  struct evhttp_connection* conn = evhttp_connection_base_new(base, nullptr, host, port);
   FreeGuard<evhttp_connection*> conn_fg(conn, evhttp_connection_free);
   if (conn == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to evhttp_connection_base";
+    OMS_STREAM_ERROR << "Failed to http GET, failed to evhttp_connection_base";
     return OMS_FAILED;
   }
   evhttp_connection_set_timeout(conn, 600);
@@ -130,7 +129,7 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
 
   struct evhttp_request* req = evhttp_request_new(http_request_done, &context);
   if (req == nullptr) {
-    OMS_ERROR << "Failed to http GET, failed to evhttp_request";
+    OMS_STREAM_ERROR << "Failed to http GET, failed to evhttp_request";
     return OMS_FAILED;
   }
   evhttp_request_set_header_cb(req, http_header_cb);
@@ -138,12 +137,12 @@ int HttpClient::get(const std::string& url, HttpResponse& response)
   evhttp_request_set_error_cb(req, http_request_error_cb);
   evhttp_add_header(evhttp_request_get_output_headers(req), "Host", host);
 
-  OMS_DEBUG << "url:" << url << " host:" << host << " port:" << port << " path:" << path
+  OMS_STREAM_DEBUG << "url:" << url << " host:" << host << " port:" << port << " path:" << path
             << " request_url:" << request_url;
   // The connection gets ownership of the request
   int ret = evhttp_make_request(conn, req, EVHTTP_REQ_GET, request_url.c_str());
   if (ret == -1) {
-    OMS_ERROR << "Failed to http GET of make request";
+    OMS_STREAM_ERROR << "Failed to http GET of make request";
     return OMS_FAILED;
   }
 

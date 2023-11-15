@@ -12,13 +12,12 @@
 
 #pragma once
 
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdint>
+#include <cstring>
 
 namespace oceanbase {
 namespace logproxy {
-
 class SHA1 {
 public:
   static constexpr int SHA1_HASH_SIZE = 20; /* Hash size in bytes */

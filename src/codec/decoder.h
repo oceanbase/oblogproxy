@@ -12,12 +12,11 @@
 
 #pragma once
 
-#include "codec/message.h"
-#include "codec/msg_buf.h"
+#include "message.h"
+#include "msg_buf.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 class Channel;
 
 class MessageDecoder {

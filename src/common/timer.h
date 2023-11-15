@@ -19,7 +19,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 class Timer {
 public:
   Timer()
@@ -50,6 +49,13 @@ public:
     struct timeval tm;
     gettimeofday(&tm, nullptr);
     return (tm.tv_sec * 1000000 + tm.tv_usec);
+  }
+
+  static inline uint64_t now_s()
+  {
+    struct timeval tm;
+    gettimeofday(&tm, nullptr);
+    return tm.tv_sec;
   }
 
   inline int64_t elapsed() const

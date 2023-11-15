@@ -13,12 +13,13 @@
 #include <limits.h>
 #include <poll.h>
 
-#include "obaccess/ob_mysql_packet.h"
-#include "codec/msg_buf.h"
+#include "ob_mysql_packet.h"
+#include "msg_buf.h"
 #include "communication/io.h"
-#include "common/log.h"
-#include "common/common.h"
-#include "common/guard.hpp"
+#include "log.h"
+#include "common.h"
+#include "guard.hpp"
+#include "codec/byte_decoder.h"
 
 // https://dev.mysql.com/doc/internals/en/capability-flags.html
 // copy from include/mysql_com.h (mariadb source code)
@@ -60,7 +61,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 int recv_mysql_packet(int fd, int timeout, uint32_t& packet_length, uint8_t& sequence, MsgBuf& msgbuf)
 {
   struct pollfd pollfd;
@@ -69,41 +69,41 @@ int recv_mysql_packet(int fd, int timeout, uint32_t& packet_length, uint8_t& seq
   pollfd.revents = 0;
   int ret = poll(&pollfd, 1, timeout);
   if (0 == ret) {
-    OMS_DEBUG << "Timeout when receiving mysql packet. time(in millisecond)=" << timeout;
+    OMS_STREAM_DEBUG << "Timeout when receiving mysql packet. time(in millisecond)=" << timeout;
     return OMS_TIMEOUT;
   }
   if (ret < 0) {
-    OMS_ERROR << "Failed to receive mysql packet. poll return error. system error=" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to receive mysql packet. poll return error. system error=" << strerror(errno);
     return OMS_FAILED;
   }
 
   if (pollfd.revents & POLLERR) {
-    OMS_ERROR << "Failed to receive mysql packet because of poll.revents & POLLERR";
+    OMS_STREAM_ERROR << "Failed to receive mysql packet because of poll.revents & POLLERR";
     return OMS_FAILED;
   }
 
   uint32_t packet_header = 0;
   ret = readn(fd, &packet_header, 4);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read packet length, errno: " << errno << ", error: " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read packet length, errno: " << errno << ", error: " << strerror(errno);
     return ret;
   }
-  sequence = (packet_header & 0xFF000000) >> 3;
+  sequence = (packet_header & 0xFF000000) >> 24;
   packet_length = le_to_cpu(packet_header & 0x00FFFFFF);
   if (packet_length >= UINT32_MAX - sizeof(packet_header)) {
-    OMS_ERROR << "Got invalid packet length, too length: " << packet_length;
+    OMS_STREAM_ERROR << "Got invalid packet length, too length: " << packet_length;
     return OMS_FAILED;
   }
 
   char* buffer = (char*)malloc(packet_length);
   if (nullptr == buffer) {
-    OMS_ERROR << "Failed to malloc memory for mysql handshake packet length: " << packet_length;
+    OMS_STREAM_ERROR << "Failed to malloc memory for mysql handshake packet length: " << packet_length;
     return OMS_FAILED;
   }
 
   ret = readn(fd, buffer, packet_length);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read mysql handshake packet. length: " << packet_length << ", error: " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read mysql handshake packet. length: " << packet_length << ", error: " << strerror(errno);
     free(buffer);
     return ret;
   }
@@ -126,36 +126,59 @@ int send_mysql_packet(int fd, MsgBuf& msgbuf, uint8_t sequence)
   // [8bit] sequence
   uint32_t packet_length = msgbuf.byte_size();
   packet_length = cpu_to_le(packet_length & 0x00FFFFFF);
-  packet_length = packet_length | (sequence << 3);
+  packet_length = packet_length | (sequence << 24);
 
   ////// DEBUG ONLY ///////
   //  std::string hexstr;
   //  dumphex((char*)&packet_length, 4, hexstr);
-  //  OMS_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
+  //  OMS_STREAM_DEBUG << "MySQL packet header: " << hexstr << ", value: " << packet_length;
   ////// DEBUG ONLY ///////
 
   int ret = writen(fd, &packet_length, 4);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to send packet, error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to send packet, error:" << strerror(errno);
     return ret;
   }
   for (const auto& iter : msgbuf) {
     ret = writen(fd, iter.buffer(), iter.size());
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to send packet, errno:" << errno << ", error:" << strerror(errno);
+      OMS_STREAM_ERROR << "Failed to send packet, errno:" << errno << ", error:" << strerror(errno);
       return ret;
     }
   }
   return OMS_OK;
 }
 
+uint32_t binlog_server_capability_flags()
+{
+  return CLIENT_PROTOCOL_41 | CLIENT_SECURE_CONNECTION | CLIENT_PLUGIN_AUTH;
+};
+
 // https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 int MySQLOkPacket::decode(const MsgBuf& msgbuf)
 {
-  MsgBufReader reader(msgbuf);
+  MysqlBufReader reader(msgbuf);
   uint8_t packet_type;
   int ret = reader.read_uint8(packet_type);
+  ret = reader.read_lenenc_uint(this->_affected_rows);
+  if (ret != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to read affected rows";
+  }
+  ret = reader.read_lenenc_uint(this->_last_insert_id);
+  if (ret != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to read last insert id";
+  }
   return (ret == OMS_OK && packet_type == 0x00) ? OMS_OK : OMS_FAILED;
+}
+
+uint64_t MySQLOkPacket::get_affected_rows() const
+{
+  return _affected_rows;
+}
+
+int MySQLOkPacket::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  return 0;
 }
 
 const uint8_t MySQLEofPacket::_s_packet_type = 0xfe;
@@ -164,7 +187,7 @@ int MySQLEofPacket::decode(const MsgBuf& msgbuf)
 {
   size_t len = msgbuf.byte_size();
   if (len >= 9) {
-    OMS_ERROR << "Not an EOF packet as expected, length(" << len << ") >= 9";
+    OMS_STREAM_ERROR << "Not an EOF packet as expected, length(" << len << ") >= 9";
     return OMS_FAILED;
   }
 
@@ -172,12 +195,41 @@ int MySQLEofPacket::decode(const MsgBuf& msgbuf)
   uint8_t code = 0;
   reader.read_uint8(code);
   if (code != _s_packet_type) {
-    OMS_ERROR << "Not an EOF packet as expected";
+    OMS_STREAM_ERROR << "Not an EOF packet as expected";
     return OMS_FAILED;
   }
   reader.read_uint16(_warnings_count);
   reader.read_uint16(_status_flags);
   return OMS_OK;
+}
+int MySQLEofPacket::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  char* buff = static_cast<char*>(malloc(len));
+  int1store(reinterpret_cast<unsigned char*>(buff), _s_packet_type);
+
+  int2store(reinterpret_cast<unsigned char*>(buff + 1), _warnings_count);
+
+  int2store(reinterpret_cast<unsigned char*>(buff + 3), _status_flags);
+
+  msg_buf.push_back_copy(buff, len);
+  free(buff);
+  return OMS_OK;
+}
+uint16_t MySQLEofPacket::get_warnings_count() const
+{
+  return _warnings_count;
+}
+void MySQLEofPacket::set_warnings_count(uint16_t warnings_count)
+{
+  _warnings_count = warnings_count;
+}
+uint16_t MySQLEofPacket::get_status_flags() const
+{
+  return _status_flags;
+}
+void MySQLEofPacket::set_status_flags(uint16_t status_flags)
+{
+  _status_flags = status_flags;
 }
 
 /**
@@ -189,7 +241,7 @@ int MySQLErrorPacket::decode(const MsgBuf& msgbuf)
 
   int ret = reader.read_int<uint16_t>(_code);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read error code";
+    OMS_STREAM_ERROR << "Failed to read error code";
     return OMS_FAILED;
   }
 
@@ -197,7 +249,7 @@ int MySQLErrorPacket::decode(const MsgBuf& msgbuf)
   _sql_state_marker.resize(1);
   ret = reader.read((char*)_sql_state_marker.data(), 1);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to skip # state marker";
+    OMS_STREAM_ERROR << "Failed to skip # state marker";
     return OMS_FAILED;
   }
 
@@ -205,7 +257,7 @@ int MySQLErrorPacket::decode(const MsgBuf& msgbuf)
   _sql_state.resize(6);
   ret = reader.read((char*)_sql_state.data(), 6);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to skip SQL state";
+    OMS_STREAM_ERROR << "Failed to skip SQL state";
     return OMS_FAILED;
   }
 
@@ -213,29 +265,108 @@ int MySQLErrorPacket::decode(const MsgBuf& msgbuf)
   _message.resize(remain_size);
   ret = reader.read((char*)_message.data(), remain_size);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read error message";
+    OMS_STREAM_ERROR << "Failed to read error message";
     return OMS_FAILED;
   }
 
-  OMS_DEBUG << "Error packet: [" << _code << "][" << _sql_state_marker << _sql_state << "] " << _message;
+  OMS_STREAM_DEBUG << "Error packet: [" << _code << "][" << _sql_state_marker << _sql_state << "] " << _message;
   return OMS_OK;
+}
+int MySQLErrorPacket::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  char* buff = static_cast<char*>(malloc(len));
+  FreeGuard<char*> free_guard(buff);
+  int pos = 0;
+  int1store(reinterpret_cast<unsigned char*>(buff + pos), _packet_type);
+  pos += 1;
+  int2store(reinterpret_cast<unsigned char*>(buff + pos), _code);
+  pos += 2;
+  int ret = write_null_terminate_string(buff + pos, MAX_PACKET_SIZE, _sql_state_marker);
+  if (ret == OMS_FAILED) {
+    return OMS_FAILED;
+  }
+  pos += ret;
+
+  ret = write_null_terminate_string(buff + pos, MAX_PACKET_SIZE, _sql_state);
+  if (ret == OMS_FAILED) {
+    return OMS_FAILED;
+  }
+  pos += ret;
+
+  ret = write_null_terminate_string(buff + pos, MAX_PACKET_SIZE, _message);
+  if (ret == OMS_FAILED) {
+    return OMS_FAILED;
+  }
+  pos += ret;
+
+  msg_buf.push_back_copy(buff, pos);
+  return OMS_OK;
+}
+
+int64_t MySQLErrorPacket::get_serialize_size()
+{
+  return 3 + _sql_state_marker.size() + 1 + _sql_state.size() + 1 + _message.size() + 1;
+}
+
+const uint8_t MySQLErrorPacket::get_packet_type() const
+{
+  return _packet_type;
+}
+
+uint16_t MySQLErrorPacket::get_code() const
+{
+  return _code;
+}
+
+void MySQLErrorPacket::set_code(uint16_t code)
+{
+  _code = code;
+}
+
+const std::string& MySQLErrorPacket::get_sql_state_marker() const
+{
+  return _sql_state_marker;
+}
+
+void MySQLErrorPacket::set_sql_state_marker(const std::string& sql_state_marker)
+{
+  _sql_state_marker = sql_state_marker;
+}
+
+const std::string& MySQLErrorPacket::get_sql_state() const
+{
+  return _sql_state;
+}
+
+void MySQLErrorPacket::set_sql_state(const std::string& sql_state)
+{
+  _sql_state = sql_state;
+}
+
+const std::string& MySQLErrorPacket::get_message() const
+{
+  return _message;
+}
+
+void MySQLErrorPacket::set_message(const std::string& message)
+{
+  _message = message;
 }
 
 // reference:
 // https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::Handshake
 int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
 {
-
   MsgBufReader buffer_reader(msgbuf);
 
   // read protocol version
   int ret = buffer_reader.read_uint8(_protocol_version);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read protocol version while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to read protocol version while decoding mysql InitialHandShakePacket";
     return ret;
   }
   if (_protocol_version != 0x0a) {
-    OMS_ERROR << "Unsupported packet version: " << _protocol_version;
+    OMS_STREAM_ERROR << "Unsupported packet version: " << _protocol_version;
     return OMS_FAILED;
   }
 
@@ -250,18 +381,18 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
     server_version.append(1, c);
   }
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read buffer while decoding mysql InitialHandShakePacket. buffer read "
+    OMS_STREAM_ERROR << "Failed to read buffer while decoding mysql InitialHandShakePacket. buffer read "
               << buffer_reader.read_size();
   }
-  OMS_DEBUG << "Observer version: " << server_version;
+  OMS_STREAM_DEBUG << "Observer version: " << server_version;
 
   uint32_t connection_id;
   ret = buffer_reader.read_int<uint32_t>(connection_id);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read connection id while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to read connection id while decoding mysql InitialHandShakePacket";
     return ret;
   }
-  OMS_DEBUG << "Connection id: " << connection_id;
+  OMS_STREAM_DEBUG << "Connection id: " << connection_id;
 
   _scramble.reserve(20);
 
@@ -270,27 +401,27 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
   _scramble.resize(8);
   ret = buffer_reader.read(_scramble.data(), 8);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read auth-plugin-data-part-1 while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to read auth-plugin-data-part-1 while decoding mysql InitialHandShakePacket";
     return ret;
   }
 
   // [00] filler
   ret = buffer_reader.forward(1);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to skip 'filler' while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to skip 'filler' while decoding mysql InitialHandShakePacket";
     return ret;
   }
 
   // capability flags (lower 2 bytes)
   ret = buffer_reader.read((char*)&_capabilities_flag, 2);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read auth-plugin-data-part-1 while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to read auth-plugin-data-part-1 while decoding mysql InitialHandShakePacket";
     return ret;
   }
 
   _scramble_valid = false;
   if (!buffer_reader.has_more()) {
-    OMS_DEBUG << "Decode done. field end with capabilities evflag lower byte_size";
+    OMS_STREAM_DEBUG << "Decode done. field end with capabilities evflag lower byte_size";
     _scramble_valid = true;
     return OMS_OK;
   }
@@ -298,14 +429,14 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
   // skip the 'character set' and 'status flags'
   ret = buffer_reader.forward(1 /*character set */ + 2 /*status flags*/);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to skip the 'character set' and 'status flags' while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to skip the 'character set' and 'status flags' while decoding mysql InitialHandShakePacket";
     return ret;
   }
 
   // capability flags (upper 2 bytes)
   ret = buffer_reader.read(((char*)&_capabilities_flag) + 2, 2);
   if (ret != OMS_OK) {
-    OMS_ERROR
+    OMS_STREAM_ERROR
         << "Failed to read the 'capability flags (upper 2 byte_size)' while decoding mysql InitialHandShakePacket";
     return ret;
   }
@@ -316,7 +447,7 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
   if (_capabilities_flag & CLIENT_PLUGIN_AUTH) {
     ret = buffer_reader.read_uint8(auth_plugin_data_len);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to read the 'length of auth-plugin-data' while decoding mysql InitialHandShakePacket";
+      OMS_STREAM_ERROR << "Failed to read the 'length of auth-plugin-data' while decoding mysql InitialHandShakePacket";
       return ret;
     }
   } else {
@@ -326,7 +457,7 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
   // reserved (all [00])
   ret = buffer_reader.forward(10);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to skip the 'reserved (all [00])' while decoding mysql InitialHandShakePacket";
+    OMS_STREAM_ERROR << "Failed to skip the 'reserved (all [00])' while decoding mysql InitialHandShakePacket";
     return ret;
   }
 
@@ -337,7 +468,7 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
     _scramble.resize(8 + auth_plugin_data_part_2_len);
     ret = buffer_reader.read(_scramble.data() + 8, auth_plugin_data_part_2_len);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to read the part 2 of 'scramble buffer' while decoding mysql InitialHandShakePacket";
+      OMS_STREAM_ERROR << "Failed to read the part 2 of 'scramble buffer' while decoding mysql InitialHandShakePacket";
       return ret;
     }
     _scramble_valid = true;
@@ -352,11 +483,11 @@ int MySQLInitialHandShakePacket::decode(const MsgBuf& msgbuf)
       }
       _auth_plugin_name.append(1, c);
     }
-    OMS_DEBUG << "Auth plugin name: " << _auth_plugin_name;
+    OMS_STREAM_DEBUG << "Auth plugin name: " << _auth_plugin_name;
   }
 
   if (_auth_plugin_name != "mysql_native_password") {
-    OMS_ERROR << "Unsupport auth plugin name: " << _auth_plugin_name;
+    OMS_STREAM_ERROR << "Unsupport auth plugin name: " << _auth_plugin_name;
     return OMS_FAILED;
   }
   // fix ob response length 21 scramble
@@ -393,12 +524,12 @@ static inline int write_null_terminate_string(char* buf, size_t capacity, const 
   return len + 1;
 }
 
-static inline int write_null_terminate_string(char* buf, size_t capacity, const std::string& str)
+int write_null_terminate_string(char* buf, size_t capacity, const std::string& str)
 {
   return write_null_terminate_string(buf, capacity, str.data(), str.size());
 }
 
-static inline int write_string(char* buf, size_t capacity, const char* s, size_t str_len)
+int write_string(char* buf, size_t capacity, const char* s, size_t str_len)
 {
   if (str_len > capacity) {
     return OMS_FAILED;
@@ -407,7 +538,7 @@ static inline int write_string(char* buf, size_t capacity, const char* s, size_t
   return str_len;
 }
 
-static inline int write_lenenc_uint(char* buf, size_t capacity, uint64_t integer)
+int write_lenenc_uint(char* buf, size_t capacity, uint64_t integer)
 {
   // https://dev.mysql.com/doc/internals/en/integer.html#packet-Protocol::LengthEncodedInteger
 
@@ -456,6 +587,78 @@ static inline int write_lenenc_uint(char* buf, size_t capacity, uint64_t integer
   return OMS_FAILED;
 }
 
+int send_buffer(int fd, char* packet_buff, uint32_t packet_length, uint8_t sequence)
+{
+  uint32_t size = packet_length;
+  // [24bit] packet_size
+  // [8bit] sequence
+  packet_length = cpu_to_le(packet_length & 0x00FFFFFF);
+  packet_length = packet_length | (sequence << 24);
+
+  int ret = writen(fd, &packet_length, 4);
+  if (ret != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to send packet, error:" << strerror(errno);
+    return ret;
+  }
+  ret = writen(fd, packet_buff, size);
+  if (ret != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to send packet, errno:" << errno << ", error:" << strerror(errno);
+    return ret;
+  }
+  OMS_STREAM_DEBUG << "send mysql packet:" << size << "sequence:" << int(sequence);
+  return OMS_OK;
+}
+
+int send_mysql_packets(int fd, MsgBuf& msgbuf, uint8_t& sequence, size_t packet_size)
+{
+  int ret = OMS_OK;
+  for (const auto& iter : msgbuf) {
+    ret = send_buffer(fd, iter.buffer(), iter.size(), sequence);
+    if (ret != OMS_OK) {
+      OMS_STREAM_ERROR << "Failed to send packet, errno:" << errno << ", error:" << strerror(errno);
+      return ret;
+    }
+    sequence++;
+  }
+  return ret;
+
+  //  return send_buffer(fd, packet_buff, buff_szie, sequence);
+}
+
+uint64_t get_lenenc_uint(unsigned char* buf, uint64_t& pos)
+{
+  unsigned char num = *(buf + pos);
+  uint32_t tmp = 0;
+  if (num < 251) {
+    pos += 1;
+    return num;
+  }
+
+  if (num == 251) {
+    pos += 1;
+    return ((uint64_t)~0);
+  }
+
+  if (num == 252) {
+    memcpy(&tmp, buf + pos + 1, 2);
+    pos += 3;
+    tmp = le_to_cpu(tmp);
+    return (uint64_t)tmp;
+  }
+
+  if (num == 253) {
+    memcpy(&tmp, buf + pos + 1, 3);
+    tmp = le_to_cpu(tmp);
+    pos += 4;
+    return (uint64_t)tmp;
+  }
+
+  memcpy(&tmp, buf + pos + 1, 4);
+  tmp = le_to_cpu(tmp);
+  pos += 9;
+  return (uint64_t)tmp;
+}
+
 MySQLHandShakeResponsePacket::MySQLHandShakeResponsePacket(
     const std::string& username, const std::string& database, const std::vector<char>& auth_response)
     : _username(username), _database(database), _auth_response(auth_response)
@@ -470,7 +673,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
   const int capacity = 200;
   char* buffer = (char*)malloc(capacity);
   if (nullptr == buffer) {
-    OMS_ERROR << "Failed to alloc memory size: " << capacity;
+    OMS_STREAM_ERROR << "Failed to alloc memory size: " << capacity;
     return OMS_FAILED;
   }
   FreeGuard<char*> fg(buffer);
@@ -506,7 +709,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
   // string[NUL]    username
   int ret = write_null_terminate_string(buffer + offset, capacity - offset, _username);
   if (ret < 0) {
-    OMS_ERROR << "Failed to encode user name";
+    OMS_STREAM_ERROR << "Failed to encode user name";
     return OMS_FAILED;
   }
   offset += ret;
@@ -518,7 +721,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
   if (capabilities_flag & CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA) {
     ret = write_lenenc_uint(buffer + offset, capacity - offset, _auth_response.size());
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode auth response length: " << _auth_response.size() << ", capacity last "
+      OMS_STREAM_ERROR << "Failed to encode auth response length: " << _auth_response.size() << ", capacity last "
                 << capacity - offset;
       return OMS_FAILED;
     }
@@ -526,7 +729,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
 
     ret = write_string(buffer + offset, capacity - offset, _auth_response.data(), _auth_response.size());
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode auth response data length: " << _auth_response.size() << ", capacity last %d"
+      OMS_STREAM_ERROR << "Failed to encode auth response data length: " << _auth_response.size() << ", capacity last %d"
                 << capacity - offset;
       return OMS_FAILED;
     }
@@ -539,7 +742,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
     buffer[offset] = (int8_t)_auth_response.size();
     ret = write_string(buffer + offset, capacity - offset, _auth_response.data(), _auth_response.size());
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode auth response data length: " << _auth_response.size() << ", capacity last "
+      OMS_STREAM_ERROR << "Failed to encode auth response data length: " << _auth_response.size() << ", capacity last "
                 << capacity - offset;
       return OMS_FAILED;
     }
@@ -548,7 +751,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
     //  then auth-response with null terminate string
     ret = write_null_terminate_string(buffer + offset, capacity - offset, _auth_response.data(), _auth_response.size());
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode auth response data length: " << _auth_response.size() + 1 << ", capacity last "
+      OMS_STREAM_ERROR << "Failed to encode auth response data length: " << _auth_response.size() + 1 << ", capacity last "
                 << capacity - offset;
       return OMS_FAILED;
     }
@@ -560,7 +763,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
   if (capabilities_flag & CLIENT_CONNECT_WITH_DB) {
     ret = write_null_terminate_string(buffer + offset, capacity - offset, _database);
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode database length: " << _database.size() + 1 << ", capacity last "
+      OMS_STREAM_ERROR << "Failed to encode database length: " << _database.size() + 1 << ", capacity last "
                 << capacity - offset;
       return OMS_FAILED;
     }
@@ -573,7 +776,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
     const std::string auth_plugin = "mysql_native_password";
     ret = write_null_terminate_string(buffer + offset, capacity - offset, auth_plugin);
     if (ret < 0) {
-      OMS_ERROR << "Failed to encode auth plugin: " << auth_plugin << ", capacity last " << capacity - offset;
+      OMS_STREAM_ERROR << "Failed to encode auth plugin: " << auth_plugin << ", capacity last " << capacity - offset;
       return OMS_FAILED;
     }
     offset += ret;
@@ -586,7 +789,7 @@ int MySQLHandShakeResponsePacket::encode(MsgBuf& msgbuf)
   // do nothing now
   // end
 
-  OMS_DEBUG << "Handshake response packet len: " << offset;
+  OMS_STREAM_DEBUG << "Handshake response packet len: " << offset;
 
   fg.release();
   msgbuf.push_back(buffer, offset);
@@ -612,6 +815,11 @@ int MySQLCol::decode(const MsgBuf& msgbuf)
   return OMS_OK;
 }
 
+int MySQLCol::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  return 0;
+}
+
 MySQLRow::MySQLRow(uint64_t col_count) : _col_count(col_count)
 {}
 
@@ -624,6 +832,11 @@ int logproxy::MySQLRow::decode(const MsgBuf& msgbuf)
     _fields.emplace_back(data);
   }
   return OMS_OK;
+}
+
+int MySQLRow::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  return 0;
 }
 
 MySQLQueryPacket::MySQLQueryPacket(const std::string& sql) : _sql(sql)
@@ -655,12 +868,18 @@ int MySQLQueryResponsePacket::decode(const MsgBuf& msgbuf)
     return OMS_FAILED;
   } else if (packet_ret == 0x00) {
     // OK Packet
+    _ok.decode(msgbuf);
     return OMS_OK;
   }
 
   reader.backward(1);
   reader.read_lenenc_uint(_col_count);
   return OMS_OK;
+}
+
+int MySQLQueryResponsePacket::serialize(MsgBuf& msg_buf, int64_t len)
+{
+  return 0;
 }
 
 void MySQLResultSet::reset()

@@ -11,10 +11,13 @@
  */
 
 #include "gtest/gtest.h"
-#include "common/common.h"
-#include "common/log.h"
-#include "common/config.h"
+#include "common.h"
+#include "log.h"
 #include "common/jsonutil.hpp"
+#include "binlog/common_util.h"
+#include "common/shell_executor.h"
+#include "metric/sys_metric.h"
+#include "str.h"
 
 using namespace oceanbase::logproxy;
 
@@ -81,4 +84,90 @@ TEST(COMMON, json)
     ASSERT_TRUE(node[0]["a"].asString() == "b");
     ASSERT_TRUE(node[0]["c"].asInt() == 111);
   }
+}
+
+TEST(COMMON, to_json)
+{
+  oceanbase::logproxy::MemoryStatus memory_status;
+  memory_status.mem_used_ratio = 2;
+  OMS_STREAM_INFO << to_json(memory_status);
+
+  oceanbase::logproxy::ProcessMetric process_metric;
+  process_metric.memory_status.mem_used_size_mb = 2;
+  //  memory.append(to_json(process_metric.memory_status).asString());
+  OMS_STREAM_INFO << process_metric.serialize();
+}
+
+TEST(COMMON, release_vector)
+{
+  std::vector<int*> vector_ptr;
+
+  int* val_1 = new int();
+  vector_ptr.emplace_back(val_1);
+
+  release_vector(vector_ptr);
+}
+TEST(COMMON, hex_to_bin)
+{
+  auto* ret = static_cast<unsigned char*>(malloc(6));
+  oceanbase::binlog::CommonUtils::hex_to_bin("00163e1c5764", ret);
+
+  for (int i = 0; i < 6; ++i) {
+    printf("\\%02hhx", ret[i]);
+  }
+}
+TEST(COMMON, execmd)
+{
+  std::string cmd = "echo 'aaa\nbbb\n'";
+
+  std::vector<std::string> lines;
+  int ret = exec_cmd(cmd, lines);
+  OMS_STREAM_INFO << "cmd: " << cmd << ", returns:";
+  for (auto& line : lines) {
+    OMS_STREAM_INFO << line;
+  }
+  ASSERT_TRUE(ret == 0);
+  ASSERT_TRUE(lines.size() == 2);
+  ASSERT_STREQ("aaa", lines[0].c_str());
+  ASSERT_STREQ("bbb", lines[1].c_str());
+
+  ret = exec_cmd(cmd, lines, false);
+  OMS_STREAM_INFO << "cmd: " << cmd << ", returns:";
+  for (auto& line : lines) {
+    OMS_STREAM_INFO << line;
+  }
+  ASSERT_TRUE(ret == 0);
+  ASSERT_TRUE(lines.size() == 3);
+  ASSERT_STREQ("aaa\n", lines[0].c_str());
+  ASSERT_STREQ("bbb\n", lines[1].c_str());
+  ASSERT_STREQ("\n", lines[2].c_str());
+}
+
+TEST(COMMON, spdlog)
+{
+  OMS_INFO("Start test:{}", "info");
+  OMS_DEBUG("Start test:{}", "debug");
+  OMS_WARN("Start test:{}", "warn");
+  OMS_ERROR("Start test:{}", "error");
+  OMS_FATAL("Start test:{}", "fatal");
+
+  OMS_STREAM_INFO << "Start test:"
+                  << "compatibility"
+                  << "1"
+                  << "2";
+  OMS_STREAM_DEBUG << "Start test:"
+                   << "compatibility";
+  OMS_STREAM_ERROR << "Start test:"
+                   << "compatibility";
+  OMS_STREAM_WARN << "Start test:"
+                  << "compatibility";
+}
+
+TEST(COMMON, any_string_equal)
+{
+  std::string str = "World";
+  ASSERT_TRUE(ANY_STRING_EQUAL(str.c_str(), "Hello", "World", "Goodbye"));
+
+  std::string str1 = "World1";
+  ASSERT_FALSE(ANY_STRING_EQUAL(str1.c_str(), "Hello", "World", "Goodbye"));
 }

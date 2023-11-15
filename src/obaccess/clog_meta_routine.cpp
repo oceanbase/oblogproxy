@@ -1,21 +1,22 @@
-// Copyright (c) 2021 OceanBase
-// OceanBase Migration Service LogProxy is licensed under Mulan PubL v2.
-// You can use this software according to the terms and conditions of the Mulan PubL v2.
-// You may obtain a copy of Mulan PubL v2 at:
-//           http://license.coscl.org.cn/MulanPubL-2.0
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-// EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-// MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-// See the Mulan PubL v2 for more details.
+/**
+ * Copyright (c) 2021 OceanBase
+ * OceanBase Migration Service LogProxy is licensed under Mulan PubL v2.
+ * You can use this software according to the terms and conditions of the Mulan PubL v2.
+ * You may obtain a copy of Mulan PubL v2 at:
+ *          http://license.coscl.org.cn/MulanPubL-2.0
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PubL v2 for more details.
+ */
 
 #include "obaccess/clog_meta_routine.h"
-#include "common/config.h"
-#include "common/log.h"
-#include "common/timer.h"
+#include "config.h"
+#include "log.h"
+#include "timer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 #define FETCH_CLOG_MIN_TS_SQL \
   "SELECT svr_min_log_timestamp FROM oceanbase.__all_virtual_server_clog_stat WHERE zone_status='ACTIVE';"
 
@@ -28,6 +29,12 @@ void ClogMetaRoutine::stop()
 
 int ClogMetaRoutine::init(const OblogConfig& config)
 {
+  if (!Config::instance().check_clog_enable.val()) {
+    OMS_STREAM_WARN << "check clog is in the disable state, so exit the clog timing verification program";
+    _available = false;
+    return OMS_OK;
+  }
+  _oblog_config = config;
   int ret = _ob_access.init(config, config.password_sha1, config.sys_password_sha1);
   if (ret != OMS_OK) {
     return ret;
@@ -42,7 +49,7 @@ int ClogMetaRoutine::init(const OblogConfig& config)
   MySQLResultSet rs;
   ret = _sys_auther.query(FETCH_CLOG_MIN_TS_SQL, rs);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to check the existence of svr_min_log_timestamp column in __all_virtual_server_clog_stat, "
+    OMS_STREAM_ERROR << "Failed to check the existence of svr_min_log_timestamp column in __all_virtual_server_clog_stat, "
                  "disable clog check";
     _available = false;
   }
@@ -57,14 +64,23 @@ void ClogMetaRoutine::run()
     uint64_t min_clog_timestamp_us = 0;
     int ret = fetch_once(min_clog_timestamp_us);
     if (ret == OMS_CONNECT_FAILED) {
+      // When a connection error occurs, it means that there is already a problem with the connection and needs to be
+      // re-established, so the previous connection needs to be closed here
+      _sys_auther.close();
+      // Re-request the config server to obtain the corresponding available observer address
+      this->init(_oblog_config);
       // try to fetch new connection
       ret = _ob_access.fetch_connection(_sys_auther);
-      OMS_WARN << "Try to fetch new connection:" << ret;
+      OMS_STREAM_WARN << "Try to fetch new connection:" << ret;
+      if (ret != OMS_OK) {
+        _sys_auther.close();
+      }
+      timer.sleep(Config::instance().ob_clog_fetch_interval_s.val() * 1000000);
       continue;
     }
     if (min_clog_timestamp_us != 0) {
       _min_clog_timestamp_us = min_clog_timestamp_us;
-      OMS_INFO << "min clog timestamp in us: " << _min_clog_timestamp_us;
+      OMS_STREAM_INFO << "min clog timestamp in us: " << _min_clog_timestamp_us;
     }
     timer.sleep(Config::instance().ob_clog_fetch_interval_s.val() * 1000000);
   }
@@ -79,7 +95,7 @@ int ClogMetaRoutine::fetch_once(uint64_t& min_clog_timestamp_us)
   MySQLResultSet rs;
   int ret = _sys_auther.query(FETCH_CLOG_MIN_TS_SQL, rs);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to fetch clog timestamps, code: " << rs.code << ", error: " << rs.message;
+    OMS_STREAM_ERROR << "Failed to fetch clog timestamps, code: " << rs.code << ", error: " << rs.message;
     return ret;
   }
 

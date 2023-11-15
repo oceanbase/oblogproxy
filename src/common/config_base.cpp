@@ -23,6 +23,20 @@ void ConfigBase::add_item(const std::string& key, ConfigItemBase* item)
   _configs.emplace(key, item);
 }
 
+void ConfigBase::deserialize_items(const rapidjson::Value& json)
+{
+  for (auto iter = json.MemberBegin(); iter != json.MemberEnd(); ++iter) {
+    const std::string key = (iter->name).GetString();
+    const auto& entry = _configs.find(key);
+    if (_configs.count(key) != 0) {
+      rapidjson::Value value;
+      rapidjson::Document::AllocatorType allocator;
+      value.CopyFrom(iter->value, allocator);
+      entry->second->from_json(value);
+    }
+  }
+}
+
 void EncryptedConfigItem::from_str(const std::string& val)
 {
   if (val.empty()) {
@@ -45,7 +59,7 @@ void EncryptedConfigItem::from_str(const std::string& val)
                 ? aes.decrypt(bin_val.data(), bin_val.size(), &decrypted, decrypted_len)
                 : aes.decrypt(encrypt_key, bin_val.data(), bin_val.size(), &decrypted, decrypted_len);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to decrypt: " << val;
+    OMS_ERROR("Failed to decrypt: {}", val);
     exit(-1);
   }
 

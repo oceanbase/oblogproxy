@@ -20,13 +20,12 @@
 #include <functional>
 
 #include "codec/message.h"
-#include "communication/channel_factory.h"
+#include "channel_factory.h"
 #include "codec/encoder.h"
 #include "codec/decoder.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 enum class EventResult {
   ER_SUCCESS = 0,
   ER_CLOSE_CHANNEL  /// will close the connection
@@ -69,22 +68,22 @@ public:
     return _channel_factory.size();
   }
 
-  inline void set_routine_callback(const function<void()>& routine_callback)
+  inline void set_routine_callback(const std::function<void()>& routine_callback)
   {
     _routine_callback = routine_callback;
   }
 
-  inline void set_read_callback(const function<EventResult(const Peer&, const Message&)>& read_callback)
+  inline void set_read_callback(const std::function<EventResult(const Peer&, const Message&)>& read_callback)
   {
     _read_callback = read_callback;
   }
 
-  inline void set_write_callback(const function<EventResult(const Peer&, const Message&)>& write_callback)
+  inline void set_write_callback(const std::function<EventResult(const Peer&, const Message&)>& write_callback)
   {
     _write_callback = write_callback;
   }
 
-  void set_close_callback(const function<void(const Peer&)>& close_callback)
+  void set_close_callback(const std::function<void(const Peer&)>& close_callback)
   {
     _close_callback = close_callback;
   }

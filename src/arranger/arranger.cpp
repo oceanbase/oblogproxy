@@ -12,33 +12,33 @@
 
 #include <sys/wait.h>
 #include <arpa/inet.h>
-#include <signal.h>
-#include <math.h>
-#include <memory>
-#include "common/log.h"
-#include "arranger/source_invoke.h"
-#include "arranger/arranger.h"
+#include <csignal>
+#include <cmath>
+#include "log.h"
+#include "file_gc.h"
+#include "source_invoke.h"
+#include "arranger.h"
+#include "communication/channel_factory.h"
+#include "codec/message.h"
 #include "obaccess/ob_access.h"
-#include "obaccess/clog_meta_routine.h"
 #include "metric/status_thread.h"
 #include "metric/sys_metric.h"
+#include "obaccess/clog_meta_routine.h"
 
 namespace oceanbase {
 namespace logproxy {
-
-SysMetric g_metric;
 static Config& _s_conf = Config::instance();
 
 int Arranger::init()
 {
   if (!localhostip(_localhost, _localip) || _localhost.empty() || _localip.empty()) {
-    OMS_ERROR << "Failed to fetch localhost name or localip";
+    OMS_STREAM_ERROR << "Failed to fetch localhost name or localip";
     return OMS_FAILED;
   }
 
   int ret = ChannelFactory::instance().init(_s_conf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to init channel factory";
+    OMS_STREAM_ERROR << "Failed to init channel factory";
     return OMS_FAILED;
   }
 
@@ -54,7 +54,11 @@ int Arranger::init()
 
 int Arranger::run_foreground()
 {
-  StatusThread status_thread(g_metric);
+  int ret = _accepter.listen(_s_conf.service_port.val());
+  if (ret != OMS_OK) {
+    return ret;
+  }
+  StatusThread status_thread(logproxy::g_metric, logproxy::g_proc_metric);
   status_thread.register_gauge("NREADER", [this] { return _client_peers.size(); });
   status_thread.register_gauge("NCHANNEL", [this] { return _accepter.channel_count(); });
   if (_s_conf.metric_enable.val()) {
@@ -62,23 +66,25 @@ int Arranger::run_foreground()
     status_thread.detach();
   }
 
-  int ret = _accepter.listen(_s_conf.service_port.val());
-  if (ret != OMS_OK) {
-    return ret;
-  }
+  std::set<std::string> prefixs{
+      "logproxy.2", "liboblog.log.2", "binlog_converter.2", "trace_record_read.2", "logproxy_", "binlog.converter"};
+  FileGcRoutine log_gc("log", prefixs);
+  log_gc.start();
+  log_gc.detach();
+
   return _accepter.start();
 }
 
 EventResult Arranger::on_handshake(const Peer& peer, const Message& msg)
 {
-  OMS_INFO << "Arranger on_msg fired: " << peer.to_string();
+  OMS_STREAM_INFO << "Arranger on_msg fired: " << peer.to_string();
   if (msg.type() != MessageType::HANDSHAKE_REQUEST_CLIENT) {
-    OMS_WARN << "Unknown message type: " << (int)msg.type();
+    OMS_STREAM_WARN << "Unknown message type: " << (int)msg.type();
     return EventResult::ER_CLOSE_CHANNEL;
   }
 
   auto& handshake = (ClientHandshakeRequestMessage&)msg;
-  OMS_INFO << "Handshake request from peer: " << peer.to_string() << ", msg: " << handshake.to_string();
+  OMS_STREAM_INFO << "Handshake request from peer: " << peer.to_string() << ", msg: " << handshake.to_string();
 
   ClientMeta client = ClientMeta::from_handshake(peer, handshake);
   client.packet_version = msg.version();
@@ -90,7 +96,7 @@ EventResult Arranger::on_handshake(const Peer& peer, const Message& msg)
     return EventResult::ER_CLOSE_CHANNEL;
   }
 
-  OMS_INFO << "ObConfig from peer: " << peer.to_string() << " after resolve: " << oblog_config.debug_str();
+  OMS_STREAM_INFO << "ObConfig from peer: " << peer.to_string() << " after resolve: " << oblog_config.debug_str();
 
   if (auth(oblog_config, errmsg) != OMS_OK) {
     response_error(peer, msg.version(), ErrorCode::NO_AUTH, errmsg);
@@ -109,13 +115,7 @@ EventResult Arranger::on_handshake(const Peer& peer, const Message& msg)
     return EventResult::ER_CLOSE_CHANNEL;
   }
 
-  ClogMetaRoutine clog_meta;
-  if (clog_meta.init(oblog_config) != OMS_OK) {
-    response_error(peer, msg.version(), ErrorCode::NO_AUTH, "Failed to init clog check");
-    return EventResult::ER_CLOSE_CHANNEL;
-  }
-  if (!clog_meta.check(oblog_config, errmsg)) {
-    OMS_ERROR << errmsg;
+  if (check_clog(oblog_config, errmsg) != OMS_OK) {
     response_error(peer, msg.version(), ErrorCode::NO_AUTH, errmsg);
     return EventResult::ER_CLOSE_CHANNEL;
   }
@@ -124,7 +124,7 @@ EventResult Arranger::on_handshake(const Peer& peer, const Message& msg)
   resp.set_version(msg.version());
   int ret = _accepter.send_message(peer, resp, true);
   if (ret != OMS_OK) {
-    OMS_WARN << "Failed to send handshake response message. peer: " << peer.to_string();
+    OMS_STREAM_WARN << "Failed to send handshake response message. peer: " << peer.to_string();
     return EventResult::ER_CLOSE_CHANNEL;
   }
 
@@ -139,15 +139,7 @@ EventResult Arranger::on_handshake(const Peer& peer, const Message& msg)
 
 int Arranger::resolve(OblogConfig& hs_config, std::string& errmsg)
 {
-
-  hex2bin(hs_config.password.val().c_str(), hs_config.password.val().size(), hs_config.password_sha1);
-  if (!hs_config.sys_password.empty()) {
-    hs_config.password.set(hs_config.sys_password.val());
-    MysqlProtocol::do_sha_password(hs_config.sys_password.val(), hs_config.sys_password_sha1);
-  } else {
-    hs_config.password.set(Config::instance().ob_sys_password.val());
-    MysqlProtocol::do_sha_password(Config::instance().ob_sys_password.val(), hs_config.sys_password_sha1);
-  }
+  config_password(hs_config, false);
 
   if (!hs_config.root_servers.empty()) {
     // do nothing
@@ -156,7 +148,7 @@ int Arranger::resolve(OblogConfig& hs_config, std::string& errmsg)
     if (hs_config.cluster_url.empty()) {
       if (hs_config.cluster_id.empty()) {
         errmsg = "Refuse connection caused by no cluster id or cluster url";
-        OMS_ERROR << errmsg;
+        OMS_STREAM_ERROR << errmsg;
         return OMS_FAILED;
       }
       hs_config.cluster_url.set(Config::instance().builtin_cluster_url_prefix.val() + hs_config.cluster_id.val());
@@ -164,7 +156,7 @@ int Arranger::resolve(OblogConfig& hs_config, std::string& errmsg)
     }
   } else if (hs_config.cluster_url.empty()) {
     errmsg = "Refuse connection caused by no cluster url";
-    OMS_ERROR << errmsg;
+    OMS_STREAM_ERROR << errmsg;
     return OMS_FAILED;
   }
 
@@ -197,53 +189,53 @@ int Arranger::check_quota()
   }
 
   if (_client_peers.size() >= _s_conf.oblogreader_max_count.val()) {
-    OMS_ERROR << "Exceed max oblogreader count, current: " << _client_peers.size();
+    OMS_STREAM_ERROR << "Exceed max oblogreader count, current: " << _client_peers.size();
     return OMS_FAILED;
   }
 
   int max_cpu_ratio = _s_conf.max_cpu_ratio.val();
   int current_cpu_ratio = ::floor(g_metric.cpu_status.cpu_used_ratio);
   if (max_cpu_ratio != 0 && current_cpu_ratio >= max_cpu_ratio) {
-    OMS_ERROR << "Exceed max cpu ratio: " << max_cpu_ratio << ", current: " << current_cpu_ratio;
+    OMS_STREAM_ERROR << "Exceed max cpu ratio: " << max_cpu_ratio << ", current: " << current_cpu_ratio;
     return OMS_FAILED;
   }
 
   uint64_t max_mem_quota_mb = _s_conf.max_mem_quota_mb.val();
   uint64_t current_mem_mb = g_metric.memory_status.mem_used_size_mb;
   if (max_mem_quota_mb != 0 && current_mem_mb >= max_mem_quota_mb) {
-    OMS_ERROR << "Exceed max mem quota in MB: " << max_mem_quota_mb << ", current: " << current_mem_mb;
+    OMS_STREAM_ERROR << "Exceed max mem quota in MB: " << max_mem_quota_mb << ", current: " << current_mem_mb;
     return OMS_FAILED;
   }
 
   return OMS_OK;
 }
 
-int Arranger::create(ClientMeta& client, const OblogConfig& oblog_config)
+int Arranger::create(ClientMeta& client, OblogConfig& oblog_config)
 {
-  OMS_INFO << "Client connecting: " << client.to_string();
+  OMS_STREAM_INFO << "Client connecting: " << client.to_string();
 
   const std::string& client_id = client.id;
   const auto& fd_entry = _client_peers.find(client_id);
   if (fd_entry != _client_peers.end()) {
-    OMS_WARN << "Duplication exist clientId: " << client_id << ", close last one: " << fd_entry->second.peer.id()
-             << " with pid: " << fd_entry->second.pid;
+    OMS_STREAM_WARN << "Duplication exist clientId: " << client_id << ", close last one: " << fd_entry->second.peer.id()
+                    << " with pid: " << fd_entry->second.pid;
     return OMS_FAILED;
     //    close_client_force(fd_entry->second, "Duplication exist client_id");
   }
 
   int ret = SourceInvoke::invoke(_accepter, client, oblog_config);
   if (ret <= 0) {
-    OMS_ERROR << "Failed to start source of client:" << client.to_string();
+    OMS_STREAM_ERROR << "Failed to start source of client:" << client.to_string();
     return OMS_FAILED;
   }
 
   _accepter.del(client.peer);  // remove fd event for parent;
-  OMS_INFO << "Remove peer: " << client.peer.to_string()
-           << " after source invoked, current channel count:" << _accepter.channel_count();
+  OMS_STREAM_INFO << "Remove peer: " << client.peer.to_string()
+                  << " after source invoked, current channel count:" << _accepter.channel_count();
 
   client.pid = ret;
   _client_peers.emplace(client_id, client);
-  OMS_INFO << "Client connected: " << client_id << " with peer: " << client.peer.to_string();
+  OMS_STREAM_INFO << "Client connected: " << client_id << " with peer: " << client.peer.to_string();
   return OMS_OK;
 }
 
@@ -253,7 +245,8 @@ void Arranger::response_error(const Peer& peer, MessageVersion version, ErrorCod
   error.set_version(version);
   int ret = _accepter.send_message(peer, error, true);
   if (ret != OMS_OK) {
-    OMS_WARN << "Failed to send error response message to peer:" << peer.to_string() << " for message:" << errmsg;
+    OMS_STREAM_WARN << "Failed to send error response message to peer:" << peer.to_string()
+                    << " for message:" << errmsg;
   }
 }
 
@@ -261,15 +254,12 @@ void Arranger::on_close(const Peer& peer)
 {
   for (auto iter = _client_peers.begin(); iter != _client_peers.end(); ++iter) {
     if (iter->second.peer.id() == peer.id()) {
-      OMS_WARN << "On close peer fd: " << peer.fd << " with client: " << iter->second.id;
+      OMS_STREAM_WARN << "On close peer fd: " << peer.fd << " with client: " << iter->second.id;
 
-      // As fd was sent to child process and close immediately,
-      // we do del again here for checking if fd was leaked caused by potential bugs
-      _accepter.del(iter->second.peer);
       int fd = iter->second.peer.fd;
-      OMS_WARN << "Try to shutdown fd: " << fd;
+      OMS_STREAM_WARN << "Try to shutdown fd: " << fd;
       shutdown(fd, SHUT_RDWR);
-      OMS_WARN << "Shutdown fd: " << fd;
+      OMS_STREAM_WARN << "Shutdown fd: " << fd;
 
       _client_peers.erase(iter);
       break;
@@ -284,9 +274,9 @@ int Arranger::close_client_force(const ClientMeta& client, const std::string& ms
   _accepter.trigger_del(client.peer, err);
 
   int fd = client.peer.fd;
-  OMS_WARN << "Try to shutdown fd: " << fd;
+  OMS_STREAM_WARN << "Try to shutdown fd: " << fd;
   shutdown(fd, SHUT_RDWR);
-  OMS_WARN << "Shutdown fd: " << fd;
+  OMS_STREAM_WARN << "Shutdown fd: " << fd;
 
   auto entry = _client_peers.find(client.id);
   if (entry != _client_peers.end()) {
@@ -324,8 +314,8 @@ void Arranger::gc_pid_routine()
 
 void Arranger::close_by_pid(int pid, const ClientMeta& client)
 {
-  OMS_WARN << "Exited oblogreader of pid: " << pid << " with clientId: " << client.id
-           << " of peer:" << client.peer.to_string();
+  OMS_STREAM_WARN << "Exited oblogreader of pid: " << pid << " with clientId: " << client.id
+                  << " of peer:" << client.peer.to_string();
 
   int fd = client.peer.fd;
   struct sockaddr_in peer_addr;
@@ -333,22 +323,43 @@ void Arranger::close_by_pid(int pid, const ClientMeta& client)
   int ret = getpeername(fd, (struct sockaddr*)&peer_addr, &len);
   if (ret == 0 && peer_addr.sin_addr.s_addr != 0) {
     Peer p(peer_addr.sin_addr.s_addr, ntohs(peer_addr.sin_port), fd);
-    OMS_INFO << "fetched peer: " << p.to_string();
+    OMS_STREAM_INFO << "fetched peer: " << p.to_string();
     if (p.id() != client.peer.id()) {
       // fd number was assigned to another(new connected) client session
       return;
     }
   } else {
-    OMS_WARN << "Failed to fetch peer info of fd:" << fd << ", errno:" << errno << ", error:" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to fetch peer info of fd:" << fd << ", errno:" << errno << ", error:" << strerror(errno);
   }
 
   // As fd was sent to child process and close immediately,
   // we do del again here for checking if fd was leaked caused by potential bugs
   _accepter.del(client.peer);
 
-  OMS_WARN << "Try to shutdown fd: " << fd;
+  OMS_STREAM_WARN << "Try to shutdown fd: " << fd;
   shutdown(fd, SHUT_RDWR);
-  OMS_WARN << "Shutdown fd: " << fd;
+  OMS_STREAM_WARN << "Shutdown fd: " << fd;
+}
+
+int Arranger::check_clog(const OblogConfig& oblog_config, std::string& errmsg)
+{
+
+  if (!_s_conf.check_clog_enable.val()) {
+    return OMS_OK;
+  }
+
+  ClogMetaRoutine clog_meta;
+  if (clog_meta.init(oblog_config) != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to initialize the Clog site checker";
+    return OMS_FAILED;
+  }
+
+  if (!clog_meta.check(oblog_config, errmsg)) {
+    OMS_STREAM_ERROR << errmsg;
+    return OMS_FAILED;
+  }
+
+  return OMS_OK;
 }
 
 }  // namespace logproxy

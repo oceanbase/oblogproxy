@@ -16,7 +16,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 void Counter::stop()
 {
   Thread::stop();
@@ -26,7 +25,7 @@ void Counter::stop()
 
 void Counter::run()
 {
-  OMS_INFO << "#### Counter thread running, tid: " << tid();
+  OMS_STREAM_INFO << "#### Counter thread running, tid: " << tid();
 
   std::stringstream ss;
   while (is_run()) {
@@ -47,9 +46,8 @@ void Counter::run()
     uint64_t rios = interval_s == 0 ? rio : (rio / interval_s);
     uint64_t wios = interval_s == 0 ? wio : (wio / interval_s);
     uint64_t xwios = interval_s == 0 ? xwio : (xwio / interval_s);
-    int nowtm = time(nullptr);
-    int delay = nowtm - _timestamp;
-    int chk_delay = nowtm - _checkpoint;
+    int delay = _count_timestamp_us - _timestamp_us;
+    int chk_delay = _count_timestamp_us - _checkpoint_us;
 
     // TODO... bytes rate
 
@@ -65,7 +63,7 @@ void Counter::run()
     for (auto& entry : _gauges) {
       ss << "[" << entry.first << ":" << entry.second() << "]";
     }
-    OMS_INFO << ss.str();
+    OMS_STREAM_INFO << ss.str();
 
     // sub count that logged
     _read_count.fetch_sub(rcount);
@@ -75,7 +73,7 @@ void Counter::run()
     _xwrite_io.fetch_sub(xwio);
   }
 
-  OMS_INFO << "#### Counter thread stop, tid: " << tid();
+  OMS_STREAM_INFO << "#### Counter thread stop, tid: " << tid();
 }
 
 void Counter::register_gauge(const std::string& key, const std::function<int64_t()>& func)
@@ -83,27 +81,27 @@ void Counter::register_gauge(const std::string& key, const std::function<int64_t
   _gauges.emplace(key, func);
 }
 
-void Counter::count_read(int count)
+void Counter::count_read(uint64_t count)
 {
   _read_count.fetch_add(count);
 }
 
-void Counter::count_write(int count)
+void Counter::count_write(uint64_t count)
 {
   _write_count.fetch_add(count);
 }
 
-void Counter::count_read_io(int bytes)
+void Counter::count_read_io(uint64_t bytes)
 {
   _read_io.fetch_add(bytes);
 }
 
-void Counter::count_write_io(int bytes)
+void Counter::count_write_io(uint64_t bytes)
 {
   _write_io.fetch_add(bytes);
 }
 
-void Counter::count_xwrite_io(int bytes)
+void Counter::count_xwrite_io(uint64_t bytes)
 {
   _xwrite_io.fetch_add(bytes);
 }
@@ -113,14 +111,15 @@ void Counter::count_key(Counter::CountKey key, uint64_t count)
   _counts[key].count.fetch_add(count);
 }
 
-void Counter::mark_timestamp(int timestamp)
+void Counter::mark_timestamp(uint64_t timestamp_us)
 {
-  _timestamp = timestamp;
+  _count_timestamp_us = Timer::now();
+  _timestamp_us = timestamp_us;
 }
 
-void Counter::mark_checkpoint(uint64_t checkpoint)
+void Counter::mark_checkpoint(uint64_t checkpoint_us)
 {
-  _checkpoint = checkpoint;
+  _checkpoint_us = checkpoint_us;
 }
 
 void Counter::sleep()
@@ -128,6 +127,54 @@ void Counter::sleep()
   // condition variable as SLEEP which could be gracefully interrupted
   std::unique_lock<std::mutex> lk(_sleep_cv_lk);
   _sleep_cv.wait_for(lk, std::chrono::seconds(_sleep_interval_s));
+}
+
+void CounterStatistics::stop()
+{
+  Thread::stop();
+  _sleep_cv.notify_all();
+  join();
+}
+
+void CounterStatistics::run()
+{
+  OMS_INFO("#### Counter thread running, tid: {}", tid());
+
+  std::stringstream ss;
+  while (is_run()) {
+    _timer.reset();
+    this->sleep();
+    int64_t interval_ms = _timer.elapsed() / 1000;
+
+    ss.str("");
+    ss << "Counter:[Span:" << interval_ms << "ms]";
+
+    for (auto& entry : _gauges) {
+      if (entry.second != nullptr) {
+        ss << "[" << entry.first << ":" << entry.second() << "]";
+      }
+    }
+    OMS_INFO(ss.str());
+  }
+
+  OMS_INFO("#### Counter thread stop, tid: {}", tid());
+}
+
+void CounterStatistics::register_gauge(const std::string& key, const std::function<uint64_t()>& func)
+{
+  _gauges.emplace(key, func);
+}
+
+void CounterStatistics::sleep()
+{
+  // condition variable as SLEEP which could be gracefully interrupted
+  std::unique_lock<std::mutex> lk(_sleep_cv_lk);
+  _sleep_cv.wait_for(lk, std::chrono::seconds(_sleep_interval_s));
+}
+
+void CounterStatistics::unregister_gauge(std::string const& key)
+{
+  _gauges.erase(key);
 }
 
 }  // namespace logproxy

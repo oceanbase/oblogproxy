@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
-#include "obaccess/oblog_config.h"
-#include "obaccess/mysql_protocol.h"
+#include "oblog_config.h"
+#include "mysql_protocol.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -37,6 +37,8 @@ public:
   int fetch_connection(MysqlProtocol& mysql_protocol);
 
   int auth();
+
+  int query_ob_version(const OblogConfig&, std::string&);
 
 private:
   int auth_sys(const ServerInfo&);

@@ -13,13 +13,11 @@
 #pragma once
 
 #include <string>
-#include "arranger/client_meta.h"
+#include "client_meta.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 struct SourceMeta {
-
 public:
   const LogType type;
   const int pid;

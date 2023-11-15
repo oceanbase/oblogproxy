@@ -11,15 +11,14 @@
  */
 
 #include "lz4.h"
-#include "MsgHeader.h"
+#include "msg_header.h"
 
-#include "common/config.h"
-#include "common/guard.hpp"
-#include "codec/encoder.h"
+#include "config.h"
+#include "guard.hpp"
+#include "encoder.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static Config& _s_config = Config::instance();
 
 static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& raw_len)
@@ -35,12 +34,12 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& r
     // got independ address
     const char* logmsg_buf = record->getFormatedString(&size);
     if (logmsg_buf == nullptr) {
-      OMS_ERROR << "Failed to serialize logmsg";
+      OMS_STREAM_ERROR << "Failed to serialize logmsg";
       return OMS_FAILED;
     }
     if (_s_config.verbose_packet.val()) {
       //      const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
-      //      OMS_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
+      //      OMS_STREAM_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
       //                << ", size: " << header->m_size;
     }
     ptrs.emplace_back(logmsg_buf, size);
@@ -50,7 +49,7 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& r
   char* raw = (char*)malloc(total_size);
   FreeGuard<char*> fg_raw(raw);
   if (raw == nullptr) {
-    OMS_ERROR << "Failed to allocate raw buffer to compress, size:" << total_size;
+    OMS_STREAM_ERROR << "Failed to allocate raw buffer to compress, size:" << total_size;
     return OMS_FAILED;
   }
 
@@ -58,7 +57,7 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& r
   char* compressed = (char*)malloc(bound_size);
   FreeGuard<char*> fg(compressed);
   if (compressed == nullptr) {
-    OMS_ERROR << "Failed to allocate LZ4 bound buffer, size:" << bound_size;
+    OMS_STREAM_ERROR << "Failed to allocate LZ4 bound buffer, size:" << bound_size;
     return OMS_FAILED;
   }
 
@@ -76,11 +75,11 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& r
 
   int compressed_size = LZ4_compress_fast(raw, compressed, total_size, bound_size, 1);
   if (compressed_size <= 0) {
-    OMS_ERROR << "Failed to compress logmsg, raw size:" << total_size << ", bound size:" << bound_size;
+    OMS_STREAM_ERROR << "Failed to compress logmsg, raw size:" << total_size << ", bound size:" << bound_size;
     return OMS_FAILED;
   }
   if (_s_config.verbose.val()) {
-    OMS_DEBUG << "compress packet raw from size:" << total_size << " to compressed size:" << compressed_size;
+    OMS_STREAM_DEBUG << "compress packet raw from size:" << total_size << " to compressed size:" << compressed_size;
   }
 
   uint32_t packet_len_be = cpu_to_be((uint32_t)compressed_size + 9);
@@ -113,11 +112,11 @@ LegacyEncoder::LegacyEncoder()
     size_t len = 4 + 1 + msg.server_ip.size() + 1 + msg.server_version.size();
     char* buf = (char*)malloc(len);
     if (buf == nullptr) {
-      OMS_ERROR << "Failed to encode handshake request due to failed to alloc memory";
+      OMS_STREAM_ERROR << "Failed to encode handshake request due to failed to alloc memory";
       return OMS_FAILED;
     }
 
-    OMS_INFO << "Encode handshake response to send:" << msg.debug_string();
+    OMS_STREAM_INFO << "Encode handshake response to send:" << msg.debug_string();
 
     // Response code
     memset(buf, 0, 4);
@@ -166,12 +165,12 @@ LegacyEncoder::LegacyEncoder()
       // got independ address
       const char* logmsg_buf = record->getFormatedString(&size);
       if (logmsg_buf == nullptr) {
-        OMS_ERROR << "Failed to serialize log record";
+        OMS_STREAM_ERROR << "Failed to serialize log record";
         return OMS_FAILED;
       }
       if (_s_config.verbose_packet.val()) {
         const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
-        OMS_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
+        OMS_STREAM_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
                   << ", size: " << header->m_size;
       }
 
@@ -208,7 +207,7 @@ LegacyEncoder::LegacyEncoder()
     size_t len = 4 + 4 + msg.message.size();
     char* buf = (char*)malloc(len);
     if (buf == nullptr) {
-      OMS_ERROR << "Failed to encode error message due to failed to alloc memory";
+      OMS_STREAM_ERROR << "Failed to encode error message due to failed to alloc memory";
       return OMS_FAILED;
     }
 
@@ -234,7 +233,7 @@ int LegacyEncoder::encode(const Message& msg, MsgBuf& buffer, size_t& raw_len)
     return OMS_FAILED;
   }
 
-  // append header
+  // append _header
   size_t len = 2 + 4;
   char* buf = (char*)malloc(len);
 

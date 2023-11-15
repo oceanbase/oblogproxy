@@ -10,15 +10,16 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/common.h"
-#include "common/log.h"
-#include "common/str.h"
-#include "common/config.h"
-#include "common/jsonutil.hpp"
+#include "common.h"
+#include "log.h"
+#include "str.h"
+#include "config.h"
+#include "jsonutil.hpp"
 #include "communication/http.h"
-#include "obaccess/ob_sha1.h"
-#include "obaccess/ob_access.h"
-#include "obaccess/mysql_protocol.h"
+#include "ob_sha1.h"
+#include "ob_access.h"
+
+#define QUERY_OB_VERSION "show parameters like 'min_observer_version'"
 
 namespace oceanbase {
 namespace logproxy {
@@ -28,7 +29,7 @@ static int parse_cluster_url(const std::string& cluster_url, std::vector<ObAcces
   HttpResponse response;
   int ret = HttpClient::get(cluster_url, response);
   if (ret != OMS_OK || response.code != 200) {
-    OMS_ERROR << "Failed to request cluster url:" << cluster_url;
+    OMS_STREAM_ERROR << "Failed to request cluster url:" << cluster_url;
     return OMS_FAILED;
   }
   /*
@@ -50,35 +51,38 @@ static int parse_cluster_url(const std::string& cluster_url, std::vector<ObAcces
   std::string message;
   Json::Value rsinfo;
   if (!str2json(response.payload, rsinfo, &message) || !rsinfo.isObject()) {
-    OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", error:" << message;
+    OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload << ", error:" << message;
     return OMS_FAILED;
   }
   Json::Value node = rsinfo["Data"];
   if (!node.isObject()) {
-    OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"Data\"";
+    OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"Data\"";
     return OMS_FAILED;
   }
   node = node["RsList"];
   if (!node.isArray() || node.empty()) {
-    OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"RsList\"";
+    OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"RsList\"";
     return OMS_FAILED;
   }
   for (const Json::Value& rs : node) {
     if (!rs.isObject()) {
-      OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"RsList\" item";
+      OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload
+                       << ", Invalid or None \"RsList\" item";
       return OMS_FAILED;
     }
     ObAccess::ServerInfo server;
     Json::Value field = rs["address"];
     if (!field.isString() || field.empty()) {
-      OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"address\"";
+      OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload
+                       << ", Invalid or None \"address\"";
       return OMS_FAILED;
     }
     server.host = field.asString();
 
     field = rs["sql_port"];
     if (!field.isNumeric() || field.asUInt() == 0) {
-      OMS_ERROR << "Failed to parse cluster url response:" << response.payload << ", Invalid or None \"sql_port\"";
+      OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload
+                       << ", Invalid or None \"sql_port\"";
       return OMS_FAILED;
     }
     server.port = field.asUInt();
@@ -86,8 +90,8 @@ static int parse_cluster_url(const std::string& cluster_url, std::vector<ObAcces
     std::vector<std::string> ipports;
     split(server.host, ':', ipports);
     if (ipports.empty()) {
-      OMS_ERROR << "Failed to parse cluster url response:" << response.payload
-                << ", Invalid \"address\":" << server.host;
+      OMS_STREAM_ERROR << "Failed to parse cluster url response:" << response.payload
+                       << ", Invalid \"address\":" << server.host;
       return OMS_FAILED;
     }
     server.host = ipports.front();
@@ -109,18 +113,16 @@ int ObAccess::init(const OblogConfig& hs_config, const std::string& password_sha
       return OMS_FAILED;
     }
     _user_to_conn = ObUsername(_user).name_without_cluster();
-
   } else {
-
     const std::string& root_servers = hs_config.root_servers.val();
     if (root_servers.empty()) {
-      OMS_ERROR << "Failed to init ObAccess caused by empty root_servers";
+      OMS_STREAM_ERROR << "Failed to init ObAccess caused by empty root_servers";
       return OMS_FAILED;
     }
 
     int ret = split(root_servers, ';', sections);
     if (ret == 0) {
-      OMS_ERROR << "Failed to init ObAccess caused by invalid root_servers";
+      OMS_STREAM_ERROR << "Failed to init ObAccess caused by invalid root_servers";
       return OMS_FAILED;
     }
 
@@ -128,17 +130,17 @@ int ObAccess::init(const OblogConfig& hs_config, const std::string& password_sha
       std::vector<std::string> ipports;
       ret = split(sec, ':', ipports);
       if (ret != 3) {
-        OMS_ERROR << "Failed to init ObAccess caused by invalid root_servers:" << sec;
+        OMS_STREAM_ERROR << "Failed to init ObAccess caused by invalid root_servers:" << sec;
         return OMS_FAILED;
       }
 
       ServerInfo server = {ipports[0], atoi(ipports[2].c_str())};
       if (server.host.empty()) {
-        OMS_ERROR << "Failed to init ObAccess caused by empty root_server: " << sec;
+        OMS_STREAM_ERROR << "Failed to init ObAccess caused by empty root_server: " << sec;
         return OMS_FAILED;
       }
       if (server.port < 0 || server.port >= 65536) {
-        OMS_ERROR << "Failed to init ObAccess caused by invalid port:" << server.port;
+        OMS_STREAM_ERROR << "Failed to init ObAccess caused by invalid port:" << server.port;
         return OMS_FAILED;
       }
       _servers.emplace_back(server);
@@ -146,13 +148,15 @@ int ObAccess::init(const OblogConfig& hs_config, const std::string& password_sha
   }
 
   if (_user_to_conn.empty() || _password_sha1.empty()) {
-    OMS_ERROR << "Failed to init ObAccess caused by empty user or password";
+    OMS_ERROR("Failed to init ObAccess caused by empty user or password,user:{},pwd:{}", _user_to_conn, _password_sha1);
     return OMS_FAILED;
   }
 
   _sys_user = !hs_config.sys_user.empty() ? hs_config.sys_user.val() : Config::instance().ob_sys_username.val();
   if (_sys_user.empty() || _sys_password_sha1.empty()) {
-    OMS_ERROR << "Failed to init ObAccess caused by empty sys_user or sys_password";
+    OMS_ERROR("Failed to init ObAccess caused by empty sys_user or sys_password,sys_usr:{},sys_password:{}",
+        _sys_user,
+        _sys_password_sha1);
     return OMS_FAILED;
   }
 
@@ -178,7 +182,7 @@ int ObAccess::auth()
 
 int ObAccess::auth_sys(const ServerInfo& server)
 {
-  OMS_INFO << "About to auth sys: " << _user_to_conn << " for observer: " << server.host << ":" << server.port;
+  OMS_STREAM_INFO << "About to auth sys: " << _user_to_conn << " for observer: " << server.host << ":" << server.port;
 
   MysqlProtocol auther;
   // all tenant must be sys tenant;
@@ -190,14 +194,15 @@ int ObAccess::auth_sys(const ServerInfo& server)
   MySQLResultSet rs;
   ret = auther.query("show tenant", rs);
   if (ret != OMS_OK || rs.rows.empty()) {
-    OMS_ERROR << "Failed to auth, show tenant for sys all match mode, ret:" << ret;
+    OMS_STREAM_ERROR << "Failed to auth, show tenant for sys all match mode, ret:" << ret;
     return OMS_FAILED;
   }
 
   const MySQLRow& row = rs.rows.front();
   const std::string& tenant = row.fields().front();
   if (tenant.size() < 3 || strncasecmp("sys", tenant.c_str(), 3) != 0) {
-    OMS_ERROR << "Failed to auth, all tenant mode or sys tenant must be connected as sys tenant, current: " << tenant;
+    OMS_STREAM_ERROR << "Failed to auth, all tenant mode or sys tenant must be connected as sys tenant, current: "
+                     << tenant;
     return OMS_FAILED;
   }
   return OMS_OK;
@@ -205,7 +210,7 @@ int ObAccess::auth_sys(const ServerInfo& server)
 
 int ObAccess::auth_tenant(const ServerInfo& server)
 {
-  OMS_INFO << "About to auth user: " << _user << " for observer: " << server.host << ":" << server.port;
+  OMS_STREAM_INFO << "About to auth user: " << _user << " for observer: " << server.host << ":" << server.port;
 
   // 1. found tenant server using sys
   MysqlProtocol sys_auther;
@@ -219,7 +224,7 @@ int ObAccess::auth_tenant(const ServerInfo& server)
   // 2. for each of tenant servers, login it.
   MySQLResultSet rs;
   for (auto& tenant_entry : _table_whites.tenants) {
-    OMS_INFO << "About to auth tenant:" << tenant_entry.first << " of user:" << _user_to_conn;
+    OMS_STREAM_INFO << "About to auth tenant:" << tenant_entry.first << " of user:" << _user_to_conn;
 
     rs.reset();
     ret = sys_auther.query(
@@ -231,12 +236,12 @@ int ObAccess::auth_tenant(const ServerInfo& server)
             tenant_entry.first + "'",
         rs);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to auth, failed to query tenant server for:" << tenant_entry.first << ", ret:" << ret;
+      OMS_STREAM_ERROR << "Failed to auth, failed to query tenant server for:" << tenant_entry.first << ", ret:" << ret;
       return OMS_FAILED;
     }
     if (rs.rows.empty() || rs.col_count < 3) {
-      OMS_ERROR << "Failed to auth, unexpected result set, row count:" << rs.rows.size()
-                << ", col count:" << rs.col_count << ", ret:" << ret;
+      OMS_STREAM_ERROR << "Failed to auth, unexpected result set, row count:" << rs.rows.size()
+                       << ", col count:" << rs.col_count << ", ret:" << ret;
       return OMS_FAILED;
     }
     const MySQLRow& row = rs.rows.front();
@@ -246,7 +251,7 @@ int ObAccess::auth_tenant(const ServerInfo& server)
     MysqlProtocol user_auther;
     ret = user_auther.login(host, sql_port, ob_user.name_without_cluster(tenant_entry.first), _password_sha1);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to auth from tenant server: " << host << ":" << sql_port << ", ret:" << ret;
+      OMS_STREAM_ERROR << "Failed to auth from tenant server: " << host << ":" << sql_port << ", ret:" << ret;
       return ret;
     }
 
@@ -323,8 +328,8 @@ int ObAccess::auth_tables(
 
       connection.query(tb_priv_sql, rs);
       if (ret != OMS_OK || rs.rows.empty()) {
-        OMS_ERROR << "Failed to auth, fetch user_privileges failure or empty result, ret:" << rs.code
-                  << ", error: " << rs.message;
+        OMS_STREAM_ERROR << "Failed to auth, fetch user_privileges failure or empty result, ret:" << rs.code
+                         << ", error: " << rs.message;
         return OMS_FAILED;
       }
     }
@@ -339,6 +344,36 @@ int ObAccess::fetch_connection(MysqlProtocol& mysql_protocol)
     server_info = _servers.front();
   }
   return mysql_protocol.login(server_info.host, server_info.port, _sys_user, _sys_password_sha1);
+}
+
+int ObAccess::query_ob_version(const OblogConfig& config, std::string& ob_version)
+{
+  int ret = init(config, config.password_sha1, config.sys_password_sha1);
+  if (OMS_OK != ret) {
+    return ret;
+  }
+
+  MysqlProtocol sys_user;
+  ret = fetch_connection(sys_user);
+  if (OMS_OK != ret) {
+    return ret;
+  }
+
+  MySQLResultSet rs;
+  ret = sys_user.query(QUERY_OB_VERSION, rs);
+  if (OMS_OK != ret) {
+    OMS_ERROR("Failed to fetch OB version, code: {}, error: {}", rs.code, rs.message);
+    return ret;
+  }
+
+  ob_version = rs.rows.front().fields()[6];
+  if (ob_version.empty()) {
+    OMS_ERROR("Failed to parse OB version from MySQLResultSet.");
+    return OMS_FAILED;
+  }
+  OMS_INFO("OB version: {}", ob_version);
+
+  return OMS_OK;
 }
 
 ObUsername::ObUsername(const std::string& full_name)
@@ -359,18 +394,15 @@ ObUsername::ObUsername(const std::string& full_name)
     cluster = std::move(sections[2]);
     tenant = std::move(sections[1]);
     username = std::move(sections[0]);
-
   } else if (cluster_entry == std::string::npos && tenant_entry != std::string::npos) {
     // user@tenant
     tenant = std::move(sections[1]);
     username = std::move(sections[0]);
-
   } else if (sep_entry != std::string::npos && sections.size() == 3) {
     // cluster:tenant:user
     cluster = std::move(sections[0]);
     tenant = std::move(sections[1]);
     username = std::move(sections[2]);
-
   } else {
     // username
     username = full_name;

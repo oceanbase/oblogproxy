@@ -12,10 +12,9 @@
 
 #pragma once
 
-#include "common/thread.h"
-#include "common/timer.h"
-#include "common/blocking_queue.hpp"
-#include "oblogreader/oblog_access.h"
+#include "thread.h"
+#include "timer.h"
+#include "blocking_queue.hpp"
 
 namespace oceanbase {
 namespace logproxy {
@@ -24,9 +23,9 @@ class ObLogReader;
 
 class SenderRoutine : public Thread {
 public:
-  SenderRoutine(ObLogReader&, OblogAccess&, BlockingQueue<ILogRecord*>&);
+  SenderRoutine(ObLogReader& reader, BlockingQueue<ILogRecord*>& rqueue);
 
-  int init(MessageVersion packet_version, const Peer& peer);
+  int init(MessageVersion packet_version, const Peer& peer, IObCdcAccess* obcdc);
 
   void stop() override;
 
@@ -37,7 +36,7 @@ private:
 
 private:
   ObLogReader& _reader;
-  OblogAccess& _oblog;
+  IObCdcAccess* _obcdc;
 
   BlockingQueue<ILogRecord*>& _rqueue;
 

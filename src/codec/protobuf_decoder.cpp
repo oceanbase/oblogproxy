@@ -11,16 +11,16 @@
  */
 
 #include "google/protobuf/io/zero_copy_stream.h"
-#include "common/guard.hpp"
-#include "common/config.h"
+
+#include "guard.hpp"
+#include "config.h"
 #include "communication/channel.h"
-#include "codec/decoder.h"
+#include "decoder.h"
 
 #include "logproxy.pb.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static Config& _s_config = Config::instance();
 
 /*
@@ -35,7 +35,7 @@ PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message
 {
   char header_buf[MESSAGE_HEADER_SIZE_V2];
   if (ch.readn(header_buf, MESSAGE_HEADER_SIZE_V2) != OMS_OK) {
-    OMS_ERROR << "Failed to read message header, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message header, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
 
@@ -43,7 +43,7 @@ PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message
   int8_t type = -1;
   memcpy(&type, header_buf, 1);
   if (!is_type_available(type)) {
-    OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Invalid packet type:" << type << ", ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -54,7 +54,7 @@ PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message
 
   // TODO... suppose that no large message
   if (payload_size > Config::instance().max_packet_bytes.val()) {
-    OMS_ERROR << "Too large message size: " << payload_size
+    OMS_STREAM_ERROR << "Too large message size: " << payload_size
               << ", exceed max: " << Config::instance().max_packet_bytes.val();
     return PacketError::PROTOCOL_ERROR;
   }
@@ -62,12 +62,12 @@ PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message
   // FIXME.. use an mem pool
   char* payload_buf = (char*)malloc(payload_size);
   if (nullptr == payload_buf) {
-    OMS_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch.peer().id();
     return PacketError::OUT_OF_MEMORY;
   }
   FreeGuard<char*> payload_buf_guard(payload_buf);
   if (ch.readn(payload_buf, payload_size) != 0) {
-    OMS_ERROR << "Failed to read message. ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message. ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
 
@@ -80,7 +80,7 @@ PacketError ProtobufDecoder::decode(Channel& ch, MessageVersion version, Message
 
   int ret = decode_payload((MessageType)type, buffer, message);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to decode_payload message, ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Failed to decode_payload message, ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -105,7 +105,7 @@ int ProtobufDecoder::decode_payload(MessageType type, const MsgBuf& buffer, Mess
       return decode_data_client(reader, msg);
     }
     default: {
-      OMS_ERROR << "Unknown message type: " << (int)type;
+      OMS_STREAM_ERROR << "Unknown message type: " << (int)type;
     } break;
   }
   // should not go here
@@ -149,7 +149,7 @@ int ProtobufDecoder::decode_handshake_request(MsgBufReader& buffer_reader, Messa
   ClientHandshakeRequest pb_msg;
   bool result = pb_msg.ParseFromZeroCopyStream(&zero_copy_stream);
   if (!result) {
-    OMS_ERROR << "Failed to parse protobuf message from buffer";
+    OMS_STREAM_ERROR << "Failed to parse protobuf message from buffer";
     return OMS_FAILED;
   }
 
@@ -161,7 +161,7 @@ int ProtobufDecoder::decode_handshake_request(MsgBufReader& buffer_reader, Messa
       pb_msg.configuration().c_str());
 
   if (nullptr == msg) {
-    OMS_ERROR << "Failed to create client_hand_shake_request_message.";
+    OMS_STREAM_ERROR << "Failed to create client_hand_shake_request_message.";
     return OMS_FAILED;
   }
 
@@ -175,7 +175,7 @@ int ProtobufDecoder::decode_handshake_response(MsgBufReader& buffer_reader, Mess
   ClientHandshakeResponse pb_msg;
   bool result = pb_msg.ParseFromZeroCopyStream(&zero_copy_stream);
   if (!result) {
-    OMS_ERROR << "Failed to parse protobuf message from buffer";
+    OMS_STREAM_ERROR << "Failed to parse protobuf message from buffer";
     return OMS_FAILED;
   }
 
@@ -184,7 +184,7 @@ int ProtobufDecoder::decode_handshake_response(MsgBufReader& buffer_reader, Mess
       ClientHandshakeResponseMessage((int)pb_msg.code(), pb_msg.ip().c_str(), pb_msg.version().c_str());
 
   if (nullptr == response_msg) {
-    OMS_ERROR << "Failed to create ClientHandShakeResponseMessage.";
+    OMS_STREAM_ERROR << "Failed to create ClientHandShakeResponseMessage.";
     return OMS_FAILED;
   }
 
@@ -198,7 +198,7 @@ int ProtobufDecoder::decode_runtime_status(MsgBufReader& buffer_reader, Message*
   RuntimeStatus pb_msg;
   bool result = pb_msg.ParseFromZeroCopyStream(&zero_copy_stream);
   if (!result) {
-    OMS_ERROR << "Failed to parse protobuf message from buffer";
+    OMS_STREAM_ERROR << "Failed to parse protobuf message from buffer";
     return OMS_FAILED;
   }
 
@@ -206,7 +206,7 @@ int ProtobufDecoder::decode_runtime_status(MsgBufReader& buffer_reader, Message*
       pb_msg.ip().c_str(), (int)pb_msg.port(), (int)pb_msg.stream_count(), (int)pb_msg.worker_count());
 
   if (nullptr == msg) {
-    OMS_ERROR << "Failed to create RuntimeStatusMessage.";
+    OMS_STREAM_ERROR << "Failed to create RuntimeStatusMessage.";
     return OMS_FAILED;
   }
 
@@ -221,14 +221,14 @@ int ProtobufDecoder::decode_data_client(MsgBufReader& buffer_reader, Message*& _
   ZeroCopyStreamAdapter zero_copy_stream(buffer_reader);
   bool ret = pb_msg.ParseFromZeroCopyStream(&zero_copy_stream);
   if (!ret) {
-    OMS_ERROR << "Failed to parse protobuf message from buffer";
+    OMS_STREAM_ERROR << "Failed to parse protobuf message from buffer";
     return OMS_FAILED;
   }
 
   std::vector<ILogRecord*> records;
   RecordDataMessage* msg = new (std::nothrow) RecordDataMessage(records);
   if (nullptr == msg) {
-    OMS_ERROR << "Failed to create RecordDataMessage.";
+    OMS_STREAM_ERROR << "Failed to create RecordDataMessage.";
     return OMS_FAILED;
   }
   ret = msg->decode_log_records((CompressType)pb_msg.compress_type(),
@@ -237,14 +237,14 @@ int ProtobufDecoder::decode_data_client(MsgBufReader& buffer_reader, Message*& _
       pb_msg.raw_len(),
       pb_msg.count());
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to decode log record";
+    OMS_STREAM_ERROR << "Failed to decode log record";
     delete msg;
     return ret;
   }
 
   ILogRecord* record = msg->records[msg->offset()];
   if (_s_config.verbose_packet.val()) {
-    OMS_INFO << "Fetched record from LogProxy, "
+    OMS_STREAM_INFO << "Fetched record from LogProxy, "
              << "compress type: " << pb_msg.compress_type() << ","
              << "raw_len: " << pb_msg.raw_len() << ","
              << "compressed_len: " << pb_msg.compressed_len() << ","

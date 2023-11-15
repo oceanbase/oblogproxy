@@ -14,7 +14,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 int writen(int fd, const void* buf, int size);
 
 int readn(int fd, void* buf, int size);

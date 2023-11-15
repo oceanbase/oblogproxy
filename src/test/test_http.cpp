@@ -11,7 +11,7 @@
  */
 
 #include "gtest/gtest.h"
-#include "common/log.h"
+#include "log.h"
 #include "communication/http.h"
 
 using namespace oceanbase::logproxy;
@@ -20,12 +20,12 @@ void get(const std::string& url)
 {
   HttpResponse response;
   HttpClient::get(url, response);
-  OMS_INFO << "response:" << response.code << " " << response.message;
-  OMS_INFO << "header:\n";
+  OMS_STREAM_INFO << "response:" << response.code << " " << response.message;
+  OMS_STREAM_INFO << "header:\n";
   for (auto& entry : response.headers) {
-    OMS_INFO << "\t" << entry.first << ": " << entry.second;
+    OMS_STREAM_INFO << "\t" << entry.first << ": " << entry.second;
   }
-  OMS_INFO << "payload:" << response.payload;
+  OMS_STREAM_INFO << "payload:" << response.payload;
 }
 
 TEST(HTTP, get)

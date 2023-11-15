@@ -17,11 +17,10 @@
 #include <unordered_map>
 #include <getopt.h>
 
-#include "common/common.h"
+#include "common.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 struct OmsOption {
   char opt;
   std::string opt_long;

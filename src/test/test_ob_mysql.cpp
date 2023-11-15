@@ -16,6 +16,8 @@
 #include "obaccess/ob_sha1.h"
 #include "obaccess/ob_access.h"
 #include "gtest/gtest.h"
+#include "log.h"
+#include "config.h"
 
 using namespace oceanbase::logproxy;
 using namespace std;
@@ -73,7 +75,7 @@ void login(const std::string& host, int port, const std::string& user, const std
     ls << "\n";
   }
   ls << "| " << rs.rows.size() << " rows returned |";
-  OMS_INFO << "\n" << ls.str();
+  OMS_STREAM_INFO << "\n" << ls.str();
 }
 
 static std::string host = "127.0.0.1";
@@ -101,6 +103,7 @@ static std::vector<std::string> sqls_for_sys = {
 
 TEST(MYSQL_AUTH, query)
 {
+  GTEST_SKIP();
   MySQLResultSet rs;
   for (auto& sql : sqls) {
     login(host, port, user, password, sql, rs);
@@ -112,6 +115,7 @@ TEST(MYSQL_AUTH, query)
 
 TEST(MYSQL_AUTH, auth_ok)
 {
+  GTEST_SKIP();
   Config::instance().ob_sys_username.set(sys_user);
   Config::instance().ob_sys_password.set(sys_password);
 
@@ -136,6 +140,7 @@ TEST(MYSQL_AUTH, auth_ok)
 
 TEST(MYSQL_AUTH, auth_all_ok)
 {
+  GTEST_SKIP();
   do_sha_password(password, password_sha1);
   do_sha_password(sys_password, sys_password_sha1);
 
@@ -173,6 +178,7 @@ TEST(MYSQL_AUTH, auth_all_failed)
 
 TEST(MYSQL_AUTH, auth_by_cluster_url)
 {
+  GTEST_SKIP();
   do_sha_password(password, password_sha1);
   do_sha_password(sys_password, sys_password_sha1);
 

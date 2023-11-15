@@ -16,7 +16,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 jmethodID JniMethod::MapSize;
 jmethodID JniMethod::MapEntrySet;
 jmethodID JniMethod::SetSize;

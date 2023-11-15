@@ -10,10 +10,9 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/log.h"
-#include "common/config.h"
-#include "common/counter.h"
-#include "arranger/client_meta.h"
+#include "log.h"
+#include "counter.h"
+#include "client_meta.h"
 #include "oblogreader/oblogreader.h"
 
 namespace oceanbase {
@@ -30,27 +29,34 @@ int ObLogReader::init(
 {
   Counter::instance().register_gauge("NRecordQ", [this]() { return _queue.size(); });
 
-  int ret = _sender.init(packet_version, meta.peer);
+  // load different so library according to ob version
+  int ret = ObCdcAccessFactory::load(config, _obcdc);
   if (ret != OMS_OK) {
     return ret;
   }
-  return _reader.init(config);
+
+  ret = _sender.init(packet_version, meta.peer, _obcdc);
+  if (ret != OMS_OK) {
+    return ret;
+  }
+  return _reader.init(config, _obcdc);
 }
 
 int ObLogReader::stop()
 {
   _reader.stop();
   _sender.stop();
+  ObCdcAccessFactory::unload(_obcdc);
   Counter::instance().stop();
   return OMS_OK;
 }
 
 void ObLogReader::join()
 {
-  OMS_DEBUG << "<<< Joining ObLogReader";
+  OMS_DEBUG("<<< Joining ObLogReader");
   _reader.join();
   _sender.join();
-  OMS_DEBUG << ">>> Joined ObLogReader";
+  OMS_DEBUG(">>> Joined ObLogReader");
 }
 
 int ObLogReader::start()

@@ -10,7 +10,7 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/common.h"
+#include "common.h"
 #include "obaccess/ob_sha1.h"
 #include "gtest/gtest.h"
 

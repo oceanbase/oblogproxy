@@ -17,7 +17,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 class Md5 {
 public:
   Md5();

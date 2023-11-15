@@ -14,9 +14,37 @@
 
 #include <stdlib.h>
 #include <functional>
+#include <thread>
 
 namespace oceanbase {
 namespace logproxy {
+
+#define DEFER_BASE(x, y) x##y
+#define DEFER_FUNC(x, y) DEFER_BASE(x, y)
+#define DEFER(x) DEFER_FUNC(x, __COUNTER__)
+#define defer(expr) auto DEFER(_defered_option) = defer_func([&]() { expr; })
+
+/*!
+ * @brief This macro definition only calls the corresponding function when it leaves the scope.
+ * However, there is no guarantee that the function has been executed, so this function only applies to releasing resources, etc.
+ * @tparam
+ */
+template <typename F>
+struct Defer {
+  F f;
+  Defer(F f) : f(f)
+  {}
+  ~Defer()
+  {
+    f();
+  }
+};
+
+template <typename F>
+Defer<F> defer_func(F f)
+{
+  return Defer<F>(f);
+}
 
 template <typename T>
 class FreeGuard {
@@ -49,6 +77,27 @@ private:
   T _ptr = nullptr;
 
   std::function<void(T)> _free_func;
+};
+
+template <typename T>
+class ResourceGuard {
+private:
+  T& _resource;
+  void (*_deleter)(T&);
+
+public:
+  ResourceGuard(T& resource, void (*deleter)(T&) = nullptr) : _resource(resource), _deleter(deleter)
+  {}
+
+  ~ResourceGuard()
+  {
+    if (_deleter != nullptr) {
+      _deleter(_resource);
+    }
+  }
+
+  ResourceGuard(const ResourceGuard&) = delete;
+  ResourceGuard& operator=(const ResourceGuard&) = delete;
 };
 
 }  // namespace logproxy

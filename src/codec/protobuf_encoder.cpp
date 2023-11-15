@@ -12,18 +12,15 @@
 
 #include "google/protobuf/message.h"
 
-#include "common/log.h"
-#include "common/common.h"
-#include "common/config.h"
-#include "codec/message.h"
-#include "codec/msg_buf.h"
-#include "codec/codec_endian.h"
-#include "codec/encoder.h"
+#include "log.h"
+#include "common.h"
+#include "message.h"
+#include "msg_buf.h"
+#include "encoder.h"
 #include "logproxy.pb.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static const size_t PB_PACKET_HEADER_SIZE = PACKET_VERSION_SIZE + 1 /*type*/ + 4 /*packet size */;
 static const size_t PB_PACKET_HEADER_SIZE_MAGIC = PACKET_MAGIC_SIZE + PB_PACKET_HEADER_SIZE;
 
@@ -46,7 +43,7 @@ int ProtobufEncoder::encode(const Message& msg, MsgBuf& buffer, size_t& raw_len)
       return encode_data_client(msg, buffer, raw_len);
     }
     default: {
-      OMS_ERROR << "Unknown message type: " << (int)msg.type();
+      OMS_STREAM_ERROR << "Unknown message type: " << (int)msg.type();
       return OMS_FAILED;
     }
   }
@@ -57,7 +54,7 @@ static char* encode_message_header(MessageType type, int packet_size, bool magic
   size_t header_len = magic ? PB_PACKET_HEADER_SIZE_MAGIC : PB_PACKET_HEADER_SIZE;
   char* buffer = (char*)malloc(header_len);
   if (nullptr == buffer) {
-    OMS_ERROR << "Failed to alloc memory for message header. size=" << header_len;
+    OMS_STREAM_ERROR << "Failed to alloc memory for message _header. size=" << header_len;
     return nullptr;
   }
 
@@ -87,22 +84,22 @@ int ProtobufEncoder::encode_message(
   // TODO max message size
   char* data_buffer = (char*)malloc(serialize_size);
   if (nullptr == data_buffer) {
-    OMS_ERROR << "Failed to alloc memory. size=" << serialize_size;
+    OMS_STREAM_ERROR << "Failed to alloc memory. size=" << serialize_size;
     return OMS_FAILED;
   }
 
   bool result = pb_msg.SerializeToArray(data_buffer, serialize_size);
   if (!result) {
-    OMS_ERROR << "Failed to serialize protobuf message. size=" << serialize_size;
+    OMS_STREAM_ERROR << "Failed to serialize protobuf message. size=" << serialize_size;
     free(data_buffer);
     return OMS_FAILED;
   }
   //  Md5 md5(data_buffer, serialize_size);
-  //  OMS_INFO << "Serialized protobuf message, size: " << serialize_size << ", MD5: " << md5.done();
+  //  OMS_STREAM_INFO << "Serialized protobuf message, size: " << serialize_size << ", MD5: " << md5.done();
 
   char* header_buffer = encode_message_header(type, (int)serialize_size, magic);
   if (nullptr == header_buffer) {
-    OMS_ERROR << "Failed to encode client_hand_shake_request 's message header";
+    OMS_STREAM_ERROR << "Failed to encode client_hand_shake_request 's message _header";
     free(data_buffer);
     return OMS_FAILED;
   }
@@ -163,7 +160,7 @@ int ProtobufEncoder::encode_data_client(const Message& msg, MsgBuf& buffer, size
   MsgBuf records_buffer;
   int ret = record_data_message.encode_log_records(records_buffer, raw_len);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to encode log records. ret=" << ret;
+    OMS_STREAM_ERROR << "Failed to encode log records. ret=" << ret;
     return ret;
   }
 
@@ -174,7 +171,7 @@ int ProtobufEncoder::encode_data_client(const Message& msg, MsgBuf& buffer, size
   // FIXME... big data packet copy here due to perf laging
   ret = records_buffer_reader.read((char*)pb_record_string.c_str(), records_size);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to read buffer from records buffer, size=" << records_size;
+    OMS_STREAM_ERROR << "Failed to read buffer from records buffer, size=" << records_size;
     return OMS_FAILED;
   }
 

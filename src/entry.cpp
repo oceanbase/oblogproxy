@@ -10,17 +10,17 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <signal.h>
-#include <functional>
-#include "common/log.h"
-#include "common/file_gc.h"
-#include "common/option.h"
-#include "common/config.h"
-#include "common/ob_aes256.h"
-#include "arranger/arranger.h"
+#include <csignal>
+#include "log.h"
+#include "option.h"
+#include "config.h"
+#include "ob_aes256.h"
+#include "arranger.h"
+#include "binlog_server.h"
+#include "environmental.h"
 
 using namespace oceanbase::logproxy;
-
+// using namespace oceanbase::binlog;
 int main(int argc, char** argv)
 {
   Config& conf = Config::instance();
@@ -37,7 +37,7 @@ int main(int argc, char** argv)
   }));
   options.add(OmsOption('f', "file", true, "configuration json file", [&](const std::string& optarg) {
     if (conf.load(optarg) != OMS_OK) {
-      OMS_INFO << "failed to load config: " << optarg;
+      OMS_INFO("failed to load config: {}", optarg);
       exit(-1);
     }
   }));
@@ -46,11 +46,11 @@ int main(int argc, char** argv)
   }));
   options.add(OmsOption('D', "debug", false, "debug mode not send message", [&](const std::string& optarg) {
     conf.debug.set(true);
-    OMS_INFO << "enable DEBUG mode";
+    printf("enable DEBUG mode");
   }));
   options.add(OmsOption('V', "verbose", false, "print plentiful log", [&](const std::string& optarg) {
     conf.verbose.set(true);
-    OMS_INFO << "enable VERBOSE log";
+    printf("enable VERBOSE log");
   }));
   options.add(OmsOption('x', "encrypt", true, "encrypt text", [&](const std::string& optarg) {
     AES aes;
@@ -118,17 +118,19 @@ int main(int argc, char** argv)
   signal(SIGCHLD, SIG_IGN);
 
   init_log(argv[0]);
-
-  std::set<std::string> prefixs{"logproxy_", std::string(argv[0]) + ".log", "liboblog.log.2"};
-  FileGcRoutine log_gc("./log", prefixs);
-  log_gc.start();
-  log_gc.detach();
-
-  if (Arranger::instance().init() != OMS_OK) {
+  print_env_info();
+  int ret = OMS_OK;
+  if (conf.binlog_mode.val()) {
+    ret = oceanbase::binlog::BinlogServer::run_foreground();
+  } else {
+    if (Arranger::instance().init() != OMS_OK) {
+      ::exit(-1);
+    }
+    ret = Arranger::instance().run_foreground();
+  }
+  OMS_WARN("!!!LogProxy Exit, ret: {}", ret);
+  if (ret != OMS_OK) {
     ::exit(-1);
   }
-
-  int ret = Arranger::instance().run_foreground();
-  OMS_WARN << "!!!LogProxy Exit, ret: " << ret;
   return 0;
 }

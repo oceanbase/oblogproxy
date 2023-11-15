@@ -12,13 +12,14 @@
 
 #include <map>
 #include "oblogreader_jni.h"
-#include "oblog_access.h"
+#include "obcdcaccess/obcdc_factory.h"
 #include "jni_hint.h"
 #include "common.h"
 
 using namespace oceanbase::logproxy;
 
-static OblogAccess oblog;
+// HINT: unavailable variable
+static IObCdcAccess* oblog;
 
 static const jint JNI_VERSION = JNI_VERSION_1_8;
 
@@ -71,13 +72,12 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved)
 jboolean JNICALL Java_com_oceanbase_logclient_LibOblogReaderJni_init(
     JNIEnv* env, jclass, jobject jconfigs, jlong start_timestamp)
 {
-
   std::map<std::string, std::string> configs;
   int ret = JniHint::to_map(env, jconfigs, configs);
   if (ret != OMS_OK) {
     return JNI_FALSE;
   }
-  if (oblog.init(configs, start_timestamp) != 0) {
+  if (oblog->init(configs, start_timestamp) != 0) {
     return JNI_FALSE;
   }
   return JNI_TRUE;
@@ -85,7 +85,7 @@ jboolean JNICALL Java_com_oceanbase_logclient_LibOblogReaderJni_init(
 
 jboolean JNICALL Java_com_oceanbase_logclient_LibOblogReaderJni_start(JNIEnv* env, jclass)
 {
-  return oblog.start() == OMS_OK;
+  return oblog->start() == OMS_OK;
 }
 
 /*
@@ -95,7 +95,7 @@ jboolean JNICALL Java_com_oceanbase_logclient_LibOblogReaderJni_start(JNIEnv* en
  */
 void JNICALL Java_com_oceanbase_logclient_LibOblogReaderJni_stop(JNIEnv* env, jclass)
 {
-  oblog.stop();
+  oblog->stop();
 }
 
 /*

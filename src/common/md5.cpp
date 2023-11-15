@@ -11,11 +11,10 @@
  */
 
 #include <stdio.h>
-#include "common/md5.h"
+#include "md5.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 Md5::Md5()
 {
   MD5_Init(&_ctx);

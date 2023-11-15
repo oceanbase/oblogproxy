@@ -10,16 +10,16 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <assert.h>
-#include <openssl/rsa.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
+#include <assert.h>
+#include <unistd.h>
 
-#include "communication/channel.h"
+#include "channel.h"
+#include "peer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 SSL_CTX* TlsChannel::_s_ssl_ctx = nullptr;
 
 TlsChannel::TlsChannel(const Peer& peer) : Channel(peer)
@@ -57,12 +57,12 @@ static int verify_callback(int preverify_ok, X509_STORE_CTX* ctx)
   if (1 != preverify_ok) {
     char buf[256];
     X509_NAME_oneline(X509_get_subject_name(cert), buf, sizeof(buf));
-    OMS_ERROR << "verify failed. error " << error << ":" << X509_verify_cert_error_string(error)
+    OMS_STREAM_ERROR << "verify failed. error " << error << ":" << X509_verify_cert_error_string(error)
               << ", subject name:" << buf;
 
     if (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT) {
       X509_NAME_oneline(X509_get_issuer_name(cert), buf, sizeof(buf));
-      OMS_ERROR << "issuer:" << buf;
+      OMS_STREAM_ERROR << "issuer:" << buf;
     }
   }
 
@@ -100,7 +100,7 @@ int TlsChannel::init_global(const Config& config)
 
   SSL_CTX* ssl_ctx = SSL_CTX_new(ssl_method);
   if (ssl_ctx == nullptr) {
-    OMS_ERROR << "Failed to create SSL_CTX";
+    OMS_STREAM_ERROR << "Failed to create SSL_CTX";
     return OMS_FAILED;
   }
 
@@ -108,21 +108,21 @@ int TlsChannel::init_global(const Config& config)
   SSL_CTX_set_verify(ssl_ctx, mode, verify_callback);
   int ret = SSL_CTX_load_verify_locations(ssl_ctx, ca_cert_file, nullptr);
   if (ret != 1) {
-    OMS_ERROR << "SSL_CTX_load_verify_locations failed. ca cert file: '" << ca_cert_file << '\'';
+    OMS_STREAM_ERROR << "SSL_CTX_load_verify_locations failed. ca cert file: '" << ca_cert_file << '\'';
     log_tls_errors();
     SSL_CTX_free(ssl_ctx);
     return OMS_FAILED;
   }
   ret = SSL_CTX_use_certificate_file(ssl_ctx, cert_file, SSL_FILETYPE_PEM);
   if (ret != 1) {
-    OMS_ERROR << "SSL_CTX_use_certificate_file failed. cert file: '" << cert_file << '\'';
+    OMS_STREAM_ERROR << "SSL_CTX_use_certificate_file failed. cert file: '" << cert_file << '\'';
     log_tls_errors();
     SSL_CTX_free(ssl_ctx);
     return OMS_FAILED;
   }
   ret = SSL_CTX_use_PrivateKey_file(ssl_ctx, key_file, SSL_FILETYPE_PEM);
   if (ret != 1) {
-    OMS_ERROR << "SSL_CTX_use_PrivateKey_file failed. key file: '" << key_file << '\'';
+    OMS_STREAM_ERROR << "SSL_CTX_use_PrivateKey_file failed. key file: '" << key_file << '\'';
     log_tls_errors();
     SSL_CTX_free(ssl_ctx);
     return OMS_FAILED;
@@ -130,7 +130,7 @@ int TlsChannel::init_global(const Config& config)
 
   ret = SSL_CTX_check_private_key(ssl_ctx);
   if (ret != 1) {
-    OMS_ERROR << "SSL_CTX_check_private_key failed. ca cert file: '" << ca_cert_file << "', cert file: '" << cert_file
+    OMS_STREAM_ERROR << "SSL_CTX_check_private_key failed. ca cert file: '" << ca_cert_file << "', cert file: '" << cert_file
               << "', key file: '" << key_file << '\'';
     log_tls_errors();
     SSL_CTX_free(ssl_ctx);
@@ -147,7 +147,7 @@ int TlsChannel::init()
 
   SSL* ssl = SSL_new(_s_ssl_ctx);
   if (ssl == nullptr) {
-    OMS_ERROR << "Failed to create ssl";
+    OMS_STREAM_ERROR << "Failed to create ssl";
     return OMS_FAILED;
   }
 
@@ -167,7 +167,7 @@ void TlsChannel::log_tls_errors()
   char buf[256];
   while (error != 0) {
     ERR_error_string_n(error, buf, sizeof(buf));
-    OMS_ERROR << std::string(buf);
+    OMS_STREAM_ERROR << std::string(buf);
     error = ERR_get_error();
   }
 }
@@ -184,16 +184,16 @@ int TlsChannel::after_accept()
         usleep(1000 * 10);  // TODO instead with poll
         continue;
       } else {
-        OMS_ERROR << "Failed to accept new connection. error=" << error;
+        OMS_STREAM_ERROR << "Failed to accept new connection. error=" << error;
         log_tls_errors();
         return OMS_FAILED;
       }
     } else if (ret == 0) {
-      OMS_ERROR << "Failed to accept new connection. error is 0";
+      OMS_STREAM_ERROR << "Failed to accept new connection. error is 0";
       log_tls_errors();
       return OMS_FAILED;
     } else if (ret == 1) {
-      OMS_DEBUG << "accept new connection success";
+      OMS_STREAM_DEBUG << "accept new connection success";
       return OMS_OK;
     }
   }
@@ -211,16 +211,16 @@ int TlsChannel::after_connect()  // TODO simplify with after_accept
         usleep(1000 * 10);  // TODO instead with poll
         continue;
       } else {
-        OMS_ERROR << "Failed to connect. error=" << error;
+        OMS_STREAM_ERROR << "Failed to connect. error=" << error;
         log_tls_errors();
         return OMS_FAILED;
       }
     } else if (ret == 0) {
-      OMS_ERROR << "Failed to connect. error is 0";
+      OMS_STREAM_ERROR << "Failed to connect. error is 0";
       log_tls_errors();
       return OMS_FAILED;
     } else if (ret == 1) {
-      OMS_DEBUG << "connect to server success";
+      OMS_STREAM_DEBUG << "connect to server success";
       return OMS_OK;
     }
   }

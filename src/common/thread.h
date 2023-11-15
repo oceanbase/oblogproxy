@@ -14,13 +14,13 @@
 
 #include <pthread.h>
 #include <string>
+#include <atomic>
 
 namespace oceanbase {
 namespace logproxy {
-
 class Thread {
 public:
-  explicit Thread(const std::string& name = "");
+  explicit Thread(std::string name = "");
 
   virtual ~Thread();
 
@@ -44,6 +44,22 @@ public:
     return _tid;
   }
 
+  /*!
+   * @brief Preset the detach state，
+   * true means that the thread is set to detach when it is created, and false means that the thread is set to joinable
+   * when it is created
+   */
+  void set_detach_state(bool is_detach);
+
+  /*!
+   * @brief Set whether the current thread is released immediately after execution, the default is false.
+   * Setting it to release immediately will release the thread object resource directly after run execution
+   * @param direct_release
+   */
+  void set_release_state(bool direct_release);
+
+  bool is_direct_release();
+
 protected:
   virtual void run() = 0;
 
@@ -55,8 +71,10 @@ private:
   std::string _name;
   uint32_t _tid;
   pthread_t _thd;
-  volatile bool _run_flag = false;
+  std::atomic<bool> _run_flag = false;
   int _ret = 0;
+  bool _is_detach = false;
+  bool _direct_release = false;
 
   static volatile int _s_tid_idx;
 };

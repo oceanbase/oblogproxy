@@ -12,7 +12,8 @@
 
 #include "gtest/gtest.h"
 #include "lz4.h"
-#include "common/log.h"
+#include "log.h"
+#include "common/common.h"
 
 using namespace oceanbase::logproxy;
 
@@ -45,7 +46,7 @@ TEST(COMPRESS, lz4_flow)
 
   std::string compressed_hex;
   dumphex(compressed, compressed_size, compressed_hex);
-  OMS_INFO << "compressed buffer:" << compressed_hex << ", size: " << compressed_size;
+  OMS_STREAM_INFO << "compressed buffer:" << compressed_hex << ", size: " << compressed_size;
 
   size_t offset = 0;
   while (offset < compressed_size) {
@@ -59,7 +60,7 @@ TEST(COMPRESS, lz4_flow)
     int decompressed_size = LZ4_decompress_safe(compressed + offset + 8, raw_block, compressed_block_size, block_size);
     ASSERT_EQ((uint32_t)decompressed_size, block_size);
     raw_block[decompressed_size] = '\0';
-    OMS_INFO << "decompress block: " << raw_block << ", size:" << block_size
+    OMS_STREAM_INFO << "decompress block: " << raw_block << ", size:" << block_size
              << ", compressed size:" << compressed_block_size;
 
     free(raw_block);

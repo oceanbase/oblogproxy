@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/common.h"
+#include "common.h"
 #include "communication/comm.h"
-#include "obaccess/oblog_config.h"
-#include "oblogreader/oblog_access.h"
+#include "common/oblog_config.h"
+#include "obcdcaccess/obcdc_factory.h"
 #include "oblogreader/reader_routine.h"
 #include "oblogreader/sender_routine.h"
 
@@ -25,7 +25,6 @@ namespace logproxy {
 struct ClientMeta;
 
 class ObLogReader {
-
 public:
   virtual ~ObLogReader();
 
@@ -38,11 +37,11 @@ public:
   int start();
 
 private:
-  OblogAccess _oblog;
+  IObCdcAccess* _obcdc = nullptr;
 
   BlockingQueue<ILogRecord*> _queue{Config::instance().record_queue_size.val()};
-  ReaderRoutine _reader{*this, _oblog, _queue};
-  SenderRoutine _sender{*this, _oblog, _queue};
+  ReaderRoutine _reader{*this, _queue};
+  SenderRoutine _sender{*this, _queue};
 };
 
 }  // namespace logproxy

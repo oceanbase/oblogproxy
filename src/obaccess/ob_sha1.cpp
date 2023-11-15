@@ -10,16 +10,13 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <string>
+#include <cstdint>
+#include <cstring>
 
-#include "obaccess/ob_sha1.h"
+#include "ob_sha1.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 #define SHA1CircularShift(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
 
 static const uint32_t sha_const_key[5] = {0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0};

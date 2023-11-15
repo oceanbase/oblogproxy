@@ -10,13 +10,13 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "communication/io.h"
-#include "communication/channel.h"
-#include "communication/comm.h"
+#include "io.h"
+#include "channel.h"
+#include "comm.h"
+#include "peer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 PlainChannel::PlainChannel(const Peer& peer) : Channel(peer)
 {}
 

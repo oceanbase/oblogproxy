@@ -14,14 +14,14 @@
 #include <assert.h>
 #include <arpa/inet.h>
 #include <deque>
+#include <fcntl.h>
 
 #include "communication/comm.h"
 #include "communication/io.h"
-#include "common/counter.h"
+#include "counter.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static Config& _s_conf = Config::instance();
 
 MessageDecoder* Comm::_s_decoders[3];
@@ -56,20 +56,20 @@ int Comm::stop(int reserved_fd)
   _channel_factory.clear(reserved_fd);
 
   if (_event_base == nullptr) {
-    OMS_INFO << "communication not started";
+    OMS_STREAM_INFO << "communication not started";
     return OMS_OK;
   }
 
-  OMS_INFO << "Communicator stopping";
+  OMS_STREAM_INFO << "Communicator stopping";
   event_base_loopexit(_event_base, nullptr);
-  OMS_INFO << "Communicator stopped";
+  OMS_STREAM_INFO << "Communicator stopped";
   return OMS_OK;
 }
 
 void Comm::close_listen()
 {
-  if (_listenfd <= 0) {
-    OMS_WARN << ">>> Communicator disabled listening, fd: " << _listenfd;
+  if (_listenfd > 0) {
+    OMS_STREAM_WARN << ">>> Communicator disabled listening, fd: " << _listenfd;
     close(_listenfd);
     _listenfd = 0;
   }
@@ -78,13 +78,13 @@ void Comm::close_listen()
 int Comm::init()
 {
   if (_event_base != nullptr) {
-    OMS_WARN << "Communicator has already started";
+    OMS_STREAM_WARN << "Communicator has already started";
     return OMS_OK;
   }
 
   _event_base = event_base_new();
   if (_event_base == nullptr) {
-    OMS_ERROR << "Failed to create event base. system error " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to create event base. system error " << strerror(errno);
     return OMS_FAILED;
   }
 
@@ -101,19 +101,19 @@ int Comm::listen(uint16_t listen_port)
   if (_listenfd <= 0) {
     return OMS_FAILED;
   }
-
-  OMS_INFO << "+++ Listen on port: " << listen_port << ", fd: " << _listenfd;
+  fcntl(_listenfd, F_SETFD, FD_CLOEXEC);
+  OMS_STREAM_INFO << "+++ Listen on port: " << listen_port << ", fd: " << _listenfd;
   return OMS_OK;
 }
 
 int Comm::start()
 {
-  OMS_INFO << "+++ Communicator about to start";
+  OMS_STREAM_INFO << "+++ Communicator about to start";
 
   while (_listenfd > 0) {
     int ret = poll();
     if (ret != OMS_OK && ret != OMS_AGAIN) {
-      OMS_ERROR << "Failed to poll communication, ret: " << ret;
+      OMS_STREAM_ERROR << "Failed to poll communication, ret: " << ret;
       break;
     }
 
@@ -132,7 +132,7 @@ int Comm::start()
     usleep(_s_conf.accept_interval_us.val());
   }
 
-  OMS_WARN << "!!! Communicator about to quit";
+  OMS_STREAM_WARN << "!!! Communicator about to quit";
   return OMS_OK;
 }
 
@@ -143,7 +143,7 @@ int Comm::poll()
     return OMS_AGAIN;
   }
   if (ret != 0) {
-    OMS_ERROR << "Failed to run Comm, event base dispatch error, ret: " << ret;
+    OMS_STREAM_ERROR << "Failed to run Comm, event base dispatch error, ret: " << ret;
     return OMS_FAILED;
   }
   return OMS_OK;
@@ -157,12 +157,12 @@ void Comm::_s_evcb_on_accept(int fd, const struct sockaddr_in& peer_addr)
 
   int ret = set_non_block(fd);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to set non block for fd: " << fd;
+    OMS_STREAM_ERROR << "Failed to set non block for fd: " << fd;
     close(fd);
     return;
   }
 
-  OMS_DEBUG << "On connect from '" << peer_host << ':' << peer_port << ", fd: " << fd;
+  OMS_STREAM_DEBUG << "On connect from '" << peer_host << ':' << peer_port << ", fd: " << fd;
 
   Peer peer(peer_addr.sin_addr.s_addr, peer_port, fd);
   if (add(peer) != OMS_OK) {
@@ -175,7 +175,7 @@ int Comm::add(const Peer& peer)
   uint64_t peer_id = peer.id();
   const Channel& exist = _channel_factory.fetch(peer_id);
   if (exist.ok()) {
-    OMS_WARN << "Add channel twice, peer: " << peer.to_string() << ", close last: {}";
+    OMS_STREAM_WARN << "Add channel twice, peer: " << peer.to_string() << ", close last: {}";
 
     // this is unexpected in case of last fd was sent to child process, that current process deleted channel already
     // now we try to close last fd first,
@@ -189,32 +189,32 @@ int Comm::add(const Peer& peer)
 
   Channel& ch = _channel_factory.add(peer_id, peer);
   if (!ch.ok()) {
-    OMS_ERROR << "Failed to create new channel, peer: " << peer.to_string();
+    OMS_STREAM_ERROR << "Failed to create new channel, peer: " << peer.to_string();
     return OMS_FAILED;
   }
   ch.set_communicator(this);
 
   if (_s_conf.verbose.val()) {
-    OMS_INFO << "Add channel, peer: " << ch.peer().to_string();
+    OMS_STREAM_INFO << "Add channel, peer: " << ch.peer().to_string();
   }
 
   // we use level trigger as simple, and expect READ first for handshake packet
   int ret = event_assign(ch._read_event, _event_base, peer.fd, EV_READ | EV_PERSIST, _s_evcb_on_event, &ch);
   if (ret < 0) {
-    OMS_ERROR << "Failed to do assign event, peer: " << peer.to_string();
+    OMS_STREAM_ERROR << "Failed to do assign event, peer: " << peer.to_string();
     _channel_factory.del(ch);
     return OMS_FAILED;
   }
 
   ret = event_add(ch._read_event, nullptr);
   if (ret < 0) {
-    OMS_ERROR << "Failed to add event, peer: " << peer.to_string();
+    OMS_STREAM_ERROR << "Failed to add event, peer: " << peer.to_string();
     _channel_factory.del(ch);
     return OMS_FAILED;
   }
 
   if (_s_conf.verbose.val()) {
-    OMS_INFO << "Add read channel to Communicator with peer: " << peer.to_string();
+    OMS_STREAM_INFO << "Add read channel to Communicator with peer: " << peer.to_string();
   }
   return OMS_OK;
 }
@@ -229,11 +229,11 @@ void Comm::_s_evcb_on_event(int fd, short event, void* arg)
   Channel& ch = *(Channel*)arg;
   Comm& comm = *ch.communicator();
 
-  OMS_DEBUG << "On event fd: " << fd << " got channel, peer: " << ch.peer().to_string();
+  OMS_STREAM_DEBUG << "On event fd: " << fd << " got channel, peer: " << ch.peer().to_string();
   EventResult err = EventResult::ER_SUCCESS;
 
   if (event & EV_CLOSED) {
-    OMS_WARN << "On event close, peer: " << ch.peer().to_string();
+    OMS_STREAM_WARN << "On event close, peer: " << ch.peer().to_string();
     if (event & EV_READ) {
       event_del(ch._read_event);
     }
@@ -241,11 +241,9 @@ void Comm::_s_evcb_on_event(int fd, short event, void* arg)
       event_del(ch._write_event);
     }
     err = EventResult::ER_CLOSE_CHANNEL;
-
   } else {
-
     if ((event & EV_WRITE)) {
-      OMS_DEBUG << "On event about to write message: " << ch.peer().to_string();
+      OMS_STREAM_DEBUG << "On event about to write message: " << ch.peer().to_string();
       if (!_s_msg_queue.empty()) {
         const Message* msg = _s_msg_queue.front();
         _s_msg_queue.pop_front();
@@ -268,7 +266,7 @@ void Comm::_s_evcb_on_event(int fd, short event, void* arg)
         // do nothing
       } else {
         if (_s_conf.verbose.val()) {
-          OMS_ERROR << "Failed to handle read message, ret: " << (int)result;
+          OMS_STREAM_ERROR << "Failed to handle read message, ret: " << (int)result;
         }
         err = EventResult::ER_CLOSE_CHANNEL;
       }
@@ -296,24 +294,24 @@ PacketError Comm::_s_read_message(Channel& ch, Message*& msg)
   if (_s_conf.packet_magic.val()) {
     char packet_buf[PACKET_MAGIC_SIZE + PACKET_VERSION_SIZE];
     if (ch.readn(packet_buf, sizeof(packet_buf)) != OMS_OK) {
-      OMS_DEBUG << "Failed to read packet magic+version, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+      OMS_STREAM_DEBUG << "Failed to read packet magic+version, ch:" << ch.peer().id() << ", error:" << strerror(errno);
       return PacketError::NETWORK_ERROR;
     }
     if (strncmp(packet_buf, PACKET_MAGIC, PACKET_MAGIC_SIZE) != 0) {
-      OMS_DEBUG << "Invalid packet magic, ignore and close ch:" << ch.peer().id();
+      OMS_STREAM_DEBUG << "Invalid packet magic, ignore and close ch:" << ch.peer().id();
       return PacketError::PROTOCOL_ERROR;
     }
     memcpy(&version, packet_buf + PACKET_MAGIC_SIZE, PACKET_VERSION_SIZE);
   } else {
     if (ch.readn((char*)&version, PACKET_VERSION_SIZE) != OMS_OK) {
-      OMS_ERROR << "Failed to read packet version, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+      OMS_STREAM_ERROR << "Failed to read packet version, ch:" << ch.peer().id() << ", error:" << strerror(errno);
       return PacketError::NETWORK_ERROR;
     }
   }
 
   version = be_to_cpu(version);
   if (!is_version_available(version)) {
-    OMS_ERROR << "Invalid packet version:" << version << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Invalid packet version:" << version << ", ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -327,7 +325,7 @@ PacketError Comm::_s_read_message(Channel& ch, Message*& msg)
 void Comm::del(const Channel& ch)
 {
   if (ch.ok()) {
-    OMS_DEBUG << "Try close Channel of peer: " << ch.peer().to_string();
+    OMS_STREAM_DEBUG << "Try close Channel of peer: " << ch.peer().to_string();
     if (ch._read_event != nullptr && ch._read_event->ev_fd != 0) {
       event_del(ch._read_event);
     }
@@ -338,7 +336,7 @@ void Comm::del(const Channel& ch)
   }
 }
 
-inline void Comm::del(const Peer& peer)
+void Comm::del(const Peer& peer)
 {
   del(_channel_factory.fetch(peer.id()));
 }
@@ -354,7 +352,7 @@ int Comm::send_message(const Peer& peer, const Message& msg, bool direct)
 {
   Channel& ch = _channel_factory.fetch(peer.id());
   if (!ch.ok()) {
-    OMS_ERROR << "Not found channel of peer:" << peer.to_string() << ", just close it";
+    OMS_STREAM_ERROR << "Not found channel of peer:" << peer.to_string() << ", just close it";
     return OMS_FAILED;
   }
 
@@ -364,12 +362,12 @@ int Comm::send_message(const Peer& peer, const Message& msg, bool direct)
 
   int ret = event_assign(ch._write_event, _event_base, peer.fd, EV_WRITE /*| EV_ET*/, _s_evcb_on_event, this);
   if (ret < 0) {
-    OMS_ERROR << "Failed to do event_assign write. fd=" << peer.fd;
+    OMS_STREAM_ERROR << "Failed to do event_assign write. fd=" << peer.fd;
     return OMS_FAILED;
   }
   ret = event_add(ch._write_event, nullptr);
   if (ret < 0) {
-    OMS_ERROR << "Failed to do event_add. fd=" << peer.fd;
+    OMS_STREAM_ERROR << "Failed to do event_add. fd=" << peer.fd;
     return OMS_FAILED;
   }
 
@@ -379,7 +377,7 @@ int Comm::send_message(const Peer& peer, const Message& msg, bool direct)
 int Comm::write_message(Channel& ch, const Message& msg)
 {
   if (_s_conf.verbose_packet.val()) {
-    OMS_INFO << "About to write mssage: " << msg.debug_string() << ", ch: " << ch.peer().id()
+    OMS_STREAM_INFO << "About to write mssage: " << msg.debug_string() << ", ch: " << ch.peer().id()
              << ", msg type: " << (int)msg.type();
   }
 
@@ -388,7 +386,7 @@ int Comm::write_message(Channel& ch, const Message& msg)
   MsgBuf buffer;
   int ret = _s_encoders[(uint16_t)msg.version()]->encode(msg, buffer, raw_len);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Encoding message failed";
+    OMS_STREAM_ERROR << "Encoding message failed";
     return ret;
   }
 
@@ -397,7 +395,7 @@ int Comm::write_message(Channel& ch, const Message& msg)
   size_t wsize = 0;
   for (const auto& chunk : buffer) {
     if (OMS_OK != ch.writen(chunk.buffer(), chunk.size())) {
-      OMS_ERROR << "Failed to send message through channel:" << ch.peer().id() << ", error:" << ch.last_error();
+      OMS_STREAM_ERROR << "Failed to send message through channel:" << ch.peer().id() << ", error:" << ch.last_error();
       return OMS_FAILED;
     }
     wsize += chunk.size();
@@ -411,7 +409,7 @@ int Comm::write_message(Channel& ch, const Message& msg)
 
 static int debug_events_cb(const struct event_base*, const struct event* ev, void* ctx)
 {
-  OMS_DEBUG << "fd: " << event_get_fd(ev) << ", evflag: " << event_get_events(ev);
+  OMS_STREAM_DEBUG << "fd: " << event_get_fd(ev) << ", evflag: " << event_get_events(ev);
   return 0;
 }
 

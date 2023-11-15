@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "codec/message.h"
-#include "codec/msg_buf.h"
+#include "message.h"
+#include "msg_buf.h"
 
 namespace google {
 namespace protobuf {
@@ -23,7 +23,6 @@ class Message;
 
 namespace oceanbase {
 namespace logproxy {
-
 class MessageEncoder {
 public:
   virtual ~MessageEncoder() = default;

@@ -13,13 +13,14 @@
 #pragma once
 
 #include <deque>
+#include <functional>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
 
 namespace oceanbase {
 namespace logproxy {
-
 template <typename T>
 class BlockingQueue {
 public:

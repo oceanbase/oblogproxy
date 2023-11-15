@@ -12,13 +12,10 @@
 
 #include "gtest/gtest.h"
 
-#include "LogMessageFactory.h"
-#include "LogMessageBuf.h"
-
 #include "codec/encoder.h"
 #include "codec/decoder.h"
 #include "codec/message.h"
-#include "codec/msg_buf.h"
+#include "common/msg_buf.h"
 
 using namespace oceanbase::logproxy;
 

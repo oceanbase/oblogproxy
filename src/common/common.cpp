@@ -20,7 +20,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 static char* localhost()
 {
   static char* buf = nullptr;

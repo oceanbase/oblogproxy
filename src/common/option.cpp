@@ -14,7 +14,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 OmsOption::OmsOption(char opt, const std::string& opt_long, bool is_arg, const std::string& desc,
     const std::function<void(const std::string&)>& func)
     : opt(opt), opt_long(opt_long), is_arg(is_arg), desc(desc), func(func)

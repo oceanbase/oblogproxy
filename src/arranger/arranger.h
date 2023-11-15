@@ -14,14 +14,13 @@
 
 #include <unordered_map>
 #include <mutex>
-#include "common/common.h"
-#include "obaccess/oblog_config.h"
-#include "arranger/source_meta.h"
-#include "arranger/client_meta.h"
+#include "common.h"
+#include "source_meta.h"
+#include "client_meta.h"
+#include "oblog_config.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 class Arranger {
   OMS_SINGLETON(Arranger);
   OMS_AVOID_COPY(Arranger);
@@ -42,7 +41,15 @@ private:
 
   int check_quota();
 
-  int create(ClientMeta&, const OblogConfig&);
+  /*!
+   * @brief
+   * @param oblog_config
+   * @param errmsg
+   * @return Does the clog checkpoint meet the requirements?
+   */
+  int check_clog(const OblogConfig& oblog_config, std::string& errmsg);
+
+  int create(ClientMeta&, OblogConfig&);
 
   void response_error(const Peer&, MessageVersion version, ErrorCode code, const std::string&);
 
@@ -64,8 +71,10 @@ private:
   Comm _accepter;
 };
 
-class SysMetric;
-extern SysMetric g_metric;
+// class SysMetric;
+// extern SysMetric g_metric;
+// class ProcessGroupMetric;
+// extern ProcessGroupMetric g_proc_metric;
 
 }  // namespace logproxy
 }  // namespace oceanbase

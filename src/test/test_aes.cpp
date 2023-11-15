@@ -11,8 +11,9 @@
  */
 
 #include "gtest/gtest.h"
-#include "common/ob_aes256.h"
-#include "common/common.h"
+#include "ob_aes256.h"
+#include "common.h"
+#include "log.h"
 
 using namespace oceanbase::logproxy;
 
@@ -27,7 +28,7 @@ void test(const char* key, const char* plain_text, int plain_text_len)
 
   std::string hex;
   dumphex(encrypted, plain_text_len, hex);
-  OMS_INFO << "\"" << plain_text << "\" encrypt to: " << hex;
+  OMS_STREAM_INFO << "\"" << plain_text << "\" encrypt to: " << hex;
 
   aes.reset();
   char* decrypted = nullptr;

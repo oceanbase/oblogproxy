@@ -11,11 +11,10 @@
  */
 
 #include <algorithm>
-#include "common/str.h"
+#include "str.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 size_t split_all(const std::string& str, const std::string& seps, std::vector<std::string>& vec, bool first)
 {
   bool sep_idx[256] = {false};
@@ -32,7 +31,7 @@ size_t split_all(const std::string& str, const std::string& seps, std::vector<st
   char* p_pre = const_cast<char*>(str.c_str());
   while (*p_cur != '\0') {
     if (sep_idx[(uint8_t)*p_cur] && (!first || !flag)) {
-      vec.emplace_back(std::string(p_pre, p_cur - p_pre));
+      vec.emplace_back(p_pre, p_cur - p_pre);
       p_pre = p_cur + 1;
       flag = true;
     }
@@ -53,7 +52,7 @@ size_t split(const std::string& str, char sep, std::vector<std::string>& vec, bo
   char* p_pre = const_cast<char*>(str.c_str());
   while (*p_cur != '\0') {
     if (*p_cur == sep && (!first || !flag)) {
-      vec.emplace_back(std::string(p_pre, p_cur - p_pre));
+      vec.emplace_back(p_pre, p_cur - p_pre);
       p_pre = p_cur + 1;
       flag = true;
     }
@@ -93,6 +92,63 @@ void trim(std::string& s)
 {
   ltrim(s);
   rtrim(s);
+}
+
+int index_of(const char* range, char c)
+{
+  using std::begin;
+  using std::end;
+  auto b = range;
+  auto e = range + strlen(range);
+  auto match = std::find(b, e, c);
+
+  return (e == match) ? -1 : std::distance(b, match);
+}
+
+std::string pad_left(const std::string& value, int size, char padding)
+{
+  int len = value.length();
+  int pad_len = size - len;
+
+  if (pad_len > 0) {
+    return std::string(pad_len, padding) + value;
+  } else if (pad_len == 0) {
+    return value;
+  } else {
+    return nullptr;
+  }
+}
+
+std::string pad_left(const std::string* value, int size, char padding)
+{
+  if (value) {
+    return pad_left(*value, size, padding);
+  } else {
+    return std::string(size, padding);
+  }
+}
+
+std::string pad_right(const std::string& value, int size, char padding)
+{
+  int len = value.length();
+  int pad_len = size - len;
+
+  if (pad_len > 0) {
+    return value + std::string(pad_len, padding);
+  } else if (pad_len == 0) {
+    return value;
+  } else {
+    return value;
+  }
+}
+
+std::string pad_right(const std::string* value, int size, char padding)
+{
+  if (value) {
+    return pad_right(*value, size, padding);
+  } else {
+    return std::string(size, padding);
+  }
 }
 
 }  // namespace logproxy

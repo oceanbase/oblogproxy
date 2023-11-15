@@ -15,18 +15,31 @@
   https://github.com/oceanbase/oceanbase
   https://github.com/oceanbase/oceanbase/issues
   https://github.com/oceanbase/*
-  https://github.com/*
   http://mirrors.aliyun.com/oceanbase*
   https://mirrors.aliyun.com/oceanbase*
   https://github.com/google/*
+  https://github.com/*
   https://cmake.org/*
-  http://yum.tbsite.net/*
   https://facebook.github.io/*
   http://mirrors.aliyun.com/*
   https://mirrors.aliyun.com/*
   http://mirror.centos.org/*
   https://facebook.github.io/*
-  https://yuque.antfin.com/*
+  https://dev.mysql.com/*
+  https://sqlite.org/*
+  http://www.parashift.com/*
+  http://www.sqlserver-dba.com/*
+  http://torpedro.com/*
+  http://flex.sourceforge.net/*
+  https://www.gnu.org/*
+  http://torpedro.com/*
+  http://www.ex-parrot.com/*
+  https://brew.sh*
+  https://www.sqlite.org/*
+  http://dinosaur.compilertools.net/*
+  http://www.gnu.org/*
+  https://www.safaribooksonline.com/*
+  https://h20195.www2.hpe.com/*
 **/*.c
   http://www.gnu.org/licenses/
 **/*.h
@@ -39,6 +52,7 @@ README.md
   https://search.maven.org/*
 **/test/*.cpp
   http://127.0.0.1:8080/*
+  https://www.gnu.org/software/libc/manual/html_node/Error-Codes.html
 --------------------------------------------------------
 # Should use GLOB wildcard to configure and analysis the ignored folder
 # The root patch should start with '/'

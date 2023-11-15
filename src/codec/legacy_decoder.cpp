@@ -10,16 +10,15 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <stdint.h>
-#include "common/guard.hpp"
+#include <cstdint>
+#include "guard.hpp"
 #include "communication/channel.h"
-#include "codec/decoder.h"
+#include "decoder.h"
 
 #include "legacy.pb.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 static PacketError decode_v1(Channel& ch, Message*& message)
 {
   // V1 is protobuf handshake packet:
@@ -27,19 +26,19 @@ static PacketError decode_v1(Channel& ch, Message*& message)
   // [pb packet length] pb buffer
   uint32_t payload_size = 0;
   if (ch.readn((char*)(&payload_size), 4) != OMS_OK) {
-    OMS_ERROR << "Failed to read message payload size, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message payload size, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
   payload_size = be_to_cpu(payload_size);
   // FIXME.. use an mem pool
   char* payload_buf = (char*)malloc(payload_size);
   if (nullptr == payload_buf) {
-    OMS_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Failed to malloc memory for message data. size:" << payload_size << ", ch:" << ch.peer().id();
     return PacketError::OUT_OF_MEMORY;
   }
   FreeGuard<char*> payload_buf_guard(payload_buf);
   if (ch.readn(payload_buf, payload_size) != 0) {
-    OMS_ERROR << "Failed to read message. ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message. ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
   payload_buf_guard.release();
@@ -47,19 +46,19 @@ static PacketError decode_v1(Channel& ch, Message*& message)
   legacy::PbPacket pb_packet;
   bool ret = pb_packet.ParseFromArray(payload_buf, payload_size);
   if (!ret) {
-    OMS_ERROR << "Failed to parse payload, ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Failed to parse payload, ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
   if ((MessageType)pb_packet.type() != MessageType::HANDSHAKE_REQUEST_CLIENT) {
-    OMS_ERROR << "Invalid packet type:" << pb_packet.type() << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Invalid packet type:" << pb_packet.type() << ", ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
   legacy::ClientHandShake handshake;
   ret = handshake.ParseFromString(pb_packet.payload());
   if (!ret) {
-    OMS_ERROR << "Failed to parse handshake, ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Failed to parse handshake, ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
 
@@ -79,7 +78,7 @@ static PacketError decode_v1(Channel& ch, Message*& message)
  */
 PacketError LegacyDecoder::decode(Channel& ch, MessageVersion version, Message*& message)
 {
-  OMS_DEBUG << "Legacy decode with, version: " << (int)version;
+  OMS_STREAM_DEBUG << "Legacy decode with, version: " << (int)version;
 
   if (version == MessageVersion::V1) {
     return decode_v1(ch, message);
@@ -88,15 +87,15 @@ PacketError LegacyDecoder::decode(Channel& ch, MessageVersion version, Message*&
   // type
   uint32_t type = -1;
   if (ch.readn((char*)&type, 4) != OMS_OK) {
-    OMS_ERROR << "Failed to read message header, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message header, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return PacketError::NETWORK_ERROR;
   }
   type = be_to_cpu(type);
   if (!is_type_available(type)) {
-    OMS_ERROR << "Invalid packet type:" << type << ", ch:" << ch.peer().id();
+    OMS_STREAM_ERROR << "Invalid packet type:" << type << ", ch:" << ch.peer().id();
     return PacketError::PROTOCOL_ERROR;
   }
-  OMS_DEBUG << "Legacy message type:" << type;
+  OMS_STREAM_DEBUG << "Legacy message type:" << type;
 
   int ret = OMS_OK;
   switch ((MessageType)type) {
@@ -140,34 +139,34 @@ int LegacyDecoder::decode_handshake_request(Channel& ch, Message*& message)
 {
   ClientHandshakeRequestMessage* msg = new (std::nothrow) ClientHandshakeRequestMessage;
   if (ch.readn((char*)&msg->log_type, 1) != OMS_OK) {
-    OMS_ERROR << "Failed to read message log_type, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message log_type, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return OMS_FAILED;
   }
-  OMS_DEBUG << "log type:" << (int)msg->log_type;
+  OMS_STREAM_DEBUG << "log type:" << (int)msg->log_type;
 
   if (read_varstr(ch, msg->ip) != OMS_OK) {
-    OMS_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return OMS_FAILED;
   }
-  OMS_DEBUG << "client ip: " << msg->ip;
+  OMS_STREAM_DEBUG << "client ip: " << msg->ip;
 
   if (read_varstr(ch, msg->id) != OMS_OK) {
-    OMS_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return OMS_FAILED;
   }
-  OMS_DEBUG << "client id: " << msg->id;
+  OMS_STREAM_DEBUG << "client id: " << msg->id;
 
   if (read_varstr(ch, msg->version) != OMS_OK) {
-    OMS_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return OMS_FAILED;
   }
-  OMS_DEBUG << "client version: " << msg->version;
+  OMS_STREAM_DEBUG << "client version: " << msg->version;
 
   if (read_varstr(ch, msg->configuration) != OMS_OK) {
-    OMS_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to read message Client IP, ch:" << ch.peer().id() << ", error:" << strerror(errno);
     return OMS_FAILED;
   }
-  OMS_DEBUG << "configuration: " << msg->configuration;
+  OMS_STREAM_DEBUG << "configuration: " << msg->configuration;
   message = msg;
   return OMS_OK;
 }

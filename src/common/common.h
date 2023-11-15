@@ -12,17 +12,20 @@
 
 #pragma once
 
+#include <cstring>
 #include <string>
+#include <vector>
 
 namespace oceanbase {
 namespace logproxy {
-
 #define OMS_OK 0
 #define OMS_AGAIN 1
 #define OMS_FAILED (-1)
 #define OMS_TIMEOUT (-2)
 #define OMS_CONNECT_FAILED (-3)
 #define OMS_INVALID (-4)
+#define OMS_IO_ERROR (-5)
+#define OMS_BINLOG_SKIP (-6)
 
 #define OMS_UNUSED(x) (void)(x)
 
@@ -54,6 +57,23 @@ bool localhostip(std::string& hostname, std::string& ip);
 std::string dumphex(const std::string& str);
 void dumphex(const char data[], size_t size, std::string& hex);
 int hex2bin(const char data[], size_t size, std::string& bin);
+
+template <class T>
+void release_vector(std::vector<T>& vect)
+{
+  for (typename std::vector<T>::iterator it = vect.begin(); it != vect.end(); it++) {
+    if (NULL != *it) {
+      delete *it;
+      *it = NULL;
+    }
+  }
+  vect.clear();
+}
+
+inline std::string system_err(int error_no)
+{
+  return std::to_string(error_no) + "(" + strerror(error_no) + ")";
+}
 
 }  // namespace logproxy
 }  // namespace oceanbase

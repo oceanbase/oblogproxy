@@ -14,13 +14,11 @@
 
 #include <string>
 #include <set>
-#include "common/thread.h"
+#include "thread.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 class FileGcRoutine : public Thread {
-
 public:
   FileGcRoutine(std::string path, std::set<std::string> prefixs);
 

@@ -12,12 +12,10 @@
 
 #pragma once
 
-#include <openssl/aes.h>
-#include <openssl/evp.h>
+#include "openssl/evp.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 class AES {
 public:
   AES();

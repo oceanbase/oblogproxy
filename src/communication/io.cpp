@@ -12,26 +12,25 @@
 
 #include <sys/socket.h>
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
-#include <string.h>
+#include <cstring>
 #include <netdb.h>
 #include <poll.h>
 
 #include "communication/io.h"
-#include "common/log.h"
-#include "common/common.h"
+#include "log.h"
+#include "common.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 int writen(int fd, const void* buf, int size)
 {
   const char* tmp = (const char*)buf;
   while (size > 0) {
-    //    OMS_INFO << "about to write, fd: " << fd << ", size: " << size;
+    //    OMS_STREAM_INFO << "about to write, fd: " << fd << ", size: " << size;
     const ssize_t ret = ::write(fd, tmp, size);
-    //    OMS_INFO << "done to write, fd:" << fd << ", size: " << size << ", ret:" << ret << ", errno:" << errno;
+    //    OMS_STREAM_INFO << "done to write, fd:" << fd << ", size: " << size << ", ret:" << ret << ", errno:" << errno;
     if (ret >= 0) {
       tmp += ret;
       size -= ret;
@@ -50,9 +49,9 @@ int readn(int fd, void* buf, int size)
 {
   char* tmp = (char*)buf;
   while (size > 0) {
-    //    OMS_INFO << "about to read, fd: " << fd << ", size: " << size;
+    //    OMS_STREAM_INFO << "about to read, fd: " << fd << ", size: " << size;
     const ssize_t ret = ::read(fd, tmp, size);
-    //    OMS_INFO << "done to read, fd:" << fd << ", size: " << size << ", ret:" << ret << ", errno:" << errno;
+    //    OMS_STREAM_INFO << "done to read, fd:" << fd << ", size: " << size << ", ret:" << ret << ", errno:" << errno;
     if (ret > 0) {
       tmp += ret;
       size -= ret;
@@ -74,13 +73,13 @@ int readn(int fd, void* buf, int size)
 int connect(const char* host, int port, bool block_mode, int timeout, int& sockfd)
 {
   if (nullptr == host || 0 == host[0] || port < 0 || port >= 65536) {
-    OMS_ERROR << "Invalid host or port";
+    OMS_STREAM_ERROR << "Invalid host or port";
     return OMS_FAILED;
   }
 
   struct hostent* hostent = gethostbyname(host);
   if (hostent == nullptr) {
-    OMS_ERROR << "Failed to get host by name(" << host << "). error=" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to get host by name(" << host << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
 
@@ -92,7 +91,7 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
 
   const int sock = socket(PF_INET, SOCK_STREAM, 0);
   if (sock == -1) {
-    OMS_ERROR << "Failed to create socket. error=" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to create socket. error=" << strerror(errno);
     return OMS_FAILED;
   }
 
@@ -116,15 +115,15 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
       ret = poll(&pollfd, 1, timeout);
       if (ret == 1 && (pollfd.revents & POLLOUT)) {
         // connect success
-        OMS_DEBUG << "Connect to server success after poll. host=" << host << ",port=" << port;
+        OMS_STREAM_DEBUG << "Connect to server success after poll. host=" << host << ",port=" << port;
       } else {
-        OMS_ERROR << "Failed to connect to server. host=" << host << ",port=" << port
+        OMS_STREAM_ERROR << "Failed to connect to server. host=" << host << ",port=" << port
                   << ". timeout:" << (bool)(ret == 0) << ", error=" << strerror(errno);
         close(sock);
         return OMS_CONNECT_FAILED;
       }
     } else {
-      OMS_ERROR << "Failed to connect to server. host=" << host << ",port=" << port << ". error=" << strerror(errno);
+      OMS_STREAM_ERROR << "Failed to connect to server. host=" << host << ",port=" << port << ". error=" << strerror(errno);
       close(sock);
       return OMS_CONNECT_FAILED;
     }
@@ -137,7 +136,7 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
 int listen(const char* host, int port, bool block_mode, bool reuse_address)
 {
   if (port < 0 || port > 65536) {
-    OMS_ERROR << "Invalid listen port: " << port;
+    OMS_STREAM_ERROR << "Invalid listen port: " << port;
     return OMS_FAILED;
   }
 
@@ -146,7 +145,7 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
   if (host != nullptr) {
     struct hostent* hostent = gethostbyname(host);
     if (nullptr == hostent) {
-      OMS_ERROR << "gethostbyname return failed. address=" << host << ", error=" << strerror(errno);
+      OMS_STREAM_ERROR << "gethostbyname return failed. address=" << host << ", error=" << strerror(errno);
       return OMS_FAILED;
     }
     bind_addr = *(struct in_addr*)hostent->h_addr;
@@ -162,7 +161,7 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
 
   int sock = socket(PF_INET, SOCK_STREAM, 0);
   if (sock < 0) {
-    OMS_ERROR << "Failed to create socket. error=" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to create socket. error=" << strerror(errno);
     return OMS_FAILED;
   }
 
@@ -170,6 +169,7 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
   if (reuse_address) {
     ret = set_reuse_addr(sock);
     if (ret != OMS_OK) {
+      shutdown(sock, SHUT_RDWR);
       ::close(sock);
       return ret;
     }
@@ -177,14 +177,16 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
 
   ret = bind(sock, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to bind address '" << host << ":" << port << "', error: " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to bind address '" << host << ":" << port << "', error: " << strerror(errno);
+    shutdown(sock, SHUT_RDWR);
     ::close(sock);
     return OMS_FAILED;
   }
 
   ret = ::listen(sock, 10);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to listen on '" << host << ':' << port << "', error: " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to listen on '" << host << ':' << port << "', error: " << strerror(errno);
+    shutdown(sock, SHUT_RDWR);
     ::close(sock);
     return OMS_FAILED;
   }
@@ -192,7 +194,8 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
   if (!block_mode) {
     ret = set_non_block(sock);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to set listen socket non-block mode, error: " << strerror(errno);
+      OMS_STREAM_ERROR << "Failed to set listen socket non-block mode, error: " << strerror(errno);
+      shutdown(sock, SHUT_RDWR);
       ::close(sock);
       return OMS_FAILED;
     }
@@ -200,7 +203,8 @@ int listen(const char* host, int port, bool block_mode, bool reuse_address)
 
   ret = set_close_on_exec(sock);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to set listen socket close on exec mode, error: " << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to set listen socket close on exec mode, error: " << strerror(errno);
+    shutdown(sock, SHUT_RDWR);
     ::close(sock);
     return OMS_FAILED;
   }
@@ -213,7 +217,7 @@ int set_reuse_addr(int sock)
   int opt = 1;
   int ret = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
   if (ret != 0) {
-    OMS_ERROR << "Failed to set socket in 'REUSE_ADDR' mode. error=" << strerror(errno);
+    OMS_STREAM_ERROR << "Failed to set socket in 'REUSE_ADDR' mode. error=" << strerror(errno);
     return OMS_FAILED;
   }
   return OMS_OK;
@@ -223,13 +227,13 @@ int set_non_block(int fd)
 {
   int flags = fcntl(fd, F_GETFL);
   if (flags == -1) {
-    OMS_WARN << "Failed to get flags of fd(" << fd << "). error=" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to get flags of fd(" << fd << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
 
   flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
   if (flags == -1) {
-    OMS_WARN << "Failed to set non-block flags of fd(" << fd << "). error=" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to set non-block flags of fd(" << fd << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
   return OMS_OK;
@@ -239,13 +243,13 @@ int set_close_on_exec(int fd)
 {
   int flags = fcntl(fd, F_GETFL);
   if (flags == -1) {
-    OMS_WARN << "Failed to get flags of fd(" << fd << "). error=" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to get flags of fd(" << fd << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
 
   flags = fcntl(fd, F_SETFL, flags | O_CLOEXEC);
   if (flags == -1) {
-    OMS_WARN << "Failed to set close on exec flags of fd(" << fd << "). error=" << strerror(errno);
+    OMS_STREAM_WARN << "Failed to set close on exec flags of fd(" << fd << "). error=" << strerror(errno);
     return OMS_FAILED;
   }
   return OMS_OK;

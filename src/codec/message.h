@@ -15,18 +15,13 @@
 #include <string>
 #include <vector>
 
-#include "LogRecord.h"
+#include "log_record.h"
 
-#include "common/model.h"
+#include "model.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 extern const std::string _s_logmsg_type;
-
-#ifndef NEED_MAPPING_CLASS
-using namespace oceanbase::logmessage;
-#endif
 
 enum class MessageVersion : uint16_t {
   V0 = 0,
@@ -47,6 +42,11 @@ enum class MessageType : int8_t {
   DATA_CLIENT = 6,
   STATUS = 7,
   //  STATUS_LOGREADER = 8,
+
+  SET_GLOBAL_CONFIG = 100,
+  SET_READER_CONFIG = 101,
+  SET_LIBOBLOG_CONFIG = 102,
+
 };
 
 bool is_type_available(int8_t type_val);
@@ -98,7 +98,7 @@ enum ErrorCode {
   E_PROTOCOL = 500,
 
   /**
-   * unknown header type
+   * unknown _header type
    */
   E_HEADER_TYPE = 501,
 

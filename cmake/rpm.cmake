@@ -1,26 +1,24 @@
 set(CPACK_GENERATOR "RPM")
-# use seperated RPM SPECs and generate different RPMs
-set(CPACK_COMPONENTS_IGNORE_GROUPS 1)
-set(CPACK_RPM_COMPONENT_INSTALL ON)
-# use "oblogproxy" as main component so its RPM filename won't have "oblogproxy"
-set(CPACK_RPM_MAIN_COMPONENT "oblogproxy")
+set(CPACK_RPM_COMPONENT_INSTALL OFF)
 # let rpmbuild determine rpm filename
 set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
-set(CPACK_RPM_PACKAGE_RELEASE ${OBLOGPROXY_RELEASEID})
-set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
+set(CPACK_RPM_PACKAGE_RELEASE_DIST OFF)
 # RPM package informations.
 set(CPACK_PACKAGING_INSTALL_PREFIX /usr/local/oblogproxy)
 list(APPEND CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "/usr/local/oblogproxy")
-set(CPACK_PACKAGE_NAME ${OBLOGPROXY_PACKAGE_NAME})
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "oblogproxy is a clog proxy server for OceanBase CE")
-set(CPACK_PACKAGE_VENDOR "Ant Group CO., Ltd.")
-set(CPACK_PACKAGE_VERSION ${OBLOGPROXY_PACKAGE_VERSION})
-set(CPACK_PACKAGE_VERSION_MAJOR 1)
-set(CPACK_PACKAGE_VERSION_MINOR 0)
-set(CPACK_PACKAGE_VERSION_PATCH 1)
+set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "oblogproxy is a clog proxy server for OceanBase")
+set(CPACK_PACKAGE_VENDOR "OceanBase Inc.")
+set(CPACK_PACKAGE_VERSION "${OBLOGPROXY_VERSION}")
+set(CPACK_RPM_PACKAGE_RELEASE "${OBLOGPROXY_RELEASEID}")
+set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
+set(CPACK_PACKAGE_VERSION_MAJOR "${OBLOGPROXY_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${OBLOGPROXY_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${OBLOGPROXY_VERSION_PATCH}")
+set(CPACK_SOURCE_IGNORE_FILES "${PROJECT_BINARY_DIR};/.git/;.gitignore")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Databases")
 set(CPACK_RPM_PACKAGE_URL "https://open.oceanbase.com")
-set(CPACK_RPM_PACKAGE_DESCRIPTION "oblogproxy is a clog proxy server for OceanBase CE")
+set(CPACK_RPM_PACKAGE_DESCRIPTION "oblogproxy is a clog proxy server for OceanBase")
 set(CPACK_RPM_PACKAGE_LICENSE "Mulan PubL v2.")
 set(CPACK_RPM_DEFAULT_USER "root")
 set(CPACK_RPM_DEFAULT_GROUP "root")
@@ -35,76 +33,78 @@ set(CPACK_RPM_SPEC_MORE_DEFINE
 # - PATH is relative to the **ROOT directory** of project other than the cmake directory.
 if (NOT ${OBLOGPROXY_INSTALL_PREFIX})
     set(CPACK_PACKAGING_INSTALL_PREFIX ${OBLOGPROXY_INSTALL_PREFIX})
-endif()
+endif ()
 
 message("CPACK_PACKAGING_INSTALL_PREFIX: ${CPACK_PACKAGING_INSTALL_PREFIX}")
 
-list(APPEND OBLOGPROXY_BIN_FILES ${OMS_PROJECT_BUILD_PATH}/logproxy)
+list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_BINARY_DIR}/logproxy)
+list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_BINARY_DIR}/oblogreader)
+list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_BINARY_DIR}/binlog_converter)
+list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_SOURCE_DIR}/script/list_logreader_path.sh)
+list(APPEND OBLOGPROXY_BIN_FILES ${CMAKE_SOURCE_DIR}/script/list_logreader_process.sh)
 list(APPEND OBLOGPROXY_CONF_FILES ${CMAKE_SOURCE_DIR}/conf/conf.json)
 list(APPEND OBLOGPROXY_SCRIPT_FILES ${CMAKE_SOURCE_DIR}/script/run.sh)
 
 install(PROGRAMS
         ${OBLOGPROXY_BIN_FILES}
         DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/bin
-        COMPONENT oblogproxy
         )
 
 install(FILES
         ${OBLOGPROXY_CONF_FILES}
         DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/conf
-        COMPONENT oblogproxy
         )
 
 install(PROGRAMS
         ${OBLOGPROXY_SCRIPT_FILES}
         DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/
-        COMPONENT oblogproxy
         )
 
-if (WITH_DEPS)
-    if (NOT USE_LIBOBLOG)
-        if (USE_LIBOBLOG_3)
-            file(GLOB LIBOBLOG_OUTPUT_LIBS
-                    ${DEP_VAR}/usr/lib/${OBCDC_NAME}*.so*
-                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/libaio.so*
-                    )
-            install(FILES
-                    ${LIBOBLOG_OUTPUT_LIBS}
-                    DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/liboblog
-                    COMPONENT oblogproxy
-                    )
-        else()
-            file(GLOB LIBOBLOG_OUTPUT_LIBS ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}*.so*
-                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/libaio.so*
-                    ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib/mariadb/libmariadb.so*
-                    )
-            install(FILES
-                    ${LIBOBLOG_OUTPUT_LIBS}
-                    DESTINATION ${CPACK_PACKAGING_INSTALL_PREFIX}/liboblog
-                    COMPONENT oblogproxy
-                    )
-        endif()
-    endif()
-endif()
+function(install_library_target LIBRARY_TARGET INSTALL_DIR)
+    get_target_property(LIB_IMPORT_LOCATION ${LIBRARY_TARGET} IMPORTED_LOCATION)
+    install(FILES ${LIB_IMPORT_LOCATION}
+            DESTINATION ${INSTALL_DIR}
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+            )
+    get_target_property(LIB_IMPORT_SONAME ${LIBRARY_TARGET} IMPORTED_SONAME)
+    if (LIB_IMPORT_SONAME)
+        get_filename_component(LIB_DIR ${LIB_IMPORT_LOCATION} DIRECTORY)
+        install(FILES ${LIB_DIR}/${LIB_IMPORT_SONAME}
+                DESTINATION ${INSTALL_DIR}
+                PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+                )
+    endif ()
+endfunction()
+
+function(install_obcdc_target OBCDC_TARGET LIBRARY_TARGET INSTALL_DIR)
+    install(TARGETS ${OBCDC_TARGET}
+            LIBRARY DESTINATION ${INSTALL_DIR}
+            ARCHIVE DESTINATION ${INSTALL_DIR}
+            )
+
+    install_library_target(${LIBRARY_TARGET} ${INSTALL_DIR})
+    install_library_target(libaio ${INSTALL_DIR})
+    set_target_properties(${OBCDC_TARGET} PROPERTIES INSTALL_RPATH "$ORIGIN")
+endfunction()
+
+#  install obcdc ce 3.x
+message(STATUS "package/install with oceanbase ce cdc 3.x")
+install_obcdc_target(obcdc-ce-3 libobcdcce3 ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-3.x-access)
+
+#  install obcdc ce 4.x
+message(STATUS "package/install with oceanbase ce cdc 4.x")
+install_obcdc_target(obcdc-ce-4 libobcdcce4 ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-4.x-access)
+install_library_target(libmariadb ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-4.x-access)
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script "/sbin/ldconfig /usr/lib")
-set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script)
+set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script)
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script "/sbin/ldconfig")
-set(CPACK_RPM_UTILS_POST_UNINSTALL_SCRIPT_FILE  ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script)
-if(USE_OBCDC_NS)
-    if (USE_LIBOBLOG_3)
-        set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112")
-    else()
-        set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112")
-    endif()
-else()
-    set(CPACK_RPM_PACKAGE_REQUIRES "devdeps-libaio >= 0.3.112, oceanbase-ce-devel = 3.1.2")
-endif()
+set(CPACK_RPM_UTILS_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/utils_postun.script)
+
 # install cpack to make everything work
 include(CPack)
 
 #add rpm target to create RPMS
 add_custom_target(rpm
         COMMAND +make package
-        DEPENDS
-        logproxy)
+)

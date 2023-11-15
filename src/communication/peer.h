@@ -12,13 +12,11 @@
 
 #pragma once
 
-#include "common/timer.h"
+#include "timer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 struct Peer {
-
 public:
   int fd = 0;
 
@@ -83,6 +81,24 @@ public:
     LogStream ls{0, "", 0, nullptr};
     ls << "id:" << _id << ", fd:" << fd << ", addr:" << _addr << ", port:" << _port;
     return ls.str();
+  }
+
+  void from_json(const rapidjson::Value& json) {
+    _id = json["id"].GetInt64();
+    fd = json["fd"].GetInt();
+    _addr = json["addr"].GetUint();
+    _port = json["port"].GetUint();
+  }
+
+  void to_json(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer) const
+  {
+    writer.Key("peer");
+    writer.StartObject();
+    writer.Key("id");writer.Uint64(_id);
+    writer.Key("fd");writer.Int(fd);
+    writer.Key("addr");writer.Uint(_addr);
+    writer.Key("port");writer.Uint(_port);
+    writer.EndObject();
   }
 
 private:

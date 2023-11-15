@@ -4,8 +4,7 @@ cd $(dirname $0)
 DEPLOY_PATH=$(pwd)
 echo "DEPLOY_PATH : "${DEPLOY_PATH}
 
-LIB_PATH=${DEPLOY_PATH}/liboblog
-
+LIB_PATH=${DEPLOY_PATH}/deps/lib
 BIN='logproxy'
 GPID=0
 function is_running() {
@@ -90,8 +89,8 @@ do_config_sys() {
   if [ ! -z "${LIB_PATH}" ]; then
     export LD_LIBRARY_PATH=${LIB_PATH}:${LD_LIBRARY_PATH}
   fi
-  username_x=`./bin/${BIN} -x ${username}`
-  password_x=`./bin/${BIN} -x ${password}`
+  username_x=$(./bin/${BIN} -x ${username})
+  password_x=$(./bin/${BIN} -x ${password})
 
   cp ./conf/conf.json ./conf/conf.json.new
   sed -r -i 's/"ob_sys_username"[ ]*:[ ]*"[0-9a-zA-Z]*/"ob_sys_username": "'${username_x}'/' ./conf/conf.json.new
@@ -101,9 +100,9 @@ do_config_sys() {
 
   read -r -p "!!DANGER!! About to update logproxy conf/conf.json, Please confirm? [Y/n] " response
   if [ "${response}" != "y" ] && [ "${response}" != "Y" ]; then
-      echo "Cancel!"
-      rm -rf ./conf/conf.json.new
-      exit 0
+    echo "Cancel!"
+    rm -rf ./conf/conf.json.new
+    exit 0
   fi
 
   cp ./conf/conf.json ./conf/conf.json.bak

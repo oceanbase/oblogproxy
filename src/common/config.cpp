@@ -23,14 +23,14 @@ int Config::load(const std::string& file)
 {
   std::ifstream ifs(file, std::ios::in);
   if (!ifs.good()) {
-    OMS_FATAL << "failed to open config file: " << file;
+    OMS_FATAL("Failed to open config file: {},reason:{}", file,logproxy::system_err(errno));
     return OMS_FAILED;
   }
 
   std::string errmsg;
   Json::Value json;
   if (!str2json(ifs, json, &errmsg)) {
-    OMS_FATAL << "failed to parse config file: " << file << ", errmsg: " << errmsg;
+    OMS_FATAL("Failed to parse config file: {}, errmsg: {}", file, errmsg);
     return OMS_FAILED;
   }
 
@@ -41,7 +41,7 @@ int Config::load(const std::string& file)
     }
   }
 
-  OMS_INFO << "success to load config: \n" << debug_str(true);
+  OMS_INFO("Success to load config: {} ", debug_str(true));
   return OMS_OK;
 }
 
@@ -55,6 +55,46 @@ std::string Config::debug_str(bool formatted) const
     }
   }
   return ss.str();
+}
+
+int Config::from_json(const rapidjson::Value& json)
+{
+  deserialize_items(json);
+  return OMS_OK;
+}
+
+void Config::to_json(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer)
+{
+  writer.Key(CONFIG);
+  writer.StartObject();
+  for (auto entry : _configs) {
+    entry.second->write_item(writer);
+  }
+  writer.EndObject();
+}
+
+int load_configs(std::string& config_file, rapidjson::Document& doc)
+{
+  std::ifstream ifs(config_file, std::ios::in);
+  if (!ifs.is_open()) {
+    OMS_ERROR("Failed to open config file: {}, error: {}({})", config_file, errno, strerror(errno));
+    return OMS_FAILED;
+  }
+
+  std::string json((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+  ifs.close();
+  OMS_INFO("Successfully loaded config json from file: {}", config_file);
+
+  doc.Parse(json.c_str());
+  if (doc.HasParseError() || !doc.IsObject()) {
+    OMS_ERROR("Failed to parse config file: {}, error: {}, offset: {}",
+        config_file,
+        doc.GetParseError(),
+        doc.GetErrorOffset());
+    return OMS_FAILED;
+  }
+
+  return OMS_OK;
 }
 
 }  // namespace logproxy

@@ -12,12 +12,16 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstdlib>
 #include <strings.h>
 #include <string>
 #include <map>
-#include "common/common.h"
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
+#include "common.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -27,11 +31,17 @@ public:
   virtual void from_str(const std::string& val) = 0;
 
   virtual std::string debug_str() const = 0;
+
+  virtual void from_json(rapidjson::Value& value) = 0;
+
+  virtual void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer) = 0;
 };
 
 class ConfigBase {
 public:
   void add_item(const std::string& key, ConfigItemBase* item);
+
+  void deserialize_items(const rapidjson::Value& value);
 
 protected:
   std::map<std::string, ConfigItemBase*> _configs;
@@ -74,6 +84,17 @@ public:
     return std::to_string(_val);
   }
 
+  void from_json(rapidjson::Value& value) override
+  {
+    from_json(value, _val);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer) override
+  {
+    writer.Key(_key.c_str());
+    write_item(writer, _val);
+  }
+
 private:
   void from_str(const std::string& val) override
   {
@@ -113,6 +134,86 @@ private:
   bool from_str(const std::string& val, bool v)
   {
     return strcasecmp("true", val.c_str()) == 0;
+  }
+
+  void from_json(rapidjson::Value& value, uint16_t v)
+  {
+    _val = value.GetUint();
+  }
+
+  void from_json(rapidjson::Value& value, uint32_t v)
+  {
+    _val = value.GetUint();
+  }
+
+  void from_json(rapidjson::Value& value, uint64_t v)
+  {
+    _val = value.GetUint64();
+  }
+
+  void from_json(rapidjson::Value& value, int16_t v)
+  {
+    _val = value.GetInt();
+  }
+
+  void from_json(rapidjson::Value& value, int32_t v)
+  {
+    _val = value.GetInt();
+  }
+
+  void from_json(rapidjson::Value& value, int64_t v)
+  {
+    _val = value.GetInt64();
+  }
+
+  void from_json(rapidjson::Value& value, bool v)
+  {
+    _val = value.GetBool();
+  }
+
+  void from_json(rapidjson::Value& value, std::string v)
+  {
+    _val = value.GetString();
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, uint16_t v)
+  {
+    writer.Uint(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, uint32_t v)
+  {
+    writer.Uint(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, uint64_t v)
+  {
+    writer.Uint64(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, int16_t v)
+  {
+    writer.Int(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, int32_t v)
+  {
+    writer.Int(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, int64_t v)
+  {
+    writer.Int64(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, bool v)
+  {
+    writer.Bool(v);
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer, std::string v)
+  {
+    writer.String(v.c_str());
   }
 
   static bool empty_type(T v)
@@ -162,6 +263,17 @@ public:
   std::string debug_str() const override
   {
     return _val;
+  }
+
+  void from_json(rapidjson::Value& value) override
+  {
+    _val = value.GetString();
+  }
+
+  void write_item(rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer) override
+  {
+    writer.Key(_key.c_str());
+    writer.String(_val.c_str());
   }
 
 protected:

@@ -10,21 +10,19 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include <string.h>
+#include <cstring>
 #include <vector>
+#include <unistd.h>
 
-#include "obaccess/mysql_protocol.h"
-#include "obaccess/ob_mysql_packet.h"
-#include "obaccess/ob_sha1.h"
-#include "common/log.h"
-#include "common/common.h"
+#include "mysql_protocol.h"
+#include "log.h"
+#include "common.h"
 #include "communication/io.h"
-#include "codec/codec_endian.h"
-#include "codec/msg_buf.h"
+#include "codec_endian.h"
+#include "msg_buf.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 MysqlProtocol::~MysqlProtocol()
 {
   close();
@@ -46,9 +44,9 @@ int MysqlProtocol::connect_to_server()
 {
   int ret = connect(_hostname.c_str(), _port, false, _detect_timeout, _sockfd);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to connect to server: " << _hostname << ':' << _port << ", user: " << _username;
+    OMS_STREAM_ERROR << "Failed to connect to server: " << _hostname << ':' << _port << ", user: " << _username;
   } else {
-    OMS_INFO << "Connect to server success: " << _hostname << ':' << _port << ", user: " << _username;
+    OMS_STREAM_INFO << "Connect to server success: " << _hostname << ':' << _port << ", user: " << _username;
   }
   return ret;
 }
@@ -65,7 +63,7 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
   // 1 connect to the server
   int ret = connect_to_server();
   if (ret < 0) {
-    OMS_ERROR << "Failed to connect to server " << _hostname << ':' << _port;
+    OMS_STREAM_ERROR << "Failed to connect to server " << _hostname << ':' << _port;
     return OMS_CONNECT_FAILED;
   }
 
@@ -75,16 +73,16 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
   uint32_t packet_length = 0;
   ret = recv_mysql_packet(_sockfd, _detect_timeout, packet_length, sequence, msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to receive handshake packet from: " << _hostname << ':' << _port
+    OMS_STREAM_ERROR << "Failed to receive handshake packet from: " << _hostname << ':' << _port
               << ", error: " << strerror(errno);
     return ret;
   }
-  OMS_DEBUG << "Receive handshake packet from server: " << _hostname << ':' << _port << ", user: " << _username;
+  OMS_STREAM_DEBUG << "Receive handshake packet from server: " << _hostname << ':' << _port << ", user: " << _username;
 
   MySQLInitialHandShakePacket handshake_packet;
   ret = handshake_packet.decode(msgbuf);
   if (ret != OMS_OK || !handshake_packet.scramble_valid()) {
-    OMS_ERROR << "Failed to decode_payload initial handshake packet or does not has a valid scramble:"
+    OMS_STREAM_ERROR << "Failed to decode_payload initial handshake packet or does not has a valid scramble:"
               << handshake_packet.scramble_valid() << ". length=" << packet_length << ", server: " << _hostname << ':'
               << _port;
     return ret;
@@ -96,14 +94,14 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
   std::vector<char> auth;
   ret = calc_mysql_auth_info(scramble, auth);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to calc login info from: " << _hostname << ':' << _port << ", user: " << _username;
+    OMS_STREAM_ERROR << "Failed to calc login info from: " << _hostname << ':' << _port << ", user: " << _username;
     return ret;
   }
 
   // 4 send the handshake response with auth information
   ret = send_auth(auth, database);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to send handshake response message to " << _hostname << ':' << _port << ", user=" << _username;
+    OMS_STREAM_ERROR << "Failed to send handshake response message to " << _hostname << ':' << _port << ", user=" << _username;
     return OMS_FAILED;
   }
 
@@ -111,7 +109,7 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
   msgbuf.reset();
   ret = recv_mysql_packet(_sockfd, _detect_timeout, packet_length, sequence, msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to recv handshake auth response from: " << _hostname << ':' << _port
+    OMS_STREAM_ERROR << "Failed to recv handshake auth response from: " << _hostname << ':' << _port
               << ", user: " << _username;
     return OMS_FAILED;
   }
@@ -119,11 +117,11 @@ int MysqlProtocol::login(const std::string& host, int port, const std::string& u
   MySQLOkPacket ok_packet;
   ret = ok_packet.decode(msgbuf);
   if (ret == OMS_OK) {
-    OMS_INFO << "Auth user success of server: " << _hostname << ':' << _port << ", user: " << _username;
+    OMS_STREAM_INFO << "Auth user success of server: " << _hostname << ':' << _port << ", user: " << _username;
   } else {
     MySQLErrorPacket error_packet;
     error_packet.decode(msgbuf);
-    OMS_ERROR << "Auth user failed of server: " << _hostname << ':' << _port << ", user: " << _username;
+    OMS_STREAM_ERROR << "Auth user failed of server: " << _hostname << ':' << _port << ", user: " << _username;
   }
   return ret;
 }
@@ -144,7 +142,7 @@ int MysqlProtocol::calc_mysql_auth_info(const std::vector<char>& scramble, std::
   SHA1 sha1;
   SHA1::ResultCode result_code = sha1.input((const unsigned char*)_passwd_sha1.data(), _passwd_sha1.size());
   if (result_code != SHA1::SHA_SUCCESS) {
-    OMS_ERROR << "Failed to calc sha1(step input) of passwd stage1 to stage2. result code=" << result_code;
+    OMS_STREAM_ERROR << "Failed to calc sha1(step input) of passwd stage1 to stage2. result code=" << result_code;
     return OMS_FAILED;
   }
 
@@ -152,7 +150,7 @@ int MysqlProtocol::calc_mysql_auth_info(const std::vector<char>& scramble, std::
   passwd_stage2.resize(SHA1::SHA1_HASH_SIZE);
   result_code = sha1.get_result((unsigned char*)passwd_stage2.data());
   if (result_code != SHA1::SHA_SUCCESS) {
-    OMS_ERROR << "Failed to calc sha1(step get_result) of passwd stage1 to stage2. result code=" << result_code;
+    OMS_STREAM_ERROR << "Failed to calc sha1(step get_result) of passwd stage1 to stage2. result code=" << result_code;
     return OMS_FAILED;
   }
 
@@ -164,7 +162,7 @@ int MysqlProtocol::calc_mysql_auth_info(const std::vector<char>& scramble, std::
   sha1.reset();
   result_code = sha1.input((const unsigned char*)scramble_combined.data(), scramble_combined.size());
   if (result_code != SHA1::SHA_SUCCESS) {
-    OMS_ERROR << "Failed to calc sha1(step input) of combined. result code=" << result_code;
+    OMS_STREAM_ERROR << "Failed to calc sha1(step input) of combined. result code=" << result_code;
     return OMS_FAILED;
   }
 
@@ -172,12 +170,12 @@ int MysqlProtocol::calc_mysql_auth_info(const std::vector<char>& scramble, std::
   sha_combined.resize(SHA1::SHA1_HASH_SIZE);
   result_code = sha1.get_result((unsigned char*)sha_combined.data());
   if (result_code != SHA1::SHA_SUCCESS) {
-    OMS_ERROR << "Failed to calc sha1(step get_result) of combined. result code=" << result_code;
+    OMS_STREAM_ERROR << "Failed to calc sha1(step get_result) of combined. result code=" << result_code;
     return OMS_FAILED;
   }
 
   if (_passwd_sha1.size() != sha_combined.size()) {
-    OMS_ERROR << "the length of password stage1(sha1)(" << _passwd_sha1.size() << ") != the length of sha_combined("
+    OMS_STREAM_ERROR << "the length of password stage1(sha1)(" << _passwd_sha1.size() << ") != the length of sha_combined("
               << sha_combined.size() << ")";
     return OMS_FAILED;
   }
@@ -196,13 +194,13 @@ int MysqlProtocol::send_auth(const std::vector<char>& auth_info, const std::stri
   MsgBuf msgbuf;
   int ret = handshake_response_packet.encode(msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to encode handshake response packet";
+    OMS_STREAM_ERROR << "Failed to encode handshake response packet";
     return -1;
   }
 
   ret = send_mysql_packet(_sockfd, msgbuf, 0);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to send handshake response to server: " << _hostname << ":" << _port;
+    OMS_STREAM_ERROR << "Failed to send handshake response to server: " << _hostname << ":" << _port;
     return ret;
   }
   return OMS_OK;
@@ -210,37 +208,41 @@ int MysqlProtocol::send_auth(const std::vector<char>& auth_info, const std::stri
 
 int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
 {
-
-  OMS_INFO << "Query obmysql SQL:" << sql;
+  OMS_STREAM_INFO << "Query obmysql SQL:" << sql;
   rs.reset();
 
   MsgBuf msgbuf;
   MySQLQueryPacket packet(sql);
   int ret = packet.encode_inplace(msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to encode observer sql packet, ret:" << ret;
+    OMS_STREAM_ERROR << "Failed to encode observer sql packet, ret:" << ret;
     return ret;
   }
   ret = send_mysql_packet(_sockfd, msgbuf, 0);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to send query packet to server:" << _hostname << ':' << _port;
+    OMS_STREAM_ERROR << "Failed to send query packet to server:" << _hostname << ':' << _port;
     return OMS_CONNECT_FAILED;
   }
 
   ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to recv query packet from server:" << _hostname << ':' << _port;
+    OMS_STREAM_ERROR << "Failed to recv query packet from server:" << _hostname << ':' << _port;
     return OMS_CONNECT_FAILED;
   }
 
   MySQLQueryResponsePacket query_resp;
   ret = query_resp.decode(msgbuf);
-  if (ret != OMS_OK || query_resp.col_count() == 0) {
-    OMS_ERROR << "Failed to query observer:" << query_resp._err._message
-              << (query_resp.col_count() == 0 ? ", unexpected column count: 0" : "");
+  if (ret != OMS_OK) {
+    OMS_STREAM_ERROR << "Failed to query observer:" << query_resp._err._message;
     rs.code = query_resp._err._code;
     rs.message = query_resp._err._message;
     return OMS_FAILED;
+  }
+
+  if (query_resp.col_count() == 0) {
+    // Ok packet
+    rs.affect_rows = query_resp._ok.get_affected_rows();
+    return OMS_OK;
   }
 
   // column definitions
@@ -249,7 +251,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   for (uint64_t i = 0; i < query_resp.col_count(); ++i) {
     ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
     if (ret != OMS_OK) {
-      OMS_ERROR << "Failed to recv column defines packet from server:" << _hostname << ':' << _port;
+      OMS_STREAM_ERROR << "Failed to recv column defines packet from server:" << _hostname << ':' << _port;
       return OMS_CONNECT_FAILED;
     }
 
@@ -261,13 +263,13 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   // eof
   ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to recv eof packet from server:" << _hostname << ':' << _port;
+    OMS_STREAM_ERROR << "Failed to recv eof packet from server:" << _hostname << ':' << _port;
     return OMS_CONNECT_FAILED;
   }
   MySQLEofPacket eof;
   ret = eof.decode(msgbuf);
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to decode eof packet from server:" << _hostname << ':' << _port;
+    OMS_STREAM_ERROR << "Failed to decode eof packet from server:" << _hostname << ':' << _port;
     return OMS_OK;
   }
 
@@ -275,7 +277,7 @@ int MysqlProtocol::query(const std::string& sql, MySQLResultSet& rs)
   while (true) {
     ret = recv_mysql_packet(_sockfd, _detect_timeout, msgbuf);
     if (ret != OMS_OK || msgbuf.begin()->buffer() == nullptr) {
-      OMS_ERROR << "Failed to recv row packet from server:" << _hostname << ':' << _port;
+      OMS_STREAM_ERROR << "Failed to recv row packet from server:" << _hostname << ':' << _port;
       return OMS_CONNECT_FAILED;
     }
     uint8_t eof_code = msgbuf.begin()->buffer()[0];

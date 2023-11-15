@@ -10,7 +10,8 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "codec/msg_buf.h"
+#include "common/msg_buf.h"
+#include "gtest/gtest.h"
 
 using namespace oceanbase::logproxy;
 
@@ -19,7 +20,7 @@ void test_read_one(MsgBufReader& reader, size_t size, const std::string& expect)
   char out[size];
   reader.read(out, size);
   std::string out_str(out, size);
-  OMS_INFO << "out" << size << ": " << out_str << ", " << reader.debug_info();
+  OMS_STREAM_INFO << "out" << size << ": " << out_str << ", " << reader.debug_info();
   ASSERT_STREQ(out_str.c_str(), expect.c_str());
   reader.backward(size);
 }
@@ -35,7 +36,7 @@ TEST(MessageBuffer, io)
   buf.push_back(buffer3, 10, false);
 
   MsgBufReader reader(buf);
-  OMS_INFO << reader.debug_info();
+  OMS_STREAM_INFO << reader.debug_info();
 
   test_read_one(reader, 1, "0");
   test_read_one(reader, 5, "01234");

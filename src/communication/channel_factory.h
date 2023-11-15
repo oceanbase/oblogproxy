@@ -14,17 +14,16 @@
 
 #include <mutex>
 #include <unordered_map>
-#include "communication/channel.h"
+#include "channel.h"
+#include "peer.h"
 
 namespace oceanbase {
 namespace logproxy {
-
 /**
  * channel factory owner all channel property,
  * all creating, releasing, modifying should invoke
  */
 class ChannelFactory {
-
   OMS_SINGLETON(ChannelFactory);
   OMS_AVOID_COPY(ChannelFactory);
 

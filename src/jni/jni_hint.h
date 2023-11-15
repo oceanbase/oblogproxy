@@ -19,7 +19,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 struct JniMethod {
 public:
   static jmethodID MapSize;
@@ -53,7 +52,6 @@ private:
 };
 
 class JniHint {
-
 public:
   static jmethodID reg_method(
       JNIEnv* env, jclass jclazz, const std::string& clazz, const std::string& name, const std::string& sig);

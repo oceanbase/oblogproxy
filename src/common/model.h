@@ -14,8 +14,9 @@
 
 #include <vector>
 #include <functional>
-#include "common/common.h"
-#include "common/log.h"
+#include "common.h"
+#include "log.h"
+#include "config.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -26,14 +27,17 @@ public:
   // copy ctor do nothing
   Model(const Model& rhs)
   {}
+
   Model(Model&& rhs) noexcept
   {}
+
   Model& operator=(const Model& rhs)
   {
     _to_str_flag = false;
     _to_str_buf.clear();
     return *this;
   }
+
   Model& operator=(Model&& rhs) noexcept
   {
     _to_str_flag = false;
@@ -41,7 +45,7 @@ public:
     return *this;
   }
 
-  const std::string& to_string() const
+  virtual const std::string& to_string() const
   {
     Model* p = (Model*)this;
     if (OMS_ATOMIC_CAS(p->_to_str_flag, false, true)) {

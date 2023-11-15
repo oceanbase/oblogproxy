@@ -12,18 +12,18 @@
 
 #pragma once
 
-#include <vector>
-#include <deque>
-#include <map>
-#include <unordered_map>
-#include <set>
-#include <unordered_set>
+#include <sys/time.h>
 #include <sstream>
 #include <iostream>
-#if __cplusplus >= 201703L
+#include <filesystem>
+#include <set>
+#include <unordered_set>
 #include <list>
-#endif
-#include <sys/time.h>
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "rotating_file_with_compress_sink.hpp"
+#include "config.h"
+#include "common.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -274,50 +274,154 @@ private:
   std::ostream* _os = nullptr;
 };
 
-template <typename T>
-class LogMessage {
+class Logger {
+  OMS_SINGLETON(Logger);
+
+private:
+  Logger(const Logger&) = delete;
+  void operator=(const Logger&) = delete;
+
 public:
-  explicit LogMessage(int level, const std::string& file, const int line)
+  bool init(
+      std::string logger_name, std::string_view log_file_path, uint16_t log_max_file_size_mb, uint16_t log_retention_h)
   {
-    if (_stream == nullptr) {
-      _stream = new T(level, file, line);
+    // check log path and try to create log directory
+    namespace fs = std::filesystem;
+    fs::path log_path(log_file_path);
+    fs::path log_dir = log_path.parent_path();
+    if (!fs::exists(log_path)) {
+      fs::create_directories(log_dir);
     }
+
+    // create logger
+    _default_logger =
+        rotating_with_compress_logger_mt(logger_name, log_path, log_max_file_size_mb * 1024 * 1024, log_retention_h);
+    if (nullptr != _default_logger) {
+      _default_logger->set_pattern("[%Y-%m-%d %H:%M:%S] [%^%l%$] %s(%#): %v");
+      _default_logger->flush_on(spdlog::level::level_enum(Config::instance().log_level.val()));
+      _default_logger->set_level(spdlog::level::level_enum(Config::instance().log_level.val()));
+      return true;
+    }
+
+    return false;
   }
 
-  ~LogMessage()
+  std::shared_ptr<spdlog::logger> default_logger()
   {
-    if (_stream != nullptr) {
-      _stream->flush();
+    // return spdlog::default_logger if not yet initialized
+    if (nullptr == _default_logger) {
+      return spdlog::default_logger();
     }
-  }
 
-  T& stream()
-  {
-    return *_stream;
+    return _default_logger;
   }
 
 private:
-  T* _stream = nullptr;
+  std::shared_ptr<spdlog::logger> _default_logger;
 };
 
-void init_log(const char* argv0, bool restart = false);
+class StreamLogger : public std::ostringstream {
+public:
+  explicit StreamLogger(spdlog::source_loc source_loc, spdlog::level::level_enum log_level)
+      : _source_loc(source_loc), _log_level(log_level)
+  {}
+
+  ~StreamLogger() override
+  {
+    flush();
+  }
+
+  void flush()
+  {
+    Logger::instance().default_logger()->log(_source_loc, _log_level, str().c_str());
+  }
+
+private:
+  spdlog::source_loc _source_loc;
+  spdlog::level::level_enum _log_level;
+};
+
+class EmptyStreamLogger : public std::ostringstream {
+public:
+  EmptyStreamLogger() = default;
+
+  ~EmptyStreamLogger() override
+  {
+    /*do nothing*/
+  }
+
+  void flush()
+  {
+    /*do nothing*/
+  }
+};
+
+void init_log(const char* log_basename);
+
+void replace_spdlog_default_logger();
 
 }  // namespace logproxy
 }  // namespace oceanbase
 
-#ifdef WITH_GLOG
+#define LOG_LEVEL_TRACE 0
+#define LOG_LEVEL_DEBUG 1
+#define LOG_LEVEL_INFO 2
+#define LOG_LEVEL_WARN 3
+#define LOG_LEVEL_ERROR 4
+#define LOG_LEVEL_FATAL 5
 
-#include "glog/logging.h"
+#define LOG_BASE(level, fmt, ...)                                \
+  oceanbase::logproxy::Logger::instance().default_logger()->log( \
+      {__FILE__, __LINE__, __FUNCTION__}, level, fmt, ##__VA_ARGS__)
 
-#define OMS_DEBUG DLOG(INFO)
-#define OMS_INFO LOG(INFO)
-#define OMS_WARN LOG(WARNING)
-#define OMS_ERROR LOG(ERROR)
-#define OMS_FATAL LOG(ERROR)
+/* !!! HINT: the macros starts with "OMS_STREAM_" are for compatibility with the previous usage of glog,
+ * and will be unified into the macros like "OMS_INFO" eventually.
+ * Please call macros like "OMS_INFO" from now on. !!! */
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_TRACE)
+#define OMS_TRACE(fmt, ...) LOG_BASE(spdlog::level::trace, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_TRACE oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::trace)
 #else
-#define OMS_DEBUG oceanbase::logproxy::LogMessage<oceanbase::logproxy::LogStream>(0, __FILE__, __LINE__).stream()
-#define OMS_INFO oceanbase::logproxy::LogMessage<oceanbase::logproxy::LogStream>(1, __FILE__, __LINE__).stream()
-#define OMS_WARN oceanbase::logproxy::LogMessage<oceanbase::logproxy::LogStream>(2, __FILE__, __LINE__).stream()
-#define OMS_ERROR oceanbase::logproxy::LogMessage<oceanbase::logproxy::LogStream>(3, __FILE__, __LINE__).stream()
-#define OMS_FATAL oceanbase::logproxy::LogMessage<oceanbase::logproxy::LogStream>(4, __FILE__, __LINE__).stream()
+#define OMS_TRACE(fmt, ...)
+#define OMS_STREAM_TRACE oceanbase::logproxy::EmptyStreamLogger()
+#endif
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_DEBUG)
+#define OMS_DEBUG(fmt, ...) LOG_BASE(spdlog::level::debug, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_DEBUG oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::debug)
+#else
+#define OMS_DEBUG(fmt, ...)
+#define OMS_STREAM_DEBUG oceanbase::logproxy::EmptyStreamLogger()
+#endif
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_INFO)
+#define OMS_INFO(fmt, ...) LOG_BASE(spdlog::level::info, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_INFO oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::info)
+#else
+#define OMS_INFO(fmt, ...)
+#define OMS_STREAM_INFO oceanbase::logproxy::EmptyStreamLogger()
+#endif
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_WARN)
+#define OMS_WARN(fmt, ...) LOG_BASE(spdlog::level::warn, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_WARN oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::warn)
+#else
+#define OMS_WARN(fmt, ...)
+#define OMS_STREAM_WARN oceanbase::logproxy::EmptyStreamLogger()
+#endif
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_ERROR)
+#define OMS_ERROR(fmt, ...) LOG_BASE(spdlog::level::err, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_ERROR oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::err)
+#else
+#define OMS_ERROR(fmt, ...)
+#define OMS_STREAM_ERROR oceanbase::logproxy::EmptyStreamLogger()
+#endif
+
+#if (LOGGER_LEVEL <= LOG_LEVEL_FATAL)
+#define OMS_FATAL(fmt, ...) LOG_BASE(spdlog::level::critical, fmt, ##__VA_ARGS__)
+#define OMS_STREAM_FATAL oceanbase::logproxy::StreamLogger({__FILE__, __LINE__, __FUNCTION__}, spdlog::level::critical)
+#else
+#define OMS_FATAL(fmt, ...)
+#define OMS_STREAM_FATAL oceanbase::logproxy::EmptyStreamLogger()
 #endif

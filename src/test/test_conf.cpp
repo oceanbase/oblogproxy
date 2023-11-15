@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 #include "log.h"
 #include "config.h"
+#include "oblog_config.h"
 
 using oceanbase::logproxy::Config;
 
@@ -63,7 +64,29 @@ TEST(Config, load)
 
   Config& config = Config::instance();
   int ret = config.load(file);
-  OMS_INFO << "load: " << file << ", ret: " << ret;
+  OMS_STREAM_INFO << "load: " << file << ", ret: " << ret;
   ASSERT_EQ(ret, OMS_OK);
   ASSERT_EQ(config.service_port.val(), 2983);
+
+  OblogConfig oblog_config;
+  oblog_config.initial_trx_xid.set(
+      "{hash:1380121015845354198, inc:16474501, addr:\"11.124.9.3:10000\", t:1694412306958599}");
+  OMS_STREAM_INFO << oblog_config.initial_trx_xid.val();
+  OMS_INFO("result:{}", oblog_config.initial_trx_xid.val());
+}
+
+TEST(OblogConfig, serialize_configs)
+{
+  OblogConfig oblog_config;
+  oblog_config.initial_trx_xid.set(
+      "{hash:1380121015845354198, inc:16474501, addr:\"11.124.9.3:10000\", t:1694412306958599}");
+  OMS_STREAM_INFO << oblog_config.initial_trx_xid.val();
+  OMS_INFO("result:{}", oblog_config.initial_trx_xid.val());
+
+  std::string serialize = oblog_config.serialize_configs();
+  OMS_INFO("result:{}", serialize);
+
+  OblogConfig de_oblog_config;
+  de_oblog_config.deserialize_configs(serialize);
+  OMS_INFO("result:{}", de_oblog_config.initial_trx_xid.val());
 }

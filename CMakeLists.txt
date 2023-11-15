@@ -1,260 +1,43 @@
-cmake_minimum_required(VERSION 3.2)
-project(oblogproxy CXX)
+cmake_minimum_required(VERSION 3.20)
+if (NOT OBLOGPROXY_VERSION)
+    # get the project version from file VERSION.txt
+    file(STRINGS ${CMAKE_SOURCE_DIR}/rpm/oblogproxy-version.txt OBLOGPROXY_VERSION
+            LIMIT_COUNT 1
+            REGEX "^[ \t]*[0-9]+\\.[0-9]+\\.[0-9]+[ \t]*$"
+    )
+endif ()
 
-macro(ob_define VAR DEFAULT)
-    if (NOT DEFINED ${VAR})
-        set(${VAR} ${DEFAULT})
-    endif ()
-endmacro()
+project(oblogproxy VERSION ${OBLOGPROXY_VERSION} LANGUAGES CXX)
 
-ob_define(OBLOGPROXY_RELEASEID 1)
-
-option(WITH_DEBUG "With debug symbols" ON)
+# Distinguish between community and enterprise builds, and with the default being a enterprise build.
 option(WITH_ASAN "Compile with AddressSanitizer" OFF)
+option(WITH_DEBUG "With debug symbols" ON)
 option(WITH_TEST "With Tests" OFF)
 option(WITH_DEMO "With Demos" OFF)
 option(WITH_JNI_LIB "With oblogreader jni lib" OFF)
-option(WITH_GLOG "With google log" ON)
+option(LOGGER_LEVEL "Log level" 0)
+option(WITH_SECURITY_COMPILE "security compile" OFF)
+# options for dev
 option(WITH_DEPS "With precompiled deps" ON)
-option(WITH_LOGMSG "compiled logmsg from source files" OFF)
 option(WITH_US_TIMESTAMP "Enable microseconds start timestamp" ON)
-option(USE_OBCDC_NS "With libobcdc" ON)
-option(USE_LIBOBLOG "With precompiled liboblog" OFF)
-option(USE_CXX11_ABI "Build with C++11 ABI" OFF)
-option(USE_LIBOBLOG_3 "With liboblog 3.x" OFF)
 
-SET(OMS_PROJECT_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR})
-SET(OMS_PROJECT_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
-SET(EXECUTABLE_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
-SET(LIBRARY_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
+######### global vars ############################################################
+set(OMS_PROJECT_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+set(EXECUTABLE_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
+set(LIBRARY_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
 
-SET(DEP_VAR $ENV{DEP_VAR})
-SET(JAVA_HOME $ENV{JAVA_HOME})
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+set(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
+message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 message(STATUS "DEP_VAR: ${DEP_VAR}")
-message(STATUS "JAVA_HOME: ${JAVA_HOME}")
 
-SET(FIND_LIBOBLOG ON)
-if (USE_OBCDC_NS)
-    SET(OBCDC_NAME "libobcdc")
-    SET(OBCDC_NAME_VAR "-DUSE_OBCDC_NS")
-    if (USE_LIBOBLOG_3)
-        SET(OBCDC_NAME_VAR "${OBCDC_NAME_VAR} -DUSE_LIBOBLOG_3")
-    endif()
-else ()
-    SET(OBCDC_NAME "liboblog")
-endif ()
+add_compile_definitions(WITH_US_TIMESTAMP=1)
 
-if (WITH_DEPS)
-    SET(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
-    SET(THIRD_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/deps/devel/lib)
+######### common settings for compilers ############################################################
+# output CXX_LIB_DIR, GCC_LIB_DIR that defined gcc libs path
+include(env)
 
-    SET(LIBOBLOG_RPM_NAME "oceanbase-ce-cdc")
-    if (NOT USE_LIBOBLOG)
-        SET(FIND_LIBOBLOG OFF)
-
-        if (USE_LIBOBLOG_3)
-            # version before 4.0
-            SET(LIBOBLOG_RPM_NAME "oceanbase-ce-devel")
-            SET(LIBOBLOG_INCLUDE_PATH ${DEP_VAR}/usr/include)
-            SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/usr/lib/${OBCDC_NAME}.so)
-        else()
-            SET(LIBOBLOG_INCLUDE_PATH "${DEP_VAR}/home/admin/oceanbase/include")
-            SET(LIBOBLOG_LIBRARIES ${DEP_VAR}/home/admin/oceanbase/lib64/${OBCDC_NAME}.so)
-            SET(LIBOBLOG_LIB_DIR ${DEP_VAR}/home/admin/oceanbase/lib64/)
-
-            SET(LIBOBLOG_DEPS
-                    ${THIRD_LIB_DIR}/libaio.so
-                    ${THIRD_LIB_DIR}/mariadb/libmariadb.so
-                    )
-        endif()
-
-    endif ()
-
-    execute_process(
-            COMMAND bash deps/dep_create.sh ${OMS_PROJECT_BUILD_PATH}/deps ${LIBOBLOG_RPM_NAME}
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            COMMAND_ERROR_IS_FATAL ANY
-    )
-
-    # make openssl found
-    CMAKE_POLICY(SET CMP0074 NEW)
-    SET(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel/)
-
-    # compiler
-    SET(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)
-else ()
-    # compiler
-    execute_process(
-            COMMAND which gcc
-            OUTPUT_VARIABLE GCC_BIN
-    )
-    GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
-endif ()
-
-message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pipe>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-fPIC>)
-
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pie>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znoexecstack>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znow>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-fstack-protector-strong>)
-
-add_link_options($<$<COMPILE_LANGUAGE:CXX,C>:-Wl,-z,relro,-z,now>)
-find_program(CC NAMES gcc PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(CXX NAMES g++ PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(AR NAMES gcc-ar ar PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-SET(CMAKE_C_COMPILER ${CC})
-SET(CMAKE_CXX_COMPILER ${CXX})
-SET(CMAKE_C_COMPILER_AR ${AR})
-SET(CMAKE_CXX_COMPILER_AR ${AR})
-message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
-message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER}")
-message(STATUS "AR compiler: ${CMAKE_C_COMPILER_AR}")
-
-GET_FILENAME_COMPONENT(COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
-GET_FILENAME_COMPONENT(COMPILER_BASE_DIR ${COMPILER_DIR} DIRECTORY)
-SET(CXX_LIB_DIR ${COMPILER_BASE_DIR}/lib64/)
-
-# make protoc found libstdc++
-SET(PROTOC_LINK_FLAGS "-L${CXX_LIB_DIR} -static-libstdc++")
-if (THIRD_LIB_DIR)
-    SET(PROTOC_LINK_FLAGS "${PROTOC_LINK_FLAGS} -L${THIRD_LIB_DIR}")
-endif ()
-
-SET(DEP_LIB_PATH ${THIRD_LIB_DIR} ${CXX_LIB_DIR})
-
-if (NOT USE_CXX11_ABI)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
-endif ()
-
-SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-SET(THIRD_PARTY_PATH ${CMAKE_CURRENT_BINARY_DIR}/third-party)
-SET(THIRD_PARTY_BUILD_TYPE Release)
-SET(EXTERNAL_PROJECT_LOG_ARGS
-        LOG_DOWNLOAD 0
-        LOG_UPDATE 0
-        LOG_CONFIGURE 0
-        LOG_BUILD 0
-        LOG_TEST 0
-        LOG_INSTALL 0)
-
-INCLUDE(ProcessorCount)
-ProcessorCount(NUM_OF_PROCESSOR)
-message(NUM_OF_PROCESSOR: ${NUM_OF_PROCESSOR})
-
-#thread
-include(FindThreads)
-
-#openssl
-find_package(OpenSSL REQUIRED)
-
-message(STATUS "ssl:" ${OPENSSL_SSL_LIBRARY})
-message(STATUS "crypto:" ${OPENSSL_CRYPTO_LIBRARY})
-
-ADD_LIBRARY(ssl SHARED IMPORTED GLOBAL)
-SET_PROPERTY(TARGET ssl PROPERTY IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY})
-
-ADD_LIBRARY(crypto SHARED IMPORTED GLOBAL)
-SET_PROPERTY(TARGET crypto PROPERTY IMPORTED_LOCATION ${OPENSSL_CRYPTO_LIBRARY})
-
-if (WITH_JNI_LIB)
-    SET(JAVA_INCLUDE_DIR ${JAVA_HOME}/include ${JAVA_HOME}/include/linux ${JAVA_HOME}/include/darwin)
-    SET(JAVA_LIB_DIR ${JAVA_HOME}/jre/lib)
-else ()
-    SET(JAVA_INCLUDE_DIR "")
-    SET(JAVA_LIB_DIR "")
-endif ()
-
-include(lz4)
-include(jsoncpp)
-include(libevent)
-
-if (WITH_GLOG)
-    include(gflags)
-    include(glog)
-
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_GLOG=1")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWITH_GLOG=1")
-else ()
-    SET(GFLAGS_INCLUDE_DIR "")
-    SET(GLOG_INCLUDE_DIR "")
-    SET(GFLAGS_LIBRARIES "")
-    SET(GLOG_LIBRARIES "")
-endif ()
-
-if (WITH_TEST)
-    include(gtest)
-else ()
-    SET(GTEST_INCLUDE_DIR "")
-    SET(GTEST_LIBRARIES "")
-endif ()
-
-#protobuf
-include(protobuf)
-
-file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
-message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto inc: ${PROTOBUF_INCLUDE_DIRS}, lib: ${PROTOBUF_LIBRARIES}, ${PROTOBUF_PROTOC_LIBRARY}, protos: ${PROTO_FILES}")
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/proto)
-foreach (PROTO ${PROTO_FILES})
-    message(proto : ${PROTO})
-    get_filename_component(PROTO_WE ${PROTO} NAME_WE)
-    list(APPEND PROTO_HDRS "${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.h")
-    list(APPEND PROTO_SRCS "${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.cc")
-    add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.h ${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.cc
-            COMMAND ${PROTOBUF_PROTOC_EXECUTABLE}
-            --cpp_out=${CMAKE_CURRENT_BINARY_DIR}/proto
-            --proto_path=${PROTOBUF_INCLUDE_DIR}
-            --proto_path=${CMAKE_SOURCE_DIR}/proto ${PROTO}
-            DEPENDS protobuf
-    )
-endforeach ()
-add_library(PROTO_OBJS OBJECT ${PROTO_SRCS} ${PROTO_HDRS})
-message("protoc: ${PROTOBUF_PROTOC_EXECUTABLE}, proto srcs : ${PROTO_SRCS}")
-
-
-# oblog
-if (FIND_LIBOBLOG)
-    find_path(LIBOBLOG_INCLUDE_PATH NAMES ${OBCDC_NAME}.h ${OBCDC_NAME}/${OBCDC_NAME}.h)
-    find_library(LIBOBLOG_LIBRARIES NAMES ${OBCDC_NAME}.so)
-    if ((NOT LIBOBLOG_INCLUDE_PATH) OR (NOT LIBOBLOG_LIBRARIES))
-        message(FATAL_ERROR "Fail to find ${OBCDC_NAME}")
-    endif ()
-endif ()
-
-option(LOGMSG_BY_LIBOBLOG "use logmsg provide by liboblog" ON)
-set(LOGMSG_BY_LIBOBLOG_DEFINE "")
-if (LOGMSG_BY_LIBOBLOG)
-    set(LOGMSG_BY_LIBOBLOG_DEFINE "-DLOGMSG_BY_LIBOBLOG=1 -DOB_BUILD_OPENSOURCE=1")
-    SET(OBLOGMSG_MAPPING "${LOGMSG_BY_LIBOBLOG_DEFINE} -DLogMsgLocalInit=\"if((_t_s_lmb=new(std::nothrow)LogMsgBuf())==nullptr){OMS_ERROR<<\\\"Failed to alloc LogMsgBuf\\\";stop();return;}\" -DLogMsgLocalDestroy=\"delete _t_s_lmb\"")
-    SET(OBLOGMSG_INCLUDE_DIR ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/oblogmsg ${LIBOBLOG_INCLUDE_PATH}/../oblogmsg)
-
-    SET(OBLOGMSG_LIBRARIES ${LIBOBLOG_LIBRARIES})
-    GET_FILENAME_COMPONENT(OBLOGMSG_LIB_DIR ${OBLOGMSG_LIBRARIES} DIRECTORY)
-
-    ADD_LIBRARY(oblogmsg STATIC IMPORTED GLOBAL)
-    SET_PROPERTY(TARGET oblogmsg PROPERTY IMPORTED_LOCATION ${OBLOGMSG_LIBRARIES})
-
-else ()
-    include(oblogmsg)
-endif ()
-
-GET_FILENAME_COMPONENT(LIBOBLOG_INCLUDE_PATH_NAME ${LIBOBLOG_INCLUDE_PATH} NAME)
-if (${LIBOBLOG_INCLUDE_PATH_NAME} STREQUAL "${OBCDC_NAME}")
-    set(LIBOBLOG_INCLUDE_PATH ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/..)
-else ()
-    set(LIBOBLOG_INCLUDE_PATH ${LIBOBLOG_INCLUDE_PATH} ${LIBOBLOG_INCLUDE_PATH}/${OBCDC_NAME})
-endif ()
-
-if (WITH_US_TIMESTAMP)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_US_TIMESTAMP")
-endif()
-
-message("oblogmsg: ${OBLOGMSG_INCLUDE_DIR}, ${OBLOGMSG_LIBRARIES}")
-message("liboblog: ${LIBOBLOG_INCLUDE_PATH}, ${LIBOBLOG_LIBRARIES}, ${LIBOBLOG_DEPS}")
-
+############## cmake common options #########################################################################
 execute_process(
         COMMAND git log -1 --format=%H
         OUTPUT_VARIABLE GIT_VERSION
@@ -264,172 +47,239 @@ execute_process(
 
 if (NOT GIT_VERSION)
     message(WARNING "oblogproxy fetch git version empty, use current time as program version")
-    STRING(TIMESTAMP GIT_VERSION "%Y-%m-%d_%H:%M:%S")
+    string(TIMESTAMP GIT_VERSION "%Y-%m-%d_%H:%M:%S")
 endif ()
 
 if (NOT GIT_VERSION)
     message(WARNING "oblogproxy fetch current time failed")
-    SET(GIT_VERSION "2.0.0")
+    set(GIT_VERSION "2.0.0")
+endif ()
+message(STATUS "build type: ${CMAKE_BUILD_TYPE}")
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS 0)
+set(CMAKE_POSITION_INDEPENDENT_CODE 1)
+message(STATUS "oblogproxy version: ${OBLOGPROXY_VERSION}-${GIT_VERSION}")
+
+########### libcdc && logmsg #############################################################################################
+include(obcdc)
+
+############## include 3rd #########################################################################
+#thread, provides Threads::Threads
+include(FindThreads)
+set(THIRD_PARTY_PATH ${CMAKE_CURRENT_BINARY_DIR}/third-party)
+set(THIRD_PARTY_BUILD_TYPE RelWithDebInfo)
+set(EXTERNAL_PROJECT_LOG_ARGS
+        LOG_DOWNLOAD 0
+        LOG_UPDATE 0
+        LOG_CONFIGURE 0
+        LOG_BUILD 0
+        LOG_TEST 0
+        LOG_INSTALL 0)
+
+#===================================> target logproxy_proto for codec_communication <=======================================
+# make protoc found libstdc++
+set(PROTOC_LINK_FLAGS "-L${CXX_LIB_DIR} -static-libstdc++ -Wl,-z,relro,-z,now")
+if (CXX_LIB_DIR)
+    set(PROTOC_LINK_FLAGS "${PROTOC_LINK_FLAGS} -L${CXX_LIB_DIR}")
+endif ()
+if (GCC_LIB_DIR)
+    set(PROTOC_LINK_FLAGS "${PROTOC_LINK_FLAGS} -L${GCC_LIB_DIR}")
 endif ()
 
-message("oblogproxy version: ${GIT_VERSION}")
+include(lz4)
+include(jsoncpp)
+include(libevent)
+include(protobuf)
+include(spdlog)
+include(rapidjson)
 
-if (WITH_DEBUG)
-    SET(DEBUG_SYMBOL "-ggdb")
-else ()
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNDEBUG")
-endif ()
+file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
+message(STATUS "logproxy protos: ${PROTO_FILES}")
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/proto)
+foreach (PROTO ${PROTO_FILES})
+    message(STATUS "protoc ${PROTO}")
+    get_filename_component(PROTO_WE ${PROTO} NAME_WE)
+    list(APPEND PROTO_SRCS "${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.cc")
+    add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.h ${CMAKE_CURRENT_BINARY_DIR}/proto/${PROTO_WE}.pb.cc
+            COMMAND ${PROTOBUF_PROTOC_EXECUTABLE}
+            --cpp_out=${CMAKE_CURRENT_BINARY_DIR}/proto
+            --proto_path=${CMAKE_SOURCE_DIR}/proto
+            ${PROTO}
+            DEPENDS protoc)
+endforeach ()
+add_library(logproxy_proto STATIC ${PROTO_SRCS})
+target_include_directories(logproxy_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/proto)
+target_link_libraries(logproxy_proto PUBLIC protobuf)
 
-if (WITH_ASAN)
-    SET(ASAN_COMPILE_OPTION "-fsanitize=address -fno-omit-frame-pointer")
-    SET(ASAN_LINK_OPTION "-fsanitize=address")
-endif ()
+#=====================================> sql parser <===========================================
+# Build sql-parser library
+set(PARSER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/sqlparser)
+set(PARSER_BUILD_COMMAND $(MAKE) clean && $(MAKE) FLEX=${DEP_VAR}/usr/local/oceanbase/devtools/bin/flex)
+add_custom_target(parser_build ALL COMMAND ${PARSER_BUILD_COMMAND} WORKING_DIRECTORY ${PARSER_DIR})
+add_library(sqlparser STATIC IMPORTED GLOBAL)
+add_dependencies(sqlparser parser_build)
+set_target_properties(sqlparser PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/src/sqlparser/libsqlparser.a)
+target_include_directories(sqlparser INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/sqlparser/src)
 
-######### get arch ###########################################
-execute_process(COMMAND uname -m
-        OUTPUT_VARIABLE ARCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        COMMAND_ERROR_IS_FATAL ANY
-        )
-set(OS_ARCH ${ARCH})
-message(STATUS "os arch ${OS_ARCH}") # x86_64 or aarch64
-
-
-SET(CMAKE_CXX_STANDARD 17)
-SET(CMAKE_CXX_STANDARD_REQUIRED ON)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -static-libstdc++ ${DEBUG_SYMBOL} -pipe -Wall -fPIC -Wno-reorder ${ASAN_COMPILE_OPTION} -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} -pipe -Wall -fPIC ${ASAN_COMPILE_OPTION} -D__STDC_LIMIT_MACROS -D__OMS_VERSION__=\\\"${GIT_VERSION}\\\" ${OBLOGMSG_MAPPING} ${OBCDC_NAME_VAR}")
-if(OS_ARCH STREQUAL "x86_64")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-m64>)
-endif()
-if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    SET(PLATFORM_SPEC rt)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -static-libgcc")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    SET(PLATFORM_SPEC ${DEP_LIB}
-            "-framework CoreFoundation"
-            "-framework CoreGraphics"
-            "-framework CoreData"
-            "-framework CoreText"
-            "-framework Security"
-            "-framework Foundation"
-            "-Wl,-U,_MallocExtension_ReleaseFreeMemory"
-            "-Wl,-U,_ProfilerStart"
-            "-Wl,-U,_ProfilerStop")
-endif ()
-
-########### start define deps #############################################################################################
-set(DEP_INC
-        ${JAVA_INCLUDE_DIR}
-        ${OBLOGMSG_INCLUDE_DIR}
-        ${LZ4_INCLUDE_DIR}
-        ${JSONCPP_INCLUDE_DIR}
-        ${LIBEVENT_INCLUDE_DIR}
-        ${GFLAGS_INCLUDE_DIR}
-        ${GLOG_INCLUDE_DIR}
-        ${PROTOBUF_INCLUDE_DIR}
-        ${GTEST_INCLUDE_DIR}
-        ${OPENSSL_INCLUDE_DIR}
-        )
-set(DEP_LIB_PATH
-        ${DEP_LIB_PATH}
-
-        ${JAVA_LIB_DIR}
-        ${OBLOGMSG_LIB_DIR}
-        ${LIBOBLOG_LIB_DIR}
-        ${CMAKE_CURRENT_BINARY_DIR}
-        )
-set(DEP_LIBS
-        ${OBLOGMSG_LIBRARIES}
-        ${GTEST_LIBRARIES}
-        ${GLOG_LIBRARIES}
-        ${GFLAGS_LIBRARIES}
-        ${PROTOBUF_LIBRARIES}
-        ${PROTOBUF_PROTOC_LIBRARY}
-        ${LIBEVENT_LIBRARIES}
-        ${JSONCPP_LIBRARIES}
-        ${LZ4_LIBRARIES}
-        ${OPENSSL_LIBRARIES}
-        m
-        ${PLATFORM_SPEC}
-        ${CMAKE_THREAD_LIBS_INIT}
-        )
-message("DEP_INC: ${DEP_INC}")
-message("DEP_LIB_PATH: ${DEP_LIB_PATH}")
-message("DEP_LIBS: ${DEP_LIBS}")
-########### end define deps ###############################################################################################
-
-# common
-set(COMMON_INC
-        ${DEP_INC}
-        ${CMAKE_CURRENT_BINARY_DIR}/proto
-        ./src
-        ./src/common/
-        )
+#===================================> define new targets <=======================================
+#===== common =====
 file(GLOB COMMON_SRC
-        ./src/common/*.cpp
-        ./src/common/*.hpp
-        ./src/codec/*.cpp
-        ./src/communication/*.cpp
-        ./src/obaccess/*.cpp
-        ./src/metric/*.cpp
-        )
-add_library(common STATIC ${COMMON_SRC} $<TARGET_OBJECTS:PROTO_OBJS>)
-add_dependencies(common oblogmsg lz4 jsoncpp libevent protobuf)
-if (WITH_GLOG)
-    add_dependencies(common glog)
-endif ()
-target_include_directories(common PUBLIC ${COMMON_INC})
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/codec/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/common/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/communication/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/metric/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/obaccess/*.cpp
+)
+add_library(common STATIC ${COMMON_SRC})
+target_compile_definitions(common PUBLIC __OMS_VERSION__=\"${OBLOGPROXY_VERSION}-${GIT_VERSION}\")
+target_include_directories(common
+        PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/proto
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/common/
+)
+include(gflags)
+find_package(ZLIB REQUIRED)
+target_link_libraries(common
+        PUBLIC logproxy_proto
+        PUBLIC logmsg_wrapper # for drcmsg/oblogmsg
+        PUBLIC libevent::core
+        PUBLIC libevent::pthreads
+        PUBLIC libevent::extra
+        PUBLIC jsoncpp
+        PUBLIC rapidjson
+        PUBLIC lz4
+        PUBLIC OpenSSL::ssl
+        PUBLIC Threads::Threads
+        PUBLIC spdlog
+        PUBLIC sqlparser
+        PUBLIC ZLIB::ZLIB
+)
+target_compile_definitions(common PUBLIC _OBLOG_MSG_)
 
-if (USE_OBCDC_NS)
-    set(DEP_OBCDC_LIB obcdc ${LIBOBLOG_DEPS})
-else ()
-    set(DEP_OBCDC_LIB oblog ${LIBOBLOG_DEPS})
-endif ()
-# oblogreader
-set(OBLOGREADER_INC ${COMMON_INC} ./src/oblogreader/ ${LIBOBLOG_INCLUDE_PATH})
+get_target_property(COMMON_INCLUDE_PATH common INCLUDE_DIRECTORIES)
+get_target_property(COMMON_DEP_INCLUDE_PATH common INTERFACE_INCLUDE_DIRECTORIES)
+message(STATUS "COMMON_INCLUDE_PATH: ${COMMON_INCLUDE_PATH}, COMMON_DEP_INCLUDE_PATH: ${COMMON_DEP_INCLUDE_PATH}")
+#message(STATUS "COMMON_SRC: ${COMMON_SRC}")
+
+#======= obcdc wrapper =======
+function(add_obcdc_access_library OB_CDC_TARGET_NAME LIBOBCDC_TARGET_NAME)
+    add_library(${OB_CDC_TARGET_NAME} SHARED src/obcdcaccess/obcdc/obcdc_access.cpp)
+    target_include_directories(${OB_CDC_TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/obcdcaccess/obcdc)
+    target_link_libraries(${OB_CDC_TARGET_NAME}
+            PRIVATE ${LIBOBCDC_TARGET_NAME}
+            PRIVATE common
+    )
+    set_target_properties(${OB_CDC_TARGET_NAME} PROPERTIES
+            OUTPUT_NAME "obcdc"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OB_CDC_TARGET_NAME}")
+endfunction()
+
+# obcdc_access
+message(STATUS "build with oceanbase community")
+add_obcdc_access_library(obcdc-ce-3 libobcdcce3)
+add_obcdc_access_library(obcdc-ce-4 libobcdcce4)
+
+# obcdc_base
+add_library(obcdc_base STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/obcdcaccess/obcdc_factory.cpp)
+target_include_directories(obcdc_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/obcdcaccess/)
+target_link_libraries(obcdc_base
+        PRIVATE common
+        PRIVATE dl)
+target_compile_definitions(obcdc_base PRIVATE _COMMUNITY_)
+
+#===== oblogreader =====
 file(GLOB OBLOGREADER_SRC ./src/oblogreader/*.cpp)
 add_library(oblogreader_static STATIC ${OBLOGREADER_SRC})
-add_dependencies(oblogreader_static common oblogmsg)
 set_target_properties(oblogreader_static PROPERTIES OUTPUT_NAME "oblogreader")
-target_include_directories(oblogreader_static PUBLIC ${OBLOGREADER_INC})
-target_link_directories(oblogreader_static PUBLIC ${DEP_LIB_PATH})
-target_link_libraries(oblogreader_static libcommon.a ${DEP_OBCDC_LIB} ${DEP_LIBS})
+target_include_directories(oblogreader_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/oblogreader/)
+target_link_libraries(oblogreader_static
+        PUBLIC common
+        PRIVATE obcdc_base)
 
-# oblogreader_jni
+#===== oblogreader JNI =====
+if (WITH_JNI_LIB)
+    set(JAVA_INCLUDE_DIR ${JAVA_HOME}/include ${JAVA_HOME}/include/linux ${JAVA_HOME}/include/darwin)
+    set(JAVA_LIB_DIR ${JAVA_HOME}/jre/lib)
+else ()
+    set(JAVA_INCLUDE_DIR "")
+    set(JAVA_LIB_DIR "")
+endif ()
 if (WITH_JNI_LIB)
     set(OBLOGREADER_JNI_INC ${OBLOGREADER_INC} src/jni)
     file(GLOB OBLOGREADER_JNI_SRC src/jni/*.cpp)
     add_library(oblogreader_jni STATIC ${OBLOGREADER_JNI_SRC})
-    add_dependencies(oblogreader_jni oblogreader_static)
     target_include_directories(oblogreader_jni PUBLIC ${OBLOGREADER_JNI_INC})
-    target_link_directories(oblogreader_jni PUBLIC ${DEP_LIB_PATH})
-    target_link_libraries(oblogreader_jni liboblogreader.a libcommon.a ${DEP_OBCDC_LIB} ${DEP_LIBS})
+    target_link_libraries(oblogreader_jni
+            PRIVATE oblogreader_static
+    )
 endif ()
 
-# logproxy static
-set(LOGPROXY_INC ${OBLOGREADER_INC} src/arranger/)
-file(GLOB LOGPROXY_SRC ./src/arranger/*.cpp)
-message("SRC: ${LOGPROXY_SRC}")
+# target mysql_protocol
+add_library(mysql_protocol INTERFACE)
+target_include_directories(mysql_protocol INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/mysql-protocol)
+
+# ===== target ob_binlog_server =====
+# binlog converter
+add_library(binlog_converter_static STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_converter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/clog_reader_routine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_convert.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_storage.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ob_log_event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_index.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/data_type.cpp
+)
+target_include_directories(binlog_converter_static
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter)
+target_link_libraries(binlog_converter_static
+        PRIVATE mysql_protocol
+        PUBLIC common
+        PRIVATE obcdc_base
+        PRIVATE rapidjson
+        PRIVATE libevent::pthreads
+)
+
+# binlog server
+add_library(ob_binlog_server STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_dumper.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_index.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_server.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_state_machine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/connection.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/data_type.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/env.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/event_dispatch.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/event_wrapper.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/fork_thread.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ob_log_event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/thread_pool_executor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/cmd_processor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/sql_cmd_processor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/sql_parser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_func.cpp
+)
+target_include_directories(ob_binlog_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog)
+target_link_libraries(ob_binlog_server
+        PRIVATE mysql_protocol
+        PRIVATE common
+        PRIVATE rapidjson
+        PRIVATE libevent::pthreads
+)
+
+#===== logproxy static =====
+file(GLOB LOGPROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/arranger/*.cpp)
 add_library(logproxy_static STATIC ${LOGPROXY_SRC})
-add_dependencies(logproxy_static oblogreader_static oblogmsg)
 set_target_properties(logproxy_static PROPERTIES OUTPUT_NAME "logproxy")
-target_include_directories(logproxy_static PUBLIC ${LOGPROXY_INC})
-target_link_directories(logproxy_static PUBLIC ${DEP_LIB_PATH})
-target_link_libraries(logproxy_static liboblogreader.a libcommon.a ${DEP_OBCDC_LIB} ${DEP_LIBS})
-
-SET(BASE_LIBS liblogproxy.a liboblogreader.a libcommon.a)
-
-# logproxy
-add_executable(logproxy ./src/entry.cpp)
-add_dependencies(logproxy logproxy_static)
-target_include_directories(logproxy PUBLIC ${DEP_INC} ${LOGPROXY_INC})
-target_link_directories(logproxy PUBLIC ${DEP_LIB_PATH})
-target_link_libraries(logproxy ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
-target_link_options(logproxy PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
-target_link_options(logproxy PRIVATE -pie)
+target_include_directories(logproxy_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arranger/)
+target_link_libraries(logproxy_static PUBLIC common)
+get_target_property(LOGPROXY_STATIC_INCLUDE_PATH logproxy_static INTERFACE_INCLUDE_DIRECTORIES)
+message(STATUS "LOGPROXY_STATIC_INCLUDE_PATH: ${LOGPROXY_STATIC_INCLUDE_PATH}")
 
 if (WITH_DEMO)
     # demo client
@@ -437,29 +287,68 @@ if (WITH_DEMO)
     add_executable(demo_client ${DEMO_CLIENT_SRC})
     add_dependencies(demo_client common)
     target_include_directories(demo_client PUBLIC ${COMMON_INC})
-    target_link_directories(demo_client PUBLIC ${DEP_LIB_PATH})
-    target_link_libraries(demo_client libcommon.a ${DEP_LIBS})
+    target_link_libraries(demo_client
+            PRIVATE common
+    )
     target_link_options(demo_client PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
 endif ()
 
 if (WITH_TEST)
-    # test_base
-    file(GLOB TEST_BASE_SRC ./src/test/test_entry.cpp)
-    add_executable(test_base ${TEST_BASE_SRC})
-    add_dependencies(test_base common oblogmsg gtest)
-    target_include_directories(test_base PUBLIC ${LOGPROXY_INC})
-    target_link_directories(test_base PUBLIC ${DEP_LIB_PATH})
-    target_link_libraries(test_base libcommon.a ${DEP_LIBS})
+    include(gtest)
+    # target test_base
+    message(STATUS "target test_base")
+    add_executable(test_base
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_entry.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_binlog_event_convert.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_binlog_event.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_data_type.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_index_file.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_thread_pool_executor.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_sql_parser.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_defer.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_aes.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_codec.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_compress.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_conf.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_http.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_message_buffer.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_net.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_ob_mysql.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_ob_sha1.cpp
+            #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_queue.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_binlog_dumper.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_json_parse.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_sys_metric.cpp)
+    target_include_directories(test_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
+    target_link_libraries(test_base
+            PRIVATE logproxy_static
+            PRIVATE binlog_converter_static
+            PRIVATE ob_binlog_server
+    )
     target_link_options(test_base PUBLIC -static-libstdc++ ${ASAN_LINK_OPTION})
-
-    # test_oblogreader
-    #    file(GLOB TEST_OBLOGREADER_SRC ./src/test/test_oblogreader.cpp)
-    #    add_executable(test_oblogreader ${TEST_OBLOGREADER_SRC})
-    #    add_dependencies(test_oblogreader logproxy_static gtest)
-    #    target_include_directories(test_oblogreader PUBLIC ${LOGPROXY_INC})
-    #    target_link_directories(test_oblogreader PUBLIC ${DEP_LIB_PATH})
-    #    target_link_libraries(test_oblogreader ${BASE_LIBS} ${DEP_OBCDC_LIB} ${DEP_LIBS})
-    #    target_link_options(test_oblogreader PUBLIC ${ASAN_LINK_OPTION})
 endif ()
+
+#===== oblogreader =====
+add_executable(oblogreader ${CMAKE_CURRENT_SOURCE_DIR}/src/oblogreader/oblogreader_entry.cpp)
+target_link_options(oblogreader PRIVATE -rdynamic)
+target_link_libraries(oblogreader PRIVATE oblogreader_static)
+get_target_property(OBLOGREADER_INCLUDE_PATH oblogreader INCLUDE_DIRECTORIES)
+message(STATUS "OBLOGREADER_OUTPUT_PATH: ${EXECUTABLE_OUTPUT_PATH}, OBLOGREADER_INCLUDE_PATH: " ${OBLOGREADER_INCLUDE_PATH})
+
+#===== binlog converter =====
+add_executable(binlog_converter ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_converter_entry.cpp)
+target_link_options(binlog_converter PRIVATE -rdynamic)
+target_link_libraries(binlog_converter PRIVATE binlog_converter_static)
+get_target_property(BINLOG_CONVERTER_INCLUDE_PATH binlog_converter INCLUDE_DIRECTORIES)
+message(STATUS "BINLOG_CONVERTER_OUTPUT_PATH: ${EXECUTABLE_OUTPUT_PATH}, BINLOG_CONVERTER_INCLUDE_PATH: " ${BINLOG_CONVERTER_INCLUDE_PATH})
+
+#===== main =====
+add_executable(logproxy ${CMAKE_CURRENT_SOURCE_DIR}/src/entry.cpp)
+target_link_libraries(logproxy
+        PRIVATE logproxy_static
+        PRIVATE ob_binlog_server
+)
+get_target_property(LOGPROXY_INCLUDE_PATH logproxy INCLUDE_DIRECTORIES)
+message(STATUS "LOGPROXY_OUTPUT_PATH: ${EXECUTABLE_OUTPUT_PATH}, LOGPROXY_INCLUDE_PATH: ${LOGPROXY_INCLUDE_PATH}")
 
 include(rpm)

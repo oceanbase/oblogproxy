@@ -12,11 +12,8 @@
 
 #pragma once
 
-#include "event2/http.h"
-
 namespace oceanbase {
 namespace logproxy {
-
 struct HttpResponse {
   int code;
   std::string message;

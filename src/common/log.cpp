@@ -10,63 +10,42 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/log.h"
-#include "common/config.h"
+#include "common.h"
+#include "log.h"
 
 namespace oceanbase {
 namespace logproxy {
 
-// static char dump_line[1024];
-// static void dump_writer(const char* buf, int size)
-//{
-//   int len = std::min(1022, size);
-//   memcpy(dump_line, buf, len);
-//   dump_line[len] = '\n';
-//   dump_line[len + 1] = '\0';
-//   printf(dump_line);
-// }
-
-void init_log(const char* argv0, bool restart)
+void init_log(const char* log_basename)
 {
-#ifdef WITH_GLOG
-
-  if (Config::instance().log_to_stdout.val()) {
-    return;
-  }
-
-  if (restart) {
-    google::ShutdownGoogleLogging();
-  }
-
-  std::string bin_name = argv0;
+  std::string bin_name = log_basename;
   auto pos = bin_name.find_last_of('/');
   if (pos != std::string::npos) {
     bin_name = bin_name.substr(pos + 1);
   }
 
-  FLAGS_minloglevel = 0;
-  FLAGS_logbufsecs = 0;
-  FLAGS_max_log_size = 1024;
-  FLAGS_stop_logging_if_full_disk = true;
-  FLAGS_logtostderr = false;
-  FLAGS_alsologtostderr = false;
-  FLAGS_log_dir = "";
+  Config& s_config = Config::instance();
+  std::string log_path("./log/");
+  log_path.append(bin_name).append(".log");
+  if (!Logger::instance().init(
+          bin_name, log_path, s_config.log_max_file_size_mb.val(), s_config.log_retention_h.val())) {
+    OMS_ERROR("Failed to init spdlog logger: {}", log_path);
+  }
+  spdlog::set_level(spdlog::level::level_enum(s_config.log_level.val()));
+  if (s_config.log_flush_strategy.val()) {
+    spdlog::flush_on(spdlog::level::level_enum(s_config.log_flush_level.val()));
+  } else {
+    spdlog::flush_every(std::chrono::seconds(s_config.log_flush_period_s.val()));
+  }
+}
 
-  google::SetLogSymlink(google::GLOG_INFO, bin_name.c_str());
-  google::SetLogSymlink(google::GLOG_WARNING, bin_name.c_str());
-  google::SetLogSymlink(google::GLOG_ERROR, bin_name.c_str());
-  google::SetLogSymlink(google::GLOG_FATAL, bin_name.c_str());
-  google::SetLogDestination(google::GLOG_INFO, "log/logproxy_info.");
-  google::SetLogDestination(google::GLOG_WARNING, "log/logproxy_warn.");
-  google::SetLogDestination(google::GLOG_ERROR, "log/logproxy_error.");
-  google::SetLogDestination(google::GLOG_FATAL, "log/logproxy_error.");
-
-  // !!!NOTICE!!! Nerver call glog InstallFailureSignalHandler() causing corrupt liboblog coredump-signal-recover
-  // features
-
-  google::InitGoogleLogging(bin_name.c_str());
-
-#endif
+void replace_spdlog_default_logger()
+{
+  auto logger = spdlog::basic_logger_mt("init", "./log/init.log");
+  if (nullptr != logger) {
+    logger->flush_on(spdlog::level::trace);
+    spdlog::set_default_logger(logger);
+  }
 }
 
 }  // namespace logproxy

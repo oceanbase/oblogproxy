@@ -10,9 +10,10 @@
  * See the Mulan PubL v2 for more details.
  */
 
-#include "common/log.h"
-#include "common/config.h"
-#include "oblogreader/oblogreader.h"
+#include "log.h"
+#include "config.h"
+#include "oblogreader.h"
+#include "communication/channel_factory.h"
 
 using namespace oceanbase::logproxy;
 
@@ -28,14 +29,14 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
   Config::instance().verbose_packet.set(true);
 
   OblogConfig oblog_config(config_str);
-  OMS_INFO << "OB Log Config: " << oblog_config.debug_str(true);
+  OMS_STREAM_INFO << "OB Log Config: " << oblog_config.debug_str(true);
 
   ObLogReader reader;
   Peer peer(0);
   ChannelFactory& channel_factory = ChannelFactory::instance();
   int ret = channel_factory.init(Config::instance());
   if (ret != OMS_OK) {
-    OMS_ERROR << "Failed to init channel factory";
+    OMS_STREAM_ERROR << "Failed to init channel factory";
     return ret;
   }
   Channel& ch = channel_factory.add(peer.id(), peer);
@@ -51,7 +52,7 @@ int run(const std::string& cluster_url, const std::string& user, const std::stri
 int main(int argc, char** argv)
 {
   if (argc < 6) {
-    OMS_ERROR << "Invalid param. use: " << argv[0] << " cluster_url user password tb_white_list";
+    OMS_STREAM_ERROR << "Invalid param. use: " << argv[0] << " cluster_url user password tb_white_list";
     exit(-1);
   }
   return run(argv[1], argv[2], argv[3], argv[4], argv[5]);
