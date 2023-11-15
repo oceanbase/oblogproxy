@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package oceanbase.logproxy.legacy;
+
+option java_package = "com.oceanbase.clogproxy.common.packet.protocol";
+option java_outer_classname = "LogProxyProto";
+
+message PbPacket {
+  int32 type = 1;             // HeaderType
+  int32 compress_type = 2;    // CompressType
+  // resevered for other options
+  bytes payload = 100;
+}
+
+message ClientHandShake {
+  int32 log_type = 1;         // LogType
+  string client_ip = 2;
+  string client_id = 3;
+  string client_version = 4;
+  bool enable_monitor = 5;
+  string configuration = 6;
+}
+
+message RuntimeStatus {
+  string ip = 1;
+  int32 port = 2;
+
+  int32 stream_count = 3;
+  int32 worker_count = 4;
+}

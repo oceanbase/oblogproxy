@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package oceanbase.logproxy;
+
+option java_package = "com.oceanbase.clogproxy.common.packet.protocol";
+option java_outer_classname = "LogProxyProto";
+
+message ErrorResponse {
+  int32 code = 1;
+  string message = 2;
+}
+
+message ClientHandshakeRequest {
+  int32 log_type = 1;         // LogType
+  string ip = 2;
+  string id = 3;
+  string version = 4;
+  bool enable_monitor = 5;
+  string configuration = 6;
+}
+
+message ClientHandshakeResponse {
+  int32 code = 1;
+  string ip = 2;
+  string version = 3;
+}
+
+message RuntimeStatus {
+  string ip = 1;
+  int32 port = 2;
+
+  int32 stream_count = 3;
+  int32 worker_count = 4;
+}
+
+message RecordData {
+  int32 compress_type = 1;    // CompressType
+  int32 raw_len = 2;
+  int32 compressed_len = 3;
+  int32 count = 4;
+
+  // resevered for other options
+  bytes records = 100;
+}

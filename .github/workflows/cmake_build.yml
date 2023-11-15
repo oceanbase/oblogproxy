@@ -1,0 +1,24 @@
+name: CMake Build
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 'centos:7'
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          curl -fsSLO --compressed https://cmake.org/files/v3.22/cmake-3.22.3-linux-x86_64.tar.gz
+          tar -zxvf cmake-3.22.3-linux-x86_64.tar.gz -C /usr  --strip-components=1 --no-same-owner
+          yum install -y which git wget rpm rpm-build cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils openssl-devel libaio-devel
+          yum install -y centos-release-scl
+          yum install -y devtoolset-9
+          echo "source /opt/rh/devtoolset-9/enable" >> /etc/bashrc
+      - name: Build with cmake
+        run: scl enable devtoolset-9 'mkdir buildenv && cd buildenv && gcc -v && cmake .. && make -j6'
