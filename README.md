@@ -1,37 +1,13 @@
+English | [中文版](README_CN.md)
+
 # OceanBase LogProxy
 
-OceanBase LogProxy (CE) is a proxy service of [OceanBase CE](https://github.com/oceanbase/oceanbase). It is a part
-of [OMS](https://www.oceanbase.com/product/oms), and it can establish and manage connections with OceanBase for
-incremental log reading even with a isolated network.
+**OceanBase LogProxy** is an incremental log proxy service for [OceanBase](https://github.com/oceanbase/oceanbase) that establishes a connection to OceanBase and performs incremental log reads, providing change data capture (CDC) capabilities for downstream services.
 
-## Instructions before use
-
-### Version compatibility
-
-LogProxy is based on [libobcdc](https://github.com/oceanbase/oceanbase/tree/master/src/logservice/libobcdc) (
-former `liboblog`), so you should install the corresponding version of it firstly. The libobcdc is packaged
-in `oceanbase-ce-devel` before 4.0.0, and is packaged in `oceanbase-ce-cdc` in 4.0.0 and the later version, both of
-which can be found in the [official download page](https://open.oceanbase.com/softwareCenter/community)
-or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/).
-
-| libobcdc | oblogproxy |
-|----------|------------|
-| 3.1.1    | 1.0.0      |
-| 3.1.2    | 1.0.1      |
-| 3.1.3    | 1.0.2      |
-| 3.1.4    | 1.0.3      |
-| 4.0.0    | 1.1.0      |
-
+## Instructions use
 ### Installation
 
-LogProxy service doesn't need params about OceanBase cluster to get started, one LogProxy can subscribe to multiple
-OceanBase clusters at the same time, and the connection configuration is passed from the client.
-
-LogProxy will use a lot of memory, so it is strongly recommended to deploy it separately from the OceanBase server.
-
-## Getting started
-
-### Install
+LogProxy occupies resources separately, so it is recommended to deploy it separately from the OceanBase database.
 
 You can install a released version of LogProxy or build it from the source code.
 
@@ -56,7 +32,13 @@ The installation directory is `/usr/local/oblogproxy` by default.
 
 #### Build from source code
 
-See [How to build](docs/build.md).
+```bash
+git clone git@github.com:oceanbase/oblogproxy.git
+cd oblogproxy
+mkdir build
+cmake -S . -B build
+cmake --build build
+```
 
 ### Configure
 
@@ -90,17 +72,10 @@ You can start the service by the following command.
 bash ./run.sh start
 ```
 
-You can also start LogProxy with customized libobcdc by executing the following command.
-
-```bash
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libobcdc
-bash ./run.sh start
-```
-
 Then you can use [oblogclient](https://github.com/oceanbase/oblogclient) to subscribe the log data from LogProxy, and
 the service is bind to port `2983` by default.
 
-The service log of LogProxy is located at `logs/`, and the service log of LogReader (task thread) is located
+The service log of LogProxy is located at `logs/`, and the service log of LogReader (task process) is located
 at `run/{client-id}/logs/`.
 
 ## Licencing
