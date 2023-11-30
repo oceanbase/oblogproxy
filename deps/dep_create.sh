@@ -1,5 +1,10 @@
 #!/bin/bash
 
+function compat_centos9() {
+  echo "[NOTICE] '$PNAME' is compatible with CentOS 9, use el9 dependencies list"
+  OS_RELEASE=9
+}
+
 function compat_centos8() {
   echo "[NOTICE] '$PNAME' is compatible with CentOS 8, use el8 dependencies list"
   OS_RELEASE=8
@@ -33,11 +38,16 @@ function get_os_release() {
     version_ge "7.0" && compat_centos7 && return
     ;;
   ubuntu)
+    version_ge "22.04" && compat_centos9 && return
     version_ge "16.04" && compat_centos7 && return
     ;;
   centos)
     version_ge "8.0" && OS_RELEASE=8 && return
     version_ge "7.0" && OS_RELEASE=7 && return
+    ;;
+  almalinux)
+    version_ge "9.0" && compat_centos9 && return
+    version_ge "8.0" && compat_centos8 && return
     ;;
   debian)
     version_ge "9" && compat_centos7 && return

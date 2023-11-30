@@ -70,7 +70,7 @@ TEST(Config, load)
 
   OblogConfig oblog_config;
   oblog_config.initial_trx_xid.set(
-      "{hash:1380121015845354198, inc:16474501, addr:\"11.124.9.3:10000\", t:1694412306958599}");
+      "{hash:1380121015845354198, inc:16474501, addr:\"127.0.0.1:10000\", t:1694412306958599}");
   OMS_STREAM_INFO << oblog_config.initial_trx_xid.val();
   OMS_INFO("result:{}", oblog_config.initial_trx_xid.val());
 }
@@ -79,7 +79,7 @@ TEST(OblogConfig, serialize_configs)
 {
   OblogConfig oblog_config;
   oblog_config.initial_trx_xid.set(
-      "{hash:1380121015845354198, inc:16474501, addr:\"11.124.9.3:10000\", t:1694412306958599}");
+      "{hash:1380121015845354198, inc:16474501, addr:\"127.0.0.1:10000\", t:1694412306958599}");
   OMS_STREAM_INFO << oblog_config.initial_trx_xid.val();
   OMS_INFO("result:{}", oblog_config.initial_trx_xid.val());
 

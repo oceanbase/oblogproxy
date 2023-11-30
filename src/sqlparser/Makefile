@@ -3,6 +3,10 @@ all: library
 #######################################
 ############# Directories #############
 #######################################
+#allow user to pass in custom path
+CC?=gcc
+CXX?=g++
+
 BIN        = bin
 SRC        = src
 SRCPARSER  = src/parser

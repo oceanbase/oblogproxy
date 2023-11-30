@@ -7,13 +7,13 @@ macro(UNSET_VAR VAR_NAME)
     unset(${VAR_NAME})
 endmacro()
 
-UNSET_VAR(PROTOBUF_FOUND)
-UNSET_VAR(PROTOBUF_PROTOC_EXECUTABLE)
-UNSET_VAR(PROTOBUF_PROTOC_LIBRARY)
-UNSET_VAR(PROTOBUF_LITE_LIBRARY)
-UNSET_VAR(PROTOBUF_LIBRARY)
-UNSET_VAR(PROTOBUF_INCLUDE_DIR)
-UNSET_VAR(Protobuf_PROTOC_EXECUTABLE)
+unset_var(PROTOBUF_FOUND)
+unset_var(PROTOBUF_PROTOC_EXECUTABLE)
+unset_var(PROTOBUF_PROTOC_LIBRARY)
+unset_var(PROTOBUF_LITE_LIBRARY)
+unset_var(PROTOBUF_LIBRARY)
+unset_var(PROTOBUF_INCLUDE_DIR)
+unset_var(Protobuf_PROTOC_EXECUTABLE)
 
 if (POLICY CMP0097)
     cmake_policy(SET CMP0097 NEW)
@@ -21,7 +21,7 @@ endif ()
 
 # Print and set the protobuf library information,
 # finish this cmake process and exit from this file.
-macro(PROMPT_PROTOBUF_LIB)
+macro(prompt_protobuf_lib)
     set(protobuf_DEPS ${ARGN})
 
     message(STATUS "Protobuf protoc executable: ${PROTOBUF_PROTOC_EXECUTABLE}")
@@ -137,4 +137,4 @@ set(Protobuf_PROTOC_EXECUTABLE ${extern_protobuf_PROTOC_EXECUTABLE})
 
 set(PROTOBUF_VERSION 3.6.0)
 
-PROMPT_PROTOBUF_LIB(extern_protobuf)
+prompt_protobuf_lib(extern_protobuf)

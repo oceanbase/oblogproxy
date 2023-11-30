@@ -75,7 +75,7 @@ get_target_property(LOGMSG_WRAPPER_DEPS logmsg_wrapper INTERFACE_LINK_LIBRARIES)
 message(STATUS "logmsg_wrapper: ${LOGMSG_WRAPPER_INCLUDE_PATH}, deps: ${LOGMSG_WRAPPER_DEPS}")
 
 ###################### deps
-CMAKE_POLICY(SET CMP0074 NEW)
+cmake_policy(SET CMP0074 NEW)
 set(OpenSSL_ROOT ${DEP_VAR}/usr/local/oceanbase/deps/devel)
 
 if (NOT EXISTS ${OpenSSL_ROOT}/include)

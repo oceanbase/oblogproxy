@@ -1,16 +1,16 @@
-INCLUDE(ExternalProject)
+include(ExternalProject)
 
-SET(GTEST_SOURCES_DIR ${THIRD_PARTY_PATH}/gtest)
-SET(GTEST_INSTALL_DIR ${THIRD_PARTY_PATH}/install/gtest)
-SET(GTEST_INCLUDE_DIR "${GTEST_INSTALL_DIR}/include" CACHE PATH "gtest include directory." FORCE)
-SET(GTEST_LIBRARIES "${GTEST_INSTALL_DIR}/lib64/libgtest.a" CACHE FILEPATH "gtest library." FORCE)
+set(GTEST_SOURCES_DIR ${THIRD_PARTY_PATH}/gtest)
+set(GTEST_INSTALL_DIR ${THIRD_PARTY_PATH}/install/gtest)
+set(GTEST_INCLUDE_DIR "${GTEST_INSTALL_DIR}/include" CACHE PATH "gtest include directory." FORCE)
+set(GTEST_LIBRARIES "${GTEST_INSTALL_DIR}/lib64/libgtest.a" CACHE FILEPATH "gtest library." FORCE)
 set(INSTALL_COMMAND $(MAKE) install)
 
-INCLUDE_DIRECTORIES(${GTEST_INCLUDE_DIR})
+include_directories(${GTEST_INCLUDE_DIR})
 
 set(prefix_path "${THIRD_PARTY_PATH}/install/gflags")
 
-SET(gflags_BUILD_STATIC_LIBS ON)
+set(gflags_BUILD_STATIC_LIBS ON)
 
 ExternalProject_Add(
         extern_gtest
@@ -37,8 +37,8 @@ ExternalProject_Add(
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
         -DCMAKE_PREFIX_PATH=${prefix_path}
 )
-ADD_DEPENDENCIES(extern_gtest gflags)
-ADD_LIBRARY(gtest STATIC IMPORTED GLOBAL)
-SET_PROPERTY(TARGET gtest PROPERTY IMPORTED_LOCATION ${GTEST_LIBRARIES})
-ADD_DEPENDENCIES(gtest extern_gtest)
-LINK_LIBRARIES(gtest gflags)
+add_dependencies(extern_gtest gflags)
+add_library(gtest STATIC IMPORTED GLOBAL)
+set_property(TARGET gtest PROPERTY IMPORTED_LOCATION ${GTEST_LIBRARIES})
+add_dependencies(gtest extern_gtest)
+link_libraries(gtest gflags)

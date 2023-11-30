@@ -102,7 +102,7 @@ TEST(SQLParser, create)
         "CREATE BINLOG FOR TENANT `cluster`.`tenant` TO USER `user` PASSWORD `pwd` WITH CLUSTER URL "
         "'cluster_url',"
         "SERVER UUID '2340778c-7464-11ed-a721-7cd30abc99b4',INITIAL_TRX_XID '{hash:1380121015845354198, inc:16474501, "
-        "addr:\"11.124.9.3:10000\", t:1694412306958599}',INITIAL_TRX_GTID_SEQ '31'";
+        "addr:\"127.0.0.1:10000\", t:1694412306958599}',INITIAL_TRX_GTID_SEQ '31'";
     ASSERT_EQ(OMS_OK, ObSqlParser::parse(query, result));
     ASSERT_EQ(hsql::COM_CREATE_BINLOG, result.getStatement(0)->type());
   }
@@ -110,12 +110,12 @@ TEST(SQLParser, create)
   {
     hsql::SQLParserResult result;
     std::string query = "CREATE BINLOG FOR TENANT `ob3x.admin`.`mysql` WITH CLUSTER URL "
-                        "`http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_11.124.9.9_110000_ob3x`";
+                        "`http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_127.0.0.1_110000_ob3x`";
     ASSERT_EQ(OMS_OK, ObSqlParser::parse(query, result));
     ASSERT_EQ(hsql::COM_CREATE_BINLOG, result.getStatement(0)->type());
     hsql::CreateBinlogStatement* create_statement = (hsql::CreateBinlogStatement*)result.getStatement(0);
     ASSERT_EQ(hsql::CLUSTER_URL, create_statement->binlog_options->at(0)->option_type);
-    ASSERT_STREQ("http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_11.124.9.9_110000_ob3x",
+    ASSERT_STREQ("http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_127.0.0.1_110000_ob3x",
         create_statement->binlog_options->at(0)->value);
   }
 }

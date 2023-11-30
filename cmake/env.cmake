@@ -11,25 +11,25 @@ if (WITH_DEPS)
     # download
     execute_process(
             COMMAND bash deps/dep_create.sh tool ${DEP_VAR} obdevtools-gcc9
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
             COMMAND_ERROR_IS_FATAL ANY)
-    SET(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)
-    SET(GCC_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/9)
+    set(COMPILER_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/bin/)
+    set(GCC_LIB_DIR ${DEP_VAR}/usr/local/oceanbase/devtools/lib/gcc/x86_64-redhat-linux/9)
 else ()
     # find in current system
     execute_process(
             COMMAND which gcc
             OUTPUT_VARIABLE GCC_BIN
     )
-    GET_FILENAME_COMPONENT(COMPILER_DIR ${GCC_BIN} DIRECTORY)
+    get_filename_component(COMPILER_DIR ${GCC_BIN} DIRECTORY)
 endif ()
 
 message(STATUS "COMPILER_DIR: ${COMPILER_DIR}")
 
-find_program(CC NAMES gcc PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(CXX NAMES g++ PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(AR NAMES gcc-ar ar PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
-find_program(RANLIB NAMES gcc-ranlib ranlib PATHS ${COMPILER_DIR} /usr/bin/ NO_DEFAULT_PATH)
+find_program(CC NAMES gcc PATHS ${COMPILER_DIR} NO_DEFAULT_PATH)
+find_program(CXX NAMES g++ PATHS ${COMPILER_DIR} NO_DEFAULT_PATH)
+find_program(AR NAMES gcc-ar ar PATHS ${COMPILER_DIR} NO_DEFAULT_PATH)
+find_program(RANLIB NAMES gcc-ranlib ranlib PATHS ${COMPILER_DIR} NO_DEFAULT_PATH)
 set(CMAKE_C_COMPILER ${CC})
 set(CMAKE_CXX_COMPILER ${CXX})
 set(CMAKE_AR ${AR})
@@ -39,9 +39,9 @@ message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER}")
 message(STATUS "ar: ${CMAKE_AR}")
 message(STATUS "ranlib: ${CMAKE_RANLIB}")
 
-GET_FILENAME_COMPONENT(COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
-GET_FILENAME_COMPONENT(COMPILER_BASE_DIR ${COMPILER_DIR} DIRECTORY)
-SET(CXX_LIB_DIR ${COMPILER_BASE_DIR}/lib64/)
+get_filename_component(COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
+get_filename_component(COMPILER_BASE_DIR ${COMPILER_DIR} DIRECTORY)
+set(CXX_LIB_DIR ${COMPILER_BASE_DIR}/lib64/)
 message(STATUS "CXX_LIB_DIR: ${CXX_LIB_DIR}, GCC_LIB_DIR: ${GCC_LIB_DIR}")
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -107,5 +107,5 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif ()
 
 include(ProcessorCount)
-ProcessorCount(NUM_OF_PROCESSOR)
 message(STATUS "NUM_OF_PROCESSOR: ${NUM_OF_PROCESSOR}")
+ProcessorCount(NUM_OF_PROCESSOR)

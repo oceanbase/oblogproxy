@@ -1,12 +1,12 @@
-INCLUDE(ExternalProject)
+include(ExternalProject)
 
-SET(ROCKSDB_SOURCES_DIR ${THIRD_PARTY_PATH}/rocksdb)
-SET(ROCKSDB_INSTALL_DIR ${THIRD_PARTY_PATH}/install/rocksdb)
-SET(ROCKSDB_INCLUDE_DIR "${ROCKSDB_INSTALL_DIR}/include" CACHE PATH "rocksdb include directory." FORCE)
-SET(ROCKSDB_LIBRARIES "${ROCKSDB_INSTALL_DIR}/lib/librocksdb.a" CACHE FILEPATH "rocksdb library." FORCE)
-INCLUDE_DIRECTORIES(${ROCKSDB_INCLUDE_DIR})
+set(ROCKSDB_SOURCES_DIR ${THIRD_PARTY_PATH}/rocksdb)
+set(ROCKSDB_INSTALL_DIR ${THIRD_PARTY_PATH}/install/rocksdb)
+set(ROCKSDB_INCLUDE_DIR "${ROCKSDB_INSTALL_DIR}/include" CACHE PATH "rocksdb include directory." FORCE)
+set(ROCKSDB_LIBRARIES "${ROCKSDB_INSTALL_DIR}/lib/librocksdb.a" CACHE FILEPATH "rocksdb library." FORCE)
+include_directories(${ROCKSDB_INCLUDE_DIR})
 
-FILE(WRITE ${ROCKSDB_SOURCES_DIR}/src/build.sh
+file(WRITE ${ROCKSDB_SOURCES_DIR}/src/build.sh
         "PORTABLE=1 make -j${NUM_OF_PROCESSOR} static_lib"
         )
 
@@ -24,8 +24,8 @@ ExternalProject_Add(
         INSTALL_COMMAND mkdir -p ${ROCKSDB_INSTALL_DIR}/lib COMMAND cp -r include ${ROCKSDB_INSTALL_DIR}/ COMMAND cp librocksdb.a ${ROCKSDB_LIBRARIES}
 )
 
-ADD_DEPENDENCIES(extern_rocksdb lz4 gflags)
-ADD_LIBRARY(rocksdb STATIC IMPORTED GLOBAL)
-SET_PROPERTY(TARGET rocksdb PROPERTY IMPORTED_LOCATION ${ROCKSDB_LIBRARIES})
-ADD_DEPENDENCIES(rocksdb extern_rocksdb)
-LINK_LIBRARIES(rocksdb gflags lz4)
+add_dependencies(extern_rocksdb lz4 gflags)
+add_library(rocksdb STATIC IMPORTED GLOBAL)
+set_property(TARGET rocksdb PROPERTY IMPORTED_LOCATION ${ROCKSDB_LIBRARIES})
+add_dependencies(rocksdb extern_rocksdb)
+link_libraries(rocksdb gflags lz4)

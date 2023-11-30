@@ -153,7 +153,6 @@ public:
   OMS_CONFIG_STR(binlog_memory_limit, "3G");
   OMS_CONFIG_STR(binlog_working_mode, "storage");
 
-  // Binlog incremental DDL conversion component etransfer path, which is the jar package introduced by JNI
   OMS_CONFIG_BOOL(binlog_gtid_display, true);  // Whether to display gtid information in show master status
 
   /*!

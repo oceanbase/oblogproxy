@@ -1,12 +1,12 @@
-INCLUDE(ExternalProject)
+include(ExternalProject)
 
-SET(SPDLOG_SOURCES_DIR ${THIRD_PARTY_PATH}/spdlog)
-SET(SPDLOG_INSTALL_DIR ${THIRD_PARTY_PATH}/install/spdlog)
-SET(SPDLOG_LIBRARIES "${SPDLOG_INSTALL_DIR}/lib/libspdlog.a" CACHE FILEPATH "spdlog library." FORCE)
+set(SPDLOG_SOURCES_DIR ${THIRD_PARTY_PATH}/spdlog)
+set(SPDLOG_INSTALL_DIR ${THIRD_PARTY_PATH}/install/spdlog)
+set(SPDLOG_LIBRARIES "${SPDLOG_INSTALL_DIR}/lib/libspdlog.a" CACHE FILEPATH "spdlog library." FORCE)
 set(SPDLOG_INCLUDE_DIR "${SPDLOG_INSTALL_DIR}/include")
 
-SET(GIT_REPOSITORY https://github.com/gabime/spdlog.git)
-SET(GIT_TAG v1.11.0)
+set(GIT_REPOSITORY https://github.com/gabime/spdlog.git)
+set(GIT_TAG v1.11.0)
 
 if (NOT EXISTS ${SPDLOG_INCLUDE_DIR})
     execute_process(COMMAND mkdir -p ${SPDLOG_INCLUDE_DIR} COMMAND_ERROR_IS_FATAL ANY)

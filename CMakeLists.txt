@@ -7,14 +7,10 @@ if (NOT OBLOGPROXY_VERSION)
     )
 endif ()
 
-project(oblogproxy VERSION ${OBLOGPROXY_VERSION} LANGUAGES CXX)
-
-# Distinguish between community and enterprise builds, and with the default being a enterprise build.
 option(WITH_ASAN "Compile with AddressSanitizer" OFF)
 option(WITH_DEBUG "With debug symbols" ON)
 option(WITH_TEST "With Tests" OFF)
 option(WITH_DEMO "With Demos" OFF)
-option(WITH_JNI_LIB "With oblogreader jni lib" OFF)
 option(LOGGER_LEVEL "Log level" 0)
 option(WITH_SECURITY_COMPILE "security compile" OFF)
 # options for dev
@@ -22,20 +18,20 @@ option(WITH_DEPS "With precompiled deps" ON)
 option(WITH_US_TIMESTAMP "Enable microseconds start timestamp" ON)
 
 ######### global vars ############################################################
-set(OMS_PROJECT_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
-set(EXECUTABLE_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
-set(LIBRARY_OUTPUT_PATH ${OMS_PROJECT_BUILD_PATH})
+set(PROJECT_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BUILD_PATH})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-set(DEP_VAR ${OMS_PROJECT_BUILD_PATH}/deps)
+set(DEP_VAR ${PROJECT_BUILD_PATH}/deps)
 message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
 message(STATUS "DEP_VAR: ${DEP_VAR}")
-
-add_compile_definitions(WITH_US_TIMESTAMP=1)
 
 ######### common settings for compilers ############################################################
 # output CXX_LIB_DIR, GCC_LIB_DIR that defined gcc libs path
 include(env)
+project(oblogproxy VERSION ${OBLOGPROXY_VERSION} LANGUAGES CXX)
+
+add_compile_definitions(WITH_US_TIMESTAMP=1)
 
 ############## cmake common options #########################################################################
 execute_process(
@@ -118,7 +114,7 @@ target_link_libraries(logproxy_proto PUBLIC protobuf)
 #=====================================> sql parser <===========================================
 # Build sql-parser library
 set(PARSER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/sqlparser)
-set(PARSER_BUILD_COMMAND $(MAKE) clean && $(MAKE) FLEX=${DEP_VAR}/usr/local/oceanbase/devtools/bin/flex)
+set(PARSER_BUILD_COMMAND $(MAKE) clean && $(MAKE) CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} FLEX=${DEP_VAR}/usr/local/oceanbase/devtools/bin/flex)
 add_custom_target(parser_build ALL COMMAND ${PARSER_BUILD_COMMAND} WORKING_DIRECTORY ${PARSER_DIR})
 add_library(sqlparser STATIC IMPORTED GLOBAL)
 add_dependencies(sqlparser parser_build)
@@ -146,7 +142,7 @@ include(gflags)
 find_package(ZLIB REQUIRED)
 target_link_libraries(common
         PUBLIC logproxy_proto
-        PUBLIC logmsg_wrapper # for drcmsg/oblogmsg
+        PUBLIC logmsg_wrapper # for oblogmsg
         PUBLIC libevent::core
         PUBLIC libevent::pthreads
         PUBLIC libevent::extra
@@ -164,7 +160,7 @@ target_compile_definitions(common PUBLIC _OBLOG_MSG_)
 get_target_property(COMMON_INCLUDE_PATH common INCLUDE_DIRECTORIES)
 get_target_property(COMMON_DEP_INCLUDE_PATH common INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "COMMON_INCLUDE_PATH: ${COMMON_INCLUDE_PATH}, COMMON_DEP_INCLUDE_PATH: ${COMMON_DEP_INCLUDE_PATH}")
-#message(STATUS "COMMON_SRC: ${COMMON_SRC}")
+message(STATUS "COMMON_SRC: ${COMMON_SRC}")
 
 #======= obcdc wrapper =======
 function(add_obcdc_access_library OB_CDC_TARGET_NAME LIBOBCDC_TARGET_NAME)
@@ -200,24 +196,6 @@ target_include_directories(oblogreader_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(oblogreader_static
         PUBLIC common
         PRIVATE obcdc_base)
-
-#===== oblogreader JNI =====
-if (WITH_JNI_LIB)
-    set(JAVA_INCLUDE_DIR ${JAVA_HOME}/include ${JAVA_HOME}/include/linux ${JAVA_HOME}/include/darwin)
-    set(JAVA_LIB_DIR ${JAVA_HOME}/jre/lib)
-else ()
-    set(JAVA_INCLUDE_DIR "")
-    set(JAVA_LIB_DIR "")
-endif ()
-if (WITH_JNI_LIB)
-    set(OBLOGREADER_JNI_INC ${OBLOGREADER_INC} src/jni)
-    file(GLOB OBLOGREADER_JNI_SRC src/jni/*.cpp)
-    add_library(oblogreader_jni STATIC ${OBLOGREADER_JNI_SRC})
-    target_include_directories(oblogreader_jni PUBLIC ${OBLOGREADER_JNI_INC})
-    target_link_libraries(oblogreader_jni
-            PRIVATE oblogreader_static
-    )
-endif ()
 
 # target mysql_protocol
 add_library(mysql_protocol INTERFACE)
