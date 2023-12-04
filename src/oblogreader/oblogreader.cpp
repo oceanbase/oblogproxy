@@ -56,6 +56,7 @@ void ObLogReader::join()
   OMS_DEBUG("<<< Joining ObLogReader");
   _reader.join();
   _sender.join();
+  Counter::instance().join();
   OMS_DEBUG(">>> Joined ObLogReader");
 }
 

@@ -113,6 +113,7 @@ void BinlogConverter::join()
   _reader.detach();
   _convert.join();
   _storage.join();
+  Counter::instance().join();
 }
 int BinlogConverter::start()
 {

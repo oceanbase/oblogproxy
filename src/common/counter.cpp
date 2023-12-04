@@ -18,9 +18,10 @@ namespace oceanbase {
 namespace logproxy {
 void Counter::stop()
 {
-  Thread::stop();
-  _sleep_cv.notify_all();
-  join();
+  if (is_run()) {
+    Thread::stop();
+    _sleep_cv.notify_all();
+  }
 }
 
 void Counter::run()
