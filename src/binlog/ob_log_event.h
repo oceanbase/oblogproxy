@@ -378,6 +378,8 @@ public:
       }
       _gtid_uuid = static_cast<unsigned char*>(malloc(SERVER_UUID_LEN));
       memcpy(_gtid_uuid, gtid_message._gtid_uuid, SERVER_UUID_LEN);
+      _gtid_txn_id_intervals = gtid_message._gtid_txn_id_intervals;
+      _txn_range.assign(gtid_message._txn_range.begin(), gtid_message._txn_range.end());
     }
   }
 
@@ -389,6 +391,8 @@ public:
       }
       _gtid_uuid = static_cast<unsigned char*>(malloc(SERVER_UUID_LEN));
       memcpy(_gtid_uuid, gtid_message._gtid_uuid, SERVER_UUID_LEN);
+      _gtid_txn_id_intervals = gtid_message._gtid_txn_id_intervals;
+      _txn_range.assign(gtid_message._txn_range.begin(), gtid_message._txn_range.end());
     }
     return *this;
   }
@@ -768,7 +772,7 @@ public:
   void set_before_pos(size_t before_pos);
   size_t get_after_pos() const;
   void set_after_pos(size_t after_pos);
-  virtual void deserialize(unsigned char* buff) = 0 ;
+  virtual void deserialize(unsigned char* buff) = 0;
   std::string print_event_info() override;
   virtual ~RowsEvent();
 

@@ -565,7 +565,7 @@ void PreviousGtidsLogEvent::deserialize(unsigned char* buff)
 PreviousGtidsLogEvent::~PreviousGtidsLogEvent()
 {
   for (auto gtid_message : _gtid_messages) {
-    delete (gtid_message.second);
+    delete gtid_message.second;
     gtid_message.second = nullptr;
   }
 }
@@ -574,11 +574,22 @@ std::string PreviousGtidsLogEvent::print_event_info()
 {
   std::stringstream info;
   int count = 0;
-  for (auto gtid_message : this->get_gtid_messages()) {
+  for (const auto& gtid_message : this->get_gtid_messages()) {
     if (count > 0) {
       info << std::endl;
     }
-    info << gtid_message.second->format_string();
+
+    /*
+     * For Previous Gtids Log Event, it is an interval that is closed on the left and open on the right, so it needs to
+     * be revised first when serializing the display.
+     */
+    auto temp = *gtid_message.second;
+    for (auto& i : temp.get_txn_range()) {
+      if (i.second != i.first) {
+        i.second -= 1;
+      }
+    }
+    info << temp.format_string();
     count++;
   }
   return info.str();
@@ -941,7 +952,7 @@ std::string GtidMessage::format_string()
 
   for (uint64_t i = 0; i < this->_txn_range.size(); ++i) {
     if (this->_txn_range.at(i).second != this->_txn_range.at(i).first) {
-      stream << ":" << this->_txn_range.at(i).first << "-" << this->_txn_range.at(i).second - 1;
+      stream << ":" << this->_txn_range.at(i).first << "-" << this->_txn_range.at(i).second;
     } else {
       stream << ":" << this->_txn_range.at(i).first;
     }
