@@ -133,6 +133,10 @@ int BinlogStorage::storage_binlog_event(vector<ObLogEvent*>& records, const stri
 
     if (record->get_header()->get_type_code() == ROTATE_EVENT) {
       buffer_pos = rotate(record, buffer, buffer_pos, index_record, index_file_name);
+      if (buffer_pos == OMS_FAILED) {
+        OMS_ERROR("Failed to rotate binlog file:{}", ((RotateEvent*)record)->get_next_binlog_file_name());
+        return OMS_FAILED;
+      }
       _range.first = 0;
       continue;
     }
@@ -217,6 +221,7 @@ const ConvertMeta& BinlogStorage::get_meta() const
 {
   return _meta;
 }
+
 void BinlogStorage::set_meta(const ConvertMeta& meta)
 {
   _meta = meta;
@@ -332,7 +337,10 @@ int BinlogStorage::current_rotation(BinlogIndexRecord& index_record, const Rotat
   index_record._index = rotate_event->get_index();
   index_record._file_name = bin_path;
   index_record.set_position(0);
-  add_index(binlog_index, index_record);
+  if (add_index(binlog_index, index_record) != OMS_OK) {
+    OMS_ERROR("Failed to add binlog index record:{}", index_record.to_string());
+    return OMS_FAILED;
+  }
   _file_name = bin_path;
   OMS_STREAM_INFO << "rotate file:" << next_file;
   return OMS_OK;

@@ -24,7 +24,7 @@ namespace oceanbase {
 namespace logproxy {
 namespace fs = std::filesystem;
 
-void fetch_index_record(FILE* fp, BinlogIndexRecord& record)
+static void fetch_index_record(FILE* fp, BinlogIndexRecord& record)
 {
   char* line = nullptr;
   size_t len = 0;
@@ -33,55 +33,115 @@ void fetch_index_record(FILE* fp, BinlogIndexRecord& record)
   free(line);
 }
 
-int fetch_index_vector(const std::string& index_file_name, std::vector<BinlogIndexRecord*>& index_records)
-{
-
-  std::ifstream ifs(index_file_name);
-  if (!ifs.good()) {
-    OMS_ERROR("Failed to open: {},reason:{}", index_file_name, logproxy::system_err(errno));
-    return OMS_FAILED;
-  }
-
-  for (std::string line; std::getline(ifs, line);) {
-    auto* record = new BinlogIndexRecord();
-    record->parse(line);
-    if (record->_index > 0) {
-      index_records.emplace_back(record);
-    } else {
-      // delete
-      delete (record);
-    }
-  }
-  return OMS_OK;
-}
-
-int fetch_index_vector(FILE* fp, std::vector<BinlogIndexRecord*>& index_records)
+static int fetch_index_vector(FILE* fp, std::vector<BinlogIndexRecord*>& index_records)
 {
   if (fp != nullptr) {
-    while (!feof(fp)) {
+    char* buffer = nullptr;
+    size_t bufsiz = 0;
+    ssize_t nbytes;
+    while ((nbytes = getline(&buffer, &bufsiz, fp)) != -1) {
       auto* record = new BinlogIndexRecord();
-      fetch_index_record(fp, *record);
-      if (record != nullptr && record->_index > 0) {
+      record->parse(buffer);
+      if (record->_index > 0) {
         index_records.emplace_back(record);
       } else {
         delete (record);
       }
+      free(buffer);
+      buffer = nullptr;
     }
+    free(buffer);
     return OMS_OK;
   } else {
     return OMS_FAILED;
   }
 }
 
+/*!
+ * \brief Lock the index.LOCK file and obtain binlog index operation rights
+ * \param fp
+ * \return Whether acquiring the lock was successful
+ */
+static int binlog_index_lock(FILE*& fp, const std::string& path)
+{
+  fs::path data_path = path;
+  std::string parent_path = data_path.parent_path().c_str();
+  if (fp != nullptr) {
+    FsUtil::fclose_binary(fp);
+  }
+  std::string index_lock_file = parent_path + "/" + INDEX_LOCK_FILE;
+  fp = FsUtil::fopen_binary(index_lock_file, "a+");
+  if (fp == nullptr) {
+    OMS_ERROR("Failed to open locked file:{}", index_lock_file);
+    return OMS_FAILED;
+  }
+
+  int fd = fileno(fp);
+  if (OMS_PROC_WRLOCK(fd) == -1) {
+    OMS_ERROR("Failed to lock file:{}", index_lock_file);
+    return OMS_FAILED;
+  }
+  return OMS_OK;
+}
+
+/*!
+ * \brief UnLock the index.LOCK file
+ * \param fp
+ * \return Is unlocking successful?
+ */
+int binlog_index_unlock(FILE*& fp)
+{
+  defer(FsUtil::fclose_binary(fp));
+  if (fp == nullptr) {
+    OMS_ERROR("Failed to open locked file");
+    return OMS_FAILED;
+  }
+
+  int fd = fileno(fp);
+  if (OMS_PROC_UNLOCK(fd) == -1) {
+    OMS_ERROR("Failed to unlock file:{}", INDEX_LOCK_FILE);
+    return OMS_FAILED;
+  }
+  return OMS_OK;
+}
+
+int fetch_index_vector(const std::string& index_file_name, std::vector<BinlogIndexRecord*>& index_records, bool lock)
+{
+  /*
+   * Locked read
+   */
+  if (lock) {
+    FILE* lock_fp = nullptr;
+    defer(binlog_index_unlock(lock_fp));
+    if (binlog_index_lock(lock_fp, index_file_name) == OMS_FAILED) {
+      OMS_ERROR("Failed to lock file:{}", INDEX_LOCK_FILE);
+      return OMS_FAILED;
+    }
+    FILE* fp = FsUtil::fopen_binary(index_file_name, "r+");
+    defer(FsUtil::fclose_binary(fp));
+    return fetch_index_vector(fp, index_records);
+  }
+
+  FILE* fp = FsUtil::fopen_binary(index_file_name, "r+");
+  defer(FsUtil::fclose_binary(fp));
+  return fetch_index_vector(fp, index_records);
+}
+
 int add_index(const std::string& index_file_name, const BinlogIndexRecord& record)
 {
-  FILE* fp = logproxy::FsUtil::fopen_binary(index_file_name);
+  FILE* lock_fp = nullptr;
+  defer(binlog_index_unlock(lock_fp));
+  if (binlog_index_lock(lock_fp, index_file_name) == OMS_FAILED) {
+    OMS_ERROR("Failed to lock file:{}", INDEX_LOCK_FILE);
+    return OMS_FAILED;
+  }
+  FILE* fp = FsUtil::fopen_binary(index_file_name);
+  defer(FsUtil::fclose_binary(fp));
   if (fp == nullptr) {
     OMS_ERROR("Failed to open file:{},reason:{}", index_file_name, logproxy::system_err(errno));
     return OMS_FAILED;
   }
-  defer(logproxy::FsUtil::fclose_binary(fp));
-  logproxy::FsUtil::append_file(fp, (unsigned char*)record.to_string().c_str(), record.to_string().size());
+  FsUtil::append_file(fp, (unsigned char*)record.to_string().c_str(), record.to_string().size());
   OMS_DEBUG("add binlog index file:{} value:{}", record._file_name, record.to_string());
   return OMS_OK;
 }
@@ -132,31 +192,25 @@ void seekg_index(size_t& pos, FILE* fp)
 
 int update_index(const std::string& index_file_name, const BinlogIndexRecord& record, size_t pos)
 {
-  // Lock the original file
-  FILE* fp_original = FsUtil::fopen_binary(index_file_name, "r+");
-  if (fp_original == nullptr) {
-    OMS_ERROR("Failed to open file :{},reason:{}", index_file_name, logproxy::system_err(errno));
+  FILE* lock_fp = nullptr;
+  defer(binlog_index_unlock(lock_fp));
+  if (binlog_index_lock(lock_fp, index_file_name) == OMS_FAILED) {
+    OMS_ERROR("Failed to lock file:{}", INDEX_LOCK_FILE);
+    return OMS_FAILED;
   }
   std::string temp = index_file_name + ".tmp";
   std::error_code err;
-  int fd = fileno(fp_original);
-  defer(OMS_PROC_UNLOCK(fd));
-  defer(FsUtil::fclose_binary(fp_original));
-  if (OMS_PROC_WRLOCK(fd) == -1) {
-    OMS_ERROR("Failed to lock file:{}", index_file_name);
-    return OMS_FAILED;
-  }
   fs::copy(index_file_name, temp, fs::copy_options::overwrite_existing, err);
   if (err) {
     OMS_ERROR("Failed to copy file:{} to {}", index_file_name, temp);
     return OMS_FAILED;
   }
   FILE* fp = FsUtil::fopen_binary(temp, "r+");
+  defer(FsUtil::fclose_binary(fp));
   if (fp == nullptr) {
     OMS_ERROR("Failed to open file:{},reason:{}", temp, logproxy::system_err(errno));
     return OMS_FAILED;
   }
-  defer(FsUtil::fclose_binary(fp));
   seekg_index(pos, fp);
   fs::resize_file(temp, pos, err);
   if (err) {
@@ -174,17 +228,17 @@ int update_index(const std::string& index_file_name, const BinlogIndexRecord& re
   return OMS_OK;
 }
 
-int get_index(const std::string& index_file_name, BinlogIndexRecord& record, size_t index)
+int get_index(const std::string& index_file_name, BinlogIndexRecord& record, size_t index, const std::string& base_path)
 {
+  FILE* lock_fp = nullptr;
+  defer(binlog_index_unlock(lock_fp));
+  if (binlog_index_lock(lock_fp, index_file_name) == OMS_FAILED) {
+    OMS_ERROR("Failed to lock file:{}", INDEX_LOCK_FILE);
+    return OMS_FAILED;
+  }
   FILE* fp = FsUtil::fopen_binary(index_file_name, "r+");
+  defer(FsUtil::fclose_binary(fp));
   if (fp != nullptr) {
-    int fd = fileno(fp);
-    defer(OMS_PROC_UNLOCK(fd));
-    defer(FsUtil::fclose_binary(fp));
-    if (OMS_PROC_WRLOCK(fd) == -1) {
-      OMS_ERROR("Failed to lock file:{}", index_file_name);
-      return OMS_FAILED;
-    }
     seekg_index(index, fp);
     fetch_index_record(fp, record);
     OMS_DEBUG("get binlog index file:{} value:{}", record._file_name, record.to_string());
@@ -280,14 +334,6 @@ int rewrite_index_file(
     records << (*it)->to_string();
   }
 
-  FILE* fp_original = FsUtil::fopen_binary(index_file_name);
-  int fd = fileno(fp_original);
-  defer(OMS_PROC_UNLOCK(fd));
-  defer(FsUtil::fclose_binary(fp_original));
-  if (OMS_PROC_WRLOCK(fd) == -1) {
-    OMS_ERROR("Failed to lock file:{}", index_file_name);
-    return OMS_FAILED;
-  }
   FILE* fp_temp = FsUtil::fopen_binary(temp);
   defer(FsUtil::fclose_binary(fp_temp));
   if (fp_temp != nullptr) {
@@ -311,21 +357,23 @@ int purge_binlog_index(const std::string& base_name, const std::string& binlog_f
 {
   std::vector<BinlogIndexRecord*> index_records;
   std::string index_file_path = base_name + BINLOG_INDEX_NAME;
+
+  FILE* lock_fp = nullptr;
+  defer(binlog_index_unlock(lock_fp));
+  if (binlog_index_lock(lock_fp, index_file_path) == OMS_FAILED) {
+    OMS_ERROR("Failed to lock file:{}", index_file_path);
+    return OMS_FAILED;
+  }
+
   FILE* fp = FsUtil::fopen_binary(index_file_path, "r+");
+  defer(FsUtil::fclose_binary(fp));
   if (fp == nullptr) {
     error_msg = "Failed to open file:" + index_file_path;
     OMS_STREAM_ERROR << error_msg;
     return OMS_FAILED;
   }
   int ret = OMS_OK;
-  int fd = fileno(fp);
-  defer(OMS_PROC_UNLOCK(fd));
-  defer(FsUtil::fclose_binary(fp));
-  if (OMS_PROC_WRLOCK(fd) == -1) {
-    OMS_ERROR("Failed to lock file:{}", index_file_path);
-    return OMS_FAILED;
-  }
-  fetch_index_vector(fp, index_records);
+  fetch_index_vector(index_file_path, index_records, false);
   defer(release_vector(index_records));
   if (binlog_file.empty()) {
     ret = purge_binlog_before_ts(before_purge_ts, index_records, error_msg, purge_binlog_files);

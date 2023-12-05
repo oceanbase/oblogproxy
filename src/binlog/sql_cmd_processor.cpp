@@ -436,7 +436,10 @@ IoResult ShowMasterStatusProcessor::process(Connection* conn, const hsql::SQLSta
   }
 
   logproxy::BinlogIndexRecord index_record;
-  logproxy::get_index(conn->get_full_binlog_path() + BINLOG_DATA_DIR + BINLOG_INDEX_NAME, index_record);
+  logproxy::get_index(conn->get_full_binlog_path() + BINLOG_DATA_DIR + BINLOG_INDEX_NAME,
+      index_record,
+      1,
+      conn->get_full_binlog_path() + BINLOG_DATA_DIR);
 
   if (!index_record._file_name.empty()) {
     std::string file = CommonUtils::fill_binlog_file_name(index_record.get_index());
@@ -500,10 +503,10 @@ IoResult PurgeBinaryLogsProcessor::process(Connection* conn, const hsql::SQLStat
   std::string error_msg;
   std::string base_path = conn->get_full_binlog_path() + BINLOG_DATA_DIR;
   int ret = logproxy::purge_binlog_index(base_path, binlog_file, purge_ts, error_msg, purge_binlog_files);
-  g_bc_executor->submit(purge_binlog_file, purge_binlog_files);
   if (ret != OMS_OK) {
     return conn->send_err_packet(BINLOG_FATAL_ERROR, error_msg, "HY000");
   }
+  g_bc_executor->submit(purge_binlog_file, purge_binlog_files);
   return conn->send_ok_packet();
 }
 

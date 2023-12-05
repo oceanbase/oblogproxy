@@ -201,13 +201,6 @@ int64_t FsUtil::append_file(FILE* fp, unsigned char* content, size_t size)
     return OMS_FAILED;
   }
 
-  int fd = fileno(fp);
-  defer(OMS_PROC_UNLOCK(fd));
-  if (OMS_PROC_WRLOCK(fd) == -1) {
-    OMS_STREAM_ERROR << "File lock failed";
-    return OMS_FAILED;
-  }
-
   size_t n = fwrite(content, sizeof(unsigned char), size, fp);
   if (n != size) {
     OMS_ERROR("Failed to write file, length error, written: {} expected: ", n, size);
@@ -244,13 +237,14 @@ size_t FsUtil::read_file(std::ifstream& input, unsigned char* content, int64_t s
   }
   return OMS_OK;
 }
+
 int FsUtil::rewrite(FILE* input, unsigned char* content, uint64_t start_pos, uint64_t len)
 {
   fseek(input, int64_t(start_pos), SEEK_SET);
   fwrite(content, 1, len, input);
   OMS_STREAM_DEBUG << "current file offset:" << ftell(input);
   if (ferror(input)) {
-    OMS_STREAM_ERROR << strerror(errno);
+    OMS_ERROR("Failed to rewrite :{}", strerror(errno));
     return OMS_IO_ERROR;
   }
   fflush(input);
@@ -260,13 +254,13 @@ int FsUtil::rewrite(FILE* input, unsigned char* content, uint64_t start_pos, uin
 size_t FsUtil::read_file(FILE* input, unsigned char* content, int64_t start_pos, size_t len)
 {
   fseek(input, start_pos, SEEK_SET);
-  uint64_t count = fread(content, len, 1, input);
+  uint64_t count = fread(content, 1, len, input);
   if (ferror(input)) {
-    OMS_STREAM_ERROR << strerror(errno);
+    OMS_ERROR("Failed to read_file :{}", strerror(errno));
     return OMS_IO_ERROR;
   }
-  if (count != 1) {
-    OMS_STREAM_ERROR << "count:" << count;
+  if (count != len) {
+    OMS_ERROR("Failed to read_file,expected to be :{} actual:{}", len, count);
     return OMS_IO_ERROR;
   }
   return OMS_OK;

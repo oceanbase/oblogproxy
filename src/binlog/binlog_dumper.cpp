@@ -418,6 +418,15 @@ int BinlogDumper::seek_binlog_end_pos(const std::string& file, uint64_t& end_pos
      */
     if (_checkpoint.second == file_end_pos && strcmp(file.c_str(), _rotate_file.c_str()) == 0) {
       return OMS_BINLOG_SKIP;
+    } else if (file_end_pos < _checkpoint.second) {
+      /*
+       * The subscribed site is incorrect and exceeds the maximum value of the BINLOG file.
+       */
+      OMS_ERROR("The subscribed site [{},{}] is incorrect and exceeds the maximum value {} of the BINLOG file.",
+          file,
+          _checkpoint.second,
+          file_end_pos);
+      return OMS_FAILED;
     }
     end_pos = file_end_pos;
     return OMS_OK;
@@ -440,11 +449,10 @@ int BinlogDumper::seek_binlog_end_pos(const std::string& file, uint64_t& end_pos
 
 bool BinlogDumper::is_active(const std::string& file)
 {
-  vector<BinlogIndexRecord*> index_records;
-  defer(release_vector(index_records));
-  fetch_index_vector(_meta.log_bin_prefix + BINLOG_DATA_DIR + BINLOG_INDEX_NAME, index_records);
-  return index_records.size() == 0 || strcmp(index_records.back()->_file_name.c_str(), file.c_str()) == 0 ||
-         index_records.back()->_file_name.empty();
+  BinlogIndexRecord index_record;
+  auto ret = get_index(_meta.log_bin_prefix + BINLOG_DATA_DIR + BINLOG_INDEX_NAME, index_record);
+  return ret != OMS_OK || index_record.get_index() == 0 ||
+         strcmp(index_record.get_file_name().c_str(), file.c_str()) == 0 || index_record.get_file_name().empty();
 }
 
 int BinlogDumper::notify_new_event(const string& file)
@@ -571,13 +579,19 @@ IoResult BinlogDumper::send_binlog(const string& file, uint64_t start_pos)
 
   while (is_run()) {
     uint64_t end_pos = 0;
-    if (seek_binlog_end_pos(file, end_pos) == OMS_BINLOG_SKIP) {
+    auto ret = seek_binlog_end_pos(file, end_pos);
+    if (ret == OMS_BINLOG_SKIP) {
       // the current binlog file has been sent
       OMS_INFO("{}: The current Binlog file has been sent,binlog file:{},offset:{}",
           _connection->trace_id(),
           file,
           _checkpoint.second);
       return IoResult::SUCCESS;
+    } else if (ret == OMS_FAILED) {
+      OMS_ERROR("The subscribed site [{},{}] is incorrect and exceeds the maximum value of the BINLOG file.",
+          file,
+          _checkpoint.second);
+      return IoResult::FAIL;
     }
 
     OMS_INFO(
@@ -686,14 +700,17 @@ const pair<std::string, uint64_t>& BinlogDumper::get_checkpoint() const
 {
   return _checkpoint;
 }
+
 void BinlogDumper::set_checkpoint(pair<string, uint64_t> checkpoint)
 {
   _checkpoint = checkpoint;
 }
+
 uint32_t BinlogDumper::get_flag() const
 {
   return _flag;
 }
+
 void BinlogDumper::set_flag(uint32_t flag)
 {
   _flag = flag;

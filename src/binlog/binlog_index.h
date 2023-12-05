@@ -18,6 +18,8 @@
 
 namespace oceanbase {
 namespace logproxy {
+#define INDEX_LOCK_FILE "index.LOCK"
+
 struct BinlogIndexRecord {
 public:
   BinlogIndexRecord(const std::string& file_name, int index);
@@ -63,13 +65,21 @@ public:
   uint64_t _position = 0;
 };
 
-int fetch_index_vector(const std::string& index_file_name, std::vector<BinlogIndexRecord*>& index_records);
-
-int fetch_index_vector(FILE* fp, std::vector<BinlogIndexRecord*>& index_records);
+int fetch_index_vector(
+    const std::string& index_file_name, std::vector<BinlogIndexRecord*>& index_records, bool lock = true);
 
 int add_index(const std::string& index_file_name, const BinlogIndexRecord& record);
 
-int get_index(const std::string& index_file_name, BinlogIndexRecord& record, size_t index = 1);
+/*!
+ * \brief
+ * \param index_file_name
+ * \param record
+ * \param index Specify to obtain the data of the Nth row in reverse order
+ * \param base_path The directory where the index file is located is used to specify when the main process cleans logs
+ * and shows master status. \return
+ */
+int get_index(
+    const std::string& index_file_name, BinlogIndexRecord& record, size_t index = 1, const std::string& base_path = "");
 
 int purge_binlog_index(const std::string& base_name, const std::string& binlog_file, const std::string& before_purge_ts,
     std::string& error_msg, std::vector<std::string>& purge_binlog_files);
@@ -88,6 +98,5 @@ std::string get_mapping_str(const std::pair<std::string, int64_t>& mapping);
 std::pair<std::string, int64_t> parse_mapping_str(const std::string& mapping_str);
 
 bool is_active(const std::string& file, std::vector<BinlogIndexRecord*>& index_records);
-
 }  // namespace logproxy
 }  // namespace oceanbase
