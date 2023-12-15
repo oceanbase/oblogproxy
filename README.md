@@ -1,98 +1,95 @@
-English | [中文版](README_CN.md)
+<p align="center">
+    <a href="https://github.com/oceanbase/oblogproxy/blob/dev/LICENSE">
+        <img alt="license" src="https://img.shields.io/badge/license-MulanPubL--2.0-blue" />
+    </a>
+    <a href="https://github.com/oceanbase/oblogproxy/releases/latest">
+        <img alt="license" src="https://img.shields.io/badge/dynamic/json?color=blue&label=release&query=tag_name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Foceanbase%2Foblogproxy%2Freleases%2Flatest" />
+    </a>
+    <a href="https://www.oceanbase.com/docs/oblogproxy-doc">
+        <img alt="Chinese doc" src="https://img.shields.io/badge/文档-简体中文-blue" />
+    </a>
+    <a href="https://github.com/oceanbase/oblogproxy/commits/dev">
+        <img alt="last commit" src="https://img.shields.io/github/last-commit/oceanbase/oblogproxy/dev" />
+    </a>
+</p>
 
-# OceanBase LogProxy
+# OBLogProxy
 
-**OceanBase LogProxy** is an incremental log proxy service for [OceanBase](https://github.com/oceanbase/oceanbase) that establishes a connection to OceanBase and performs incremental log reads, providing change data capture (CDC) capabilities for downstream services.
+[OBLogProxy](https://github.com/oceanbase/oblogproxy) 是 [OceanBase](https://github.com/oceanbase/oceanbase) 的增量日志代理服务，它可以与 OceanBase 建立连接并进行增量日志读取，为下游服务提供了变更数据捕获（CDC）的能力。
 
-## Instructions use
-### Installation
+## OBLogProxy 功能特点
 
-LogProxy occupies resources separately, so it is recommended to deploy it separately from the OceanBase database.
+OBLogProxy 有 2 种模式，分别是 Binlog 模式和 CDC 模式。
 
-You can install a released version of LogProxy or build it from the source code.
+### Binlog 模式
 
-#### Install a released version
+Binlog 模式为 OceanBase 兼容 MySQL binlog 而推出，支持现有的 MySQL binlog 增量解析工具实时同步 OceanBase，使 MySQL binlog 增量解析工具可以平滑切换到 OceanBase 数据库。
 
-If you want to install a released version, firstly you need to configure the yum repo.
+### CDC 模式
+
+CDC 模式用于解决数据同步，CDC 模式下 OBLogProxy 可以订阅 OceanBase 数据库中的数据变更，并将这些数据变更实时同步至下游服务，实现数据的实时或准实时复制和同步。
+
+**有关于 OBLogProxy 的更多内容，请参考 [OBLogProxy 文档](https://www.oceanbase.com/docs/oblogproxy-doc) 。**
+
+## 源码构建 OBLogProxy
+
+### 前提条件
+
+安装 CMake，要求版本 3.20 及以上。下载安装，请参考 [CMake 官方网站](https://cmake.org/download) 。
+
+### 安装依赖
+
+基于 Fedora （包括 CentOS，Fedora，OpenAnolis，RedHat，UOS 等）
 
 ```bash
-yum install -y yum-utils
-yum-config-manager --add-repo https://mirrors.aliyun.com/oceanbase/OceanBase.repo
+yum install git wget rpm rpm-build gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils zlib zlib-devel bison flex
 ```
 
-Then you can install the rpm file by one of the following way:
+### 源码编译
 
-+ Download from [release page](https://github.com/oceanbase/oblogproxy/releases)
-  , [official download page](https://open.oceanbase.com/softwareCenter/community)
-  or [official mirror](https://mirrors.aliyun.com/oceanbase/community/stable/el/), and install it
-  with `yum install -y oblogproxy-{version}.{arch}.rpm`
-+ Install it with `yum install -y oblogproxy-{version}`
-
-The installation directory is `/usr/local/oblogproxy` by default.
-
-#### Build from source code
-
-```bash
-git clone git@github.com:oceanbase/oblogproxy.git
+```shell
+git clone https://github.com/oceanbase/oblogproxy.git
 cd oblogproxy
 mkdir build
-cmake -S . -B build
-cmake --build build
+cd build
+cmake ..
+cmake --build . -j 8
 ```
+### 编译选项
 
-### Configure
-
-For security reasons, LogProxy needs to configure the username and password of a certain user, which must be a sys
-tenant user of the OceanBase to connect with. Note that the username here should not contain cluster name or tenant
-name.
-
-You can configure the username and password by one of the following ways:
-
-- Add it to local conf at `conf/conf.json`.
-- Set it in the client params. See
-  the [client doc](https://github.com/oceanbase/oblogclient/blob/master/docs/quickstart/logproxy-client-tutorial.md) for
-  details.
-
-#### Add it to local conf
-
-Firstly, get the encrypted username and password.
+在执行 CMake 编译时，可以添加编译选项改变默认的行为。例如, 编译出 Demo，成功后，当前目录还会产出 `demo_client` 二进制。
 
 ```bash
-./bin/logproxy -x username
-./bin/logproxy -x password
+mkdir build
+cd build
+cmake -DWITH_DEMO=ON ..
+cmake --build . -j 8 
 ```
 
-Then add the outputs to `ob_sys_username` and `ob_sys_password` at `conf/conf.json`.
+项目中的其他编译选项。
 
-### Start
+| 选项         | 默认  | 说明                                                                                 |
+|------------|-----|------------------------------------------------------------------------------------|
+| WITH_DEBUG | ON  | 调试模式带 Debug 符号                                                                     |
+| WITH_ASAN  | OFF | 编译带 [AddressSanitizer](https://github.com/google/sanitizers/wiki/AddressSanitizer) |
+| WITH_TEST  | OFF | 测试                                                                                 |
+| WITH_DEMO  | OFF | Demo                                                                               |
+| WITH_DEPS  | ON  | 自动下载预编译依赖                                                                          |
 
-You can start the service by the following command.
+## 许可
 
-```bash
-bash ./run.sh start
-```
+OBLogProxy 使用 MulanPubL-2.0 许可。当您修改或分发源代码时，请遵守 [MulanPubL-2.0](http://license.coscl.org.cn/MulanPubL-2.0) 。
 
-Then you can use [oblogclient](https://github.com/oceanbase/oblogclient) to subscribe the log data from LogProxy, and
-the service is bind to port `2983` by default.
+## 贡献
 
-The service log of LogProxy is located at `logs/`, and the service log of LogReader (task process) is located
-at `run/{client-id}/logs/`.
+我们热烈欢迎并高度赞赏您的贡献。您可以通过以下几种方式做出贡献：
 
-## Licencing
+- 向我们提出 [issue](https://github.com/oceanbase/oblogproxy/issues) 。
+- 向我们提交请求 [pull request](https://github.com/oceanbase/oblogproxy/pulls) 。
 
-OceanBase Database is under MulanPubL - 2.0 license. You can freely copy and use the source code. When you modify or
-distribute the source code, please obey the MulanPubL - 2.0 license.
+## 支持
 
-## Contributing
-
-Contributions are warmly welcomed and greatly appreciated. Here are a few ways you can contribute:
-
-- Raise us an [issue](https://github.com/oceanbase/oblogproxy/issues).
-- Submit Pull Requests.
-
-## Support
-
-In case you have any problems when using OceanBase LogProxy, welcome reach out for help:
+如果您在使用 OBLogProxy 时遇到任何问题，欢迎联系我们寻求帮助：
 
 - [GitHub Issue](https://github.com/oceanbase/oblogproxy/issues)
-- [Official Website](https://open.oceanbase.com/)
+- [官方网站](https://open.oceanbase.com)
