@@ -61,6 +61,7 @@
   "binlog_checksum": true,
   "binlog_heartbeat_interval_us": 1000000,
   "binlog_gtid_display": true,
+  "binlog_ddl_convert": true,
   "binlog_memory_limit": "3G",
   "binlog_working_mode": "storage",
   "binlog_recover_backup": true

@@ -51,6 +51,18 @@ void BinlogDumper::run()
    */
   init_binlog_checksum();
 
+  if (!_relative_file.empty()) {
+    if (!verify_subscription_offset(_start_pos)) {
+      OMS_ERROR("{}: The subscription offset [{},{}] is illegal", _connection->trace_id(), _relative_file, _start_pos);
+      return;
+    } else {
+      OMS_INFO("{}:Subscription offset [{},{}] verification passed, start subscribing",
+          _connection->trace_id(),
+          _relative_file,
+          _start_pos);
+    }
+  }
+
   while (is_run()) {
     OMS_INFO("{}: Begin send fake rotate event", _connection->trace_id());
     if (_relative_file.empty()) {
@@ -89,7 +101,7 @@ void BinlogDumper::run()
     }
     this->_fp = fopen(_file.c_str(), "rb+");
     if (this->_fp == nullptr) {
-      OMS_INFO(
+      OMS_ERROR(
           "{}: Failed to open binlog file: {},reason:{}", _connection->trace_id(), _file, logproxy::system_err(errno));
       binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR, "failed to open binlog file", "HY000"};
       _connection->send(error_packet);
@@ -99,7 +111,7 @@ void BinlogDumper::run()
     FsUtil::read_file(this->_fp, magic, 0, sizeof(magic));
 
     if (memcmp(magic, binlog_magic, sizeof(magic)) != 0) {
-      OMS_INFO("{}: The file format is invalid.", _connection->trace_id());
+      OMS_ERROR("{}: The file format is invalid.", _connection->trace_id());
       binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR,
           "Binlog has bad magic number;  It's not a binary log file that can be used by this version of MySQL.",
           "HY000"};
@@ -862,6 +874,99 @@ bool BinlogDumper::is_legal_event(FILE* stream, uint64_t offset, uint64_t end_po
         offset + event_len);
     return false;
   }
+  return true;
+}
+
+bool BinlogDumper::verify_subscription_offset(uint64_t offset)
+{
+
+  /*
+   * Verify whether the requested location is legal and intercept it in advance
+   */
+
+  auto fp = fopen(_file.c_str(), "rb+");
+  if (fp == nullptr) {
+    OMS_ERROR(
+        "{}: Failed to open binlog file: {},reason:{}", _connection->trace_id(), _file, logproxy::system_err(errno));
+    binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR, "failed to open binlog file", "HY000"};
+    _connection->send(error_packet);
+    return false;
+  }
+  defer(fclose(fp));
+  uint64_t end_pos = FsUtil::file_size(_file);
+
+  if (offset < BINLOG_MAGIC_SIZE) {
+    OMS_ERROR("{}: The file offset is invalid.", _connection->trace_id());
+    binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR,
+        "Client requested master to start replication \"\n"
+        "                    \"from position < 4.",
+        "HY000"};
+    _connection->send(error_packet);
+    return false;
+  }
+
+  if (end_pos == offset) {
+    // What is subscribed at this time happens to be the latest show master status offset,
+    // and no verification is needed at this time.
+    return true;
+  }
+
+  if (offset + COMMON_HEADER_LENGTH > end_pos) {
+    OMS_WARN("{}: The content of the current binlog event header is incomplete, and the expected file length is {},the "
+             "actual value is {}",
+        _connection->trace_id(),
+        offset + COMMON_HEADER_LENGTH,
+        end_pos);
+    binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR,
+        "The offset of the current subscription is illegal,offset:" + std::to_string(offset),
+        "HY000"};
+    _connection->send(error_packet);
+    return false;
+  }
+  unsigned char buff[COMMON_HEADER_LENGTH];
+  // read common header
+  size_t ret = FsUtil::read_file(fp, buff, offset, COMMON_HEADER_LENGTH);
+  if (ret != OMS_OK) {
+    binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR,
+        "The offset of the current subscription is illegal,offset:" + std::to_string(offset),
+        "HY000"};
+    _connection->send(error_packet);
+    return false;
+  }
+  OblogEventHeader header = OblogEventHeader();
+  header.deserialize(buff);
+  uint32_t event_len = header.get_event_length();
+  if (offset + event_len > end_pos) {
+    OMS_WARN("{}: The content of the current binlog event is incomplete, and the expected file length is {}",
+        _connection->trace_id(),
+        offset + event_len);
+    binlog::ErrPacket error_packet{BINLOG_FATAL_ERROR,
+        "The offset of the current subscription is illegal,offset:" + std::to_string(offset),
+        "HY000"};
+    _connection->send(error_packet);
+    return false;
+  } else {
+    auto* event = static_cast<unsigned char*>(malloc(header.get_event_length()));
+    FreeGuard<unsigned char*> free_guard(event);
+    ret = FsUtil::read_file(fp, event, offset, header.get_event_length());
+    if (ret != OMS_OK) {
+      binlog::ErrPacket error_packet{
+          BINLOG_FATAL_ERROR, "Failed to read the binlog file, the file name is " + _relative_file, "HY000"};
+      _connection->send(error_packet);
+      return false;
+    }
+
+    if (header.get_type_code() != FORMAT_DESCRIPTION_EVENT) {
+      ret = verify_event_crc32(event, header.get_event_length(), _checksum_flag);
+      if (ret != OMS_OK) {
+        binlog::ErrPacket error_packet{
+            BINLOG_FATAL_ERROR, "The currently subscribed binlog event crc32 verification failed", "HY000"};
+        _connection->send(error_packet);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 

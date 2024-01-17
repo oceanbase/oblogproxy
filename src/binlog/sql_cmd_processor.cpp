@@ -704,11 +704,16 @@ void CreateBinlogProcessor::init_oblog_config(logproxy::OblogConfig& config)
 
 IoResult DropBinlogProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
 {
-
   auto* p_statement = (hsql::DropBinlogStatement*)statement;
   bool if_exists = p_statement->if_exists;
-  std::string cluster = p_statement->tenant_info->cluster;
-  std::string tenant = p_statement->tenant_info->tenant;
+  std::string cluster;
+  std::string tenant;
+  if (nullptr != p_statement->tenant_info) {
+    cluster = p_statement->tenant_info->cluster;
+    tenant = p_statement->tenant_info->tenant;
+  } else {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "Cluster or tenant cannot be empty", "HY000");
+  }
 
   std::vector<StateMachine*> state_machines;
   binlog::g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);

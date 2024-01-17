@@ -23,6 +23,7 @@
 #include "data_type.h"
 #include "binlog_convert.h"
 #include "counter.h"
+#include "ddl-converter/ddl_converter.h"
 namespace oceanbase {
 namespace logproxy {
 static Config& _s_config = Config::instance();
@@ -320,6 +321,21 @@ void BinlogConvert::convert_query_event(ILogRecord* record)
     sql_statment_len = new_bin_log_buf->buf_used_size;
     sql = static_cast<char*>(malloc(new_bin_log_buf->buf_used_size));
     write_string(sql, sql_statment_len, new_bin_log_buf->buf, sql_statment_len);
+    if (_s_config.binlog_ddl_convert.val()) {
+      std::string convert_sql;
+      std::string ddl = std::string{sql, sql_statment_len};
+      int convert_ret = DdlConverter::convert(ddl, convert_sql);
+      if (convert_ret != OMS_OK) {
+        convert_sql = std::string{sql, sql_statment_len};
+        // etransfer failed to convert incremental DDL, using untransformed DDL
+        OMS_STREAM_WARN << "Failed to convert incremental DDL, using untransformed DDL:" << convert_sql;
+      }
+      free(sql);
+      sql = nullptr;
+      sql_statment_len = convert_sql.size();
+      sql = static_cast<char*>(malloc(sql_statment_len));
+      write_string(sql, sql_statment_len, convert_sql.c_str(), sql_statment_len);
+    }
   }
 
   std::string dbname = get_dbname_without_tenant(record->dbname());

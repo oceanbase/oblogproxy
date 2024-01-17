@@ -247,6 +247,14 @@ public:
   bool is_legal_event(FILE* stream, uint64_t offset, uint64_t end_pos) const;
 
   /*!
+   * \brief Verify whether the subscribed offset is legal
+   * \param file
+   * \param offset
+   * \return
+   */
+  bool verify_subscription_offset(uint64_t offset);
+
+  /*!
    * @brief Whether the rotation file is ready
    * @param file
    * @return

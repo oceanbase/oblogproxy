@@ -13,5 +13,5 @@
 #pragma once
 
 #ifndef __OMS_VERSION__
-#define __OMS_VERSION__ "2.0.0"
+#define __OMS_VERSION__ "2.0.1"
 #endif

@@ -150,6 +150,7 @@ public:
   OMS_CONFIG_UINT32(binlog_max_file_size_bytes, 1024 * 1024 * 500);  // 500MB
   OMS_CONFIG_UINT16(binlog_file_name_fill_zeroes_width, 6);          // fill zeroes width for mysql binlog file name
   OMS_CONFIG_UINT64(binlog_heartbeat_interval_us, 1000000);          // The interval at which heartbeat events are sent
+  OMS_CONFIG_BOOL(binlog_ddl_convert, true);
   OMS_CONFIG_STR(binlog_memory_limit, "3G");
   OMS_CONFIG_STR(binlog_working_mode, "storage");
 

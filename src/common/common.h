@@ -18,6 +18,7 @@
 
 namespace oceanbase {
 namespace logproxy {
+
 #define OMS_OK 0
 #define OMS_AGAIN 1
 #define OMS_FAILED (-1)

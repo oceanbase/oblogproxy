@@ -108,24 +108,27 @@ TEST(DataType, float_type)
 TEST(DataType, float)
 {
   IColMeta col_meta;
-  //  std::string val = "-1.175494351E-38";
-  std::string val = "-1.17549e-38";
-  //  uint8_t result[4] = {51, 51, 246, 66};
+  std::string val = "-1.175494351E-38";
+  //  std::string val = "-1.17549e-38";
+  uint8_t result[4] = {0x00, 0x00, 0x80, 0x80};
   col_meta.setType(OB_TYPE_FLOAT);
   col_meta.setPrecision(24);
   MsgBuf msg_buf;
-  get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
-  //  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+  for (int i = 0; i < len; ++i) {
+    printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+  }
+  printf("\n");
+  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
 }
 
 TEST(DataType, float_convert)
 {
   IColMeta col_meta;
-    std::string val = "-1.175494351E-38";
-//  std::string val = "-1.17549e-38";
+  std::string val = "-1.175494351E-38";
+  //  std::string val = "-1.17549e-38";
   stof(val);
 }
-
 
 TEST(DataType, short_type)
 {
@@ -243,49 +246,276 @@ TEST(DataType, timestamp_type_precision)
 
 TEST(DataType, time_type)
 {
-  IColMeta col_meta;
-  //  std::string val = "2017-12-14 09:54:00.1113";
-  std::string val = "09:54:00.00000";
-  col_meta.setType(OB_TYPE_TIME);
-  col_meta.setScale(5);
-  MsgBuf msg_buf;
-  size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
-  for (int i = 0; i < len; ++i) {
-    printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+  {
+    IColMeta col_meta;
+    //  std::string val = "2017-12-14 09:54:00.1113";
+    std::string val = "09:54:00.000001";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(6);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    printf("case 0 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    uint8_t result[6] = {128, 157, 128, 0, 0, 1};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
   }
-  uint8_t result[6] = {128, 157, 128, 0, 0, 0};
-  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
 
-  std::string val_zero = "09:54:00";
-  col_meta.setType(OB_TYPE_TIME);
-  MsgBuf msg_buf_zero;
-  len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf_zero, std::string());
-  printf("\n");
-  for (int i = 0; i < len; ++i) {
-    printf("\\%02hhx", (unsigned char)msg_buf_zero.begin()->buffer()[i]);
+  {
+    IColMeta col_meta;
+    //  std::string val = "2017-12-14 09:54:00.1113";
+    std::string val = "09:54:00.00000";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(5);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 1 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    uint8_t result[6] = {128, 157, 128, 0, 0, 0};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
   }
-  printf("\n");
-  uint8_t result_zero[3] = {
-      128,
-      157,
-      128,
-  };
-  ASSERT_EQ(true, memcmp(result_zero, msg_buf_zero.begin()->buffer(), sizeof(result_zero)) == 0);
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "09:54:00";
+    col_meta.setType(OB_TYPE_TIME);
+    MsgBuf msg_buf_zero;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf_zero, std::string());
+    printf("\n");
+    printf("case 2 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf_zero.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result_zero[3] = {
+        128,
+        157,
+        128,
+    };
+    ASSERT_EQ(true, memcmp(result_zero, msg_buf_zero.begin()->buffer(), sizeof(result_zero)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.123456";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(6);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 3 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[6] = {0x80, 0x00, 0x01, 0x01, 0xe2, 0x40};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.12346";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(5);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 4 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[6] = {0x80, 0x00, 0x01, 0x01, 0xe2, 0x44};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.1235";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(4);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 5 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[5] = {0x80, 0x00, 0x01, 0x04, 0xd3};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.123";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(3);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 6 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[5] = {0x80, 0x00, 0x01, 0x04, 0xce};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.12";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(2);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 7 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[4] = {0x80, 0x00, 0x01, 0x0c};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.1";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(1);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 8 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[4] = {0x80, 0x00, 0x01, 0x0a};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.012345";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(6);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 9 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[6] = {0x80, 0x00, 0x01, 0x00, 0x30, 0x39};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "00:00:01.012";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(3);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 10 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[5] = {0x80, 0x00, 0x01, 0x00, 0x78};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "-00:00:01.012345";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(6);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 11 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[6] = {0x7f, 0xff, 0xfe, 0xff, 0xcf, 0xc7};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "-00:00:01.012";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(3);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 12 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[5] = {0x7f, 0xff, 0xfe, 0xff, 0x88};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val_zero = "-00:00:11.000";
+    col_meta.setType(OB_TYPE_TIME);
+    col_meta.setScale(3);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val_zero.size(), val_zero.data(), msg_buf, std::string());
+    printf("\n");
+    printf("case 13 : ");
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[5] = {0x7f, 0xff, 0xf5, 0x00, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
 }
 
 TEST(DataType, year_type)
 {
-  IColMeta col_meta;
-  //  std::string val = "2017-12-14 09:54:00.1113";
-  std::string val = "2017";
-  col_meta.setType(OB_TYPE_YEAR);
-  MsgBuf msg_buf;
-  size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
-  for (int i = 0; i < len; ++i) {
-    printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+  {
+    IColMeta col_meta;
+    //  std::string val = "2017-12-14 09:54:00.1113";
+    std::string val = "2017";
+    col_meta.setType(OB_TYPE_YEAR);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    uint8_t result[1] = {117};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
   }
-  uint8_t result[1] = {117};
-  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+
+  {
+    IColMeta col_meta;
+    //  std::string val = "2017-12-14 09:54:00.1113";
+    std::string val = "0000";
+    col_meta.setType(OB_TYPE_YEAR);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    uint8_t result[1] = {0};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
 }
 
 TEST(DataType, varchar_type)

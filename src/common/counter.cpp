@@ -32,8 +32,8 @@ void Counter::run()
   while (is_run()) {
     _timer.reset();
     this->sleep();
-    int64_t interval_ms = _timer.elapsed() / 1000;
-    int64_t interval_s = interval_ms == 0 ? 0 : (interval_ms / 1000);
+    uint64_t interval_ms = _timer.elapsed() / 1000;
+    uint64_t interval_s = interval_ms == 0 ? 0 : (interval_ms / 1000);
 
     uint64_t rcount = _read_count.load();
     uint64_t wcount = _write_count.load();
@@ -47,8 +47,8 @@ void Counter::run()
     uint64_t rios = interval_s == 0 ? rio : (rio / interval_s);
     uint64_t wios = interval_s == 0 ? wio : (wio / interval_s);
     uint64_t xwios = interval_s == 0 ? xwio : (xwio / interval_s);
-    int delay = _count_timestamp_us - _timestamp_us;
-    int chk_delay = _count_timestamp_us - _checkpoint_us;
+    uint64_t delay = _count_timestamp_us - _timestamp_us;
+    uint64_t chk_delay = _count_timestamp_us - _checkpoint_us;
 
     // TODO... bytes rate
 
@@ -145,7 +145,7 @@ void CounterStatistics::run()
   while (is_run()) {
     _timer.reset();
     this->sleep();
-    int64_t interval_ms = _timer.elapsed() / 1000;
+    uint64_t interval_ms = _timer.elapsed() / 1000;
 
     ss.str("");
     ss << "Counter:[Span:" << interval_ms << "ms]";

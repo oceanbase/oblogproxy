@@ -49,7 +49,7 @@ execute_process(
 
 add_library(libobcdcce4 SHARED IMPORTED GLOBAL)
 set_target_properties(libobcdcce4 PROPERTIES
-        IMPORTED_LOCATION ${OB_CE_CDC_BASE_DIR}/home/admin/oceanbase/lib64/libobcdc.so.4.2.1.0
+        IMPORTED_LOCATION ${OB_CE_CDC_BASE_DIR}/home/admin/oceanbase/lib64/libobcdc.so.4.2.1.3
         IMPORTED_SONAME libobcdc.so.4)
 target_include_directories(libobcdcce4 INTERFACE ${OB_CE_CDC_BASE_DIR}/home/admin/oceanbase/include/libobcdc)
 target_compile_definitions(libobcdcce4

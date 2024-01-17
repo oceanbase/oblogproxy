@@ -42,7 +42,7 @@ CDC 模式用于解决数据同步，CDC 模式下 OBLogProxy 可以订阅 Ocean
 基于 Fedora （包括 CentOS，Fedora，OpenAnolis，RedHat，UOS 等）
 
 ```bash
-yum install git wget rpm rpm-build gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils zlib zlib-devel bison flex
+yum install -y git wget rpm rpm-build gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils zlib zlib-devel bison flex java-11-openjdk
 ```
 
 ### 源码编译

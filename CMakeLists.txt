@@ -48,7 +48,7 @@ endif ()
 
 if (NOT GIT_VERSION)
     message(WARNING "oblogproxy fetch current time failed")
-    set(GIT_VERSION "2.0.0")
+    set(GIT_VERSION "2.0.1")
 endif ()
 message(STATUS "build type: ${CMAKE_BUILD_TYPE}")
 
@@ -91,6 +91,7 @@ include(libevent)
 include(protobuf)
 include(spdlog)
 include(rapidjson)
+include(etransfer)
 
 file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
 message(STATUS "logproxy protos: ${PROTO_FILES}")
@@ -202,6 +203,17 @@ add_library(mysql_protocol INTERFACE)
 target_include_directories(mysql_protocol INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/mysql-protocol)
 
 # ===== target ob_binlog_server =====
+add_library(ddl_converter STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ddl-converter/ddl_converter.cpp
+)
+target_link_libraries(ddl_converter
+        PUBLIC common
+        PUBLIC etransfer
+)
+target_include_directories(ddl_converter
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ddl-converter
+)
+
 # binlog converter
 add_library(binlog_converter_static STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_converter.cpp
@@ -218,6 +230,7 @@ target_include_directories(binlog_converter_static
 target_link_libraries(binlog_converter_static
         PRIVATE mysql_protocol
         PUBLIC common
+        PUBLIC ddl_converter
         PRIVATE obcdc_base
         PRIVATE rapidjson
         PRIVATE libevent::pthreads
@@ -248,6 +261,7 @@ target_link_libraries(ob_binlog_server
         PRIVATE common
         PRIVATE rapidjson
         PRIVATE libevent::pthreads
+        PRIVATE binlog_converter_static
 )
 
 #===== logproxy static =====

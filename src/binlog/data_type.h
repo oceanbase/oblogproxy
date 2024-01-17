@@ -59,8 +59,10 @@ enum field_types {
 #define MAX_TIME_STR_LEN 10
 #define MAX_DATETIME_STR_LEN 19
 #define TIME_ZERO_THREE 0x800000L
+#define TIME_ZERO_FOUR 0x80000000L
 #define TIME_ZERO_FIVE 0x8000000000L
 #define TIME_ZERO_SIX 0x800000000000L
+#define TIME_ZERO_EIGHT 0x8000000000000000L
 
 /**
 Occupies (decimals/9)*4+decimals%9 (the number of bytes corresponding to the remaining digits) +
@@ -70,7 +72,7 @@ than 9 bits, XOR positive and negative (0, -1) and XOR 0x80, stored in big-endia
 table for occupied bytes). The fractional part is from high to low, every 9 is digital XOR plus or minus (0,-1), stored
 in big endian, signed integer (4 bytes). The remaining less than 9 bits, XOR positive and negative (0, -1) and XOR 0x80,
 stored in big-endian, signed integer (refer to the above table for occupied bytes).
- */
+*/
 
 #define DECODE_BASE_LEN 9
 #define DECIMAL_STORE_BASE_LEN 4
@@ -81,6 +83,7 @@ static const int32_t powers10[DECODE_BASE_LEN + 1] = {
 static const int32_t dig2bytes[DECODE_BASE_LEN + 1] = {0, 1, 1, 2, 2, 3, 3, 4, 4, 4};
 static const int64_t frac_max[DECODE_BASE_LEN - 1] = {
     900000000, 990000000, 999000000, 999900000, 999990000, 999999000, 999999900, 999999990};
+
 struct IDate {
   int year;
   int month;
@@ -91,13 +94,20 @@ struct IDate {
   int mill_second;
   int precision;
   int sign = 0;
+  // Determine how many prefix zeros the precision value after the decimal point has
+  int prefix_zero_num = 0;
 };
+
 class MsgBuf;
+
 struct IUnixTime {
   uint64_t sec = 0;
   uint64_t us = 0;
   int precision = 0;
+  // Determine how many prefix zeros the precision value after the decimal point has
+  int prefix_zero_num = 0;
 };
+
 /**
  *
  * @param begin
@@ -147,6 +157,57 @@ int remainder_bytes(int remainder);
  * @return
  */
 int charset_encoding_bytes(std::string charset, std::string table_name, std::string col_name);
+
+size_t cutout_or_pad_zero(size_t number, int target_length);
+
+size_t convert_binlog_time(IColMeta& col_meta, char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_date(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_datetime(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_year(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_short(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_long(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_json(char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_geometry(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_int24(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_longlong(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_timestamp(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_tiny(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_blob(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_longblob(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_medium_blob(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_set(IColMeta& col_meta, const char* data, MsgBuf& data_decode);
+
+size_t convert_tiny_blob(size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_enum(IColMeta& col_meta, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_decimal(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_var_string(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode,
+    std::string& table_name, size_t col_len);
+
+size_t convert_binlog_double(const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_float(IColMeta& col_meta, const char* data, MsgBuf& data_decode);
+
+size_t convert_binlog_bit(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode, size_t col_len);
+
+int get_number_len(size_t number);
 
 }  // namespace logproxy
 }  // namespace oceanbase
