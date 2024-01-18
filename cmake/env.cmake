@@ -58,8 +58,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE 1)
 ## ensure that the build results can be run on systems with lower libstdc++ version than the build system
 add_compile_definitions($<$<COMPILE_LANGUAGE:CXX>:_GLIBCXX_USE_CXX11_ABI=0>)
 link_directories(${CXX_LIB_DIR} ${GCC_LIB_DIR})
-add_link_options($<$<COMPILE_LANGUAGE:CXX>:-static-libstdc++>)
-add_link_options($<$<COMPILE_LANGUAGE:CXX,C>:-static-libgcc>)
+add_link_options(-static-libstdc++ -static-libgcc)
 
 if (WITH_ASAN)
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
@@ -84,28 +83,27 @@ if (OS_ARCH STREQUAL "x86_64")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-m64>)
 endif ()
 add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pipe>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-fPIC>)
-
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-pie>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znoexecstack>)
-add_compile_options($<$<COMPILE_LANGUAGE:CXX,C>:-znow>)
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fPIC>)
+add_compile_options($<$<COMPILE_LANGUAGE:C>:-fPIC>)
+add_link_options(-Wl,-z,noexecstack -Wl,-z,now)
 
 add_link_options(-lm)
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_link_options(-lrt)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    add_link_options($<$<COMPILE_LANGUAGE:CXX,C>:
-            "-framework CoreFoundation"
-            "-framework CoreGraphics"
-            "-framework CoreData"
-            "-framework CoreText"
-            "-framework Security"
-            "-framework Foundation"
+    add_link_options(
+            "-framework" "CoreFoundation"
+            "-framework" "CoreGraphics"
+            "-framework" "CoreData"
+            "-framework" "CoreText"
+            "-framework" "Security"
+            "-framework" "Foundation"
             "-Wl,-U,_MallocExtension_ReleaseFreeMemory"
             "-Wl,-U,_ProfilerStart"
-            "-Wl,-U,_ProfilerStop")
+            "-Wl,-U,_ProfilerStop"
+    )
 endif ()
 
 include(ProcessorCount)
-message(STATUS "NUM_OF_PROCESSOR: ${NUM_OF_PROCESSOR}")
 ProcessorCount(NUM_OF_PROCESSOR)
+message(STATUS "NUM_OF_PROCESSOR: ${NUM_OF_PROCESSOR}")

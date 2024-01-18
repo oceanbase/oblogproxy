@@ -974,13 +974,14 @@ void BinlogDumper::wait_rotate_ready(std::string const& file) const
 {
 
   int retry = 0;
-  while (!FsUtil::exist(file) && retry < 100) {
+  while ((!FsUtil::exist(file) || FsUtil::file_size(file) < BINLOG_MAGIC_SIZE) &&
+         retry < logproxy::Config::instance().wait_rotate_ready_max_try.val()) {
     OMS_WARN("{}: The currently rotated file {} is not ready", _connection->trace_id(), file);
     usleep(10000);
     retry++;
   }
 
-  if (!FsUtil::exist(file)) {
+  if (!FsUtil::exist(file) || FsUtil::file_size(file) < BINLOG_MAGIC_SIZE) {
     OMS_ERROR("{}: The currently rotated file {} is not exist", _connection->trace_id(), file);
   }
 }

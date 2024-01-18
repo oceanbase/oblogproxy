@@ -19,7 +19,7 @@ int DdlConverter::convert(const std::string& source, std::string& dest)
   OMS_STREAM_INFO << "convert ddl source sql:[ " << source << " ]";
 
   std::string err_msg;
-  int result = etransfer::tool::ConvertTool::Parse(source, "", false, dest, err_msg);
+  int result = etransfer::tool::ConvertTool::Parse(source, "", true, dest, err_msg);
   if (result == 0) {
     // success
     OMS_STREAM_INFO << "convert ddl success source sql:[ " << source << " ], dest sql:[ " << dest << " ]";

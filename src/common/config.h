@@ -160,6 +160,7 @@ public:
    * When restoring binlog breakpoint, whether to enable backup?
    */
   OMS_CONFIG_BOOL(binlog_recover_backup, true);
+  OMS_CONFIG_UINT64(wait_rotate_ready_max_try, 1000);
   // for test
   OMS_CONFIG_STR(table_whitelist, "");
   OMS_CONFIG_UINT32(node_mem_limit_minimum_mb, 2048);
