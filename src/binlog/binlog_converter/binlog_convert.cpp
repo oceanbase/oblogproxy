@@ -317,6 +317,7 @@ void BinlogConvert::convert_query_event(ILogRecord* record)
     sql_statment_len = BEGIN_VAR_LEN;
   } else {
     unsigned int new_col_count = 0;
+    refresh_table_cache(get_dbname_without_tenant(record->dbname()), record->tbname());
     BinLogBuf* new_bin_log_buf = record->newCols(new_col_count);
     sql_statment_len = new_bin_log_buf->buf_used_size;
     sql = static_cast<char*>(malloc(new_bin_log_buf->buf_used_size));
@@ -682,8 +683,6 @@ void BinlogConvert::convert_table_map_event(ILogRecord* record)
 
   // fix part
   std::string tb_name = record->tbname();
-  std::hash<std::string> hash;
-  event->set_table_id(hash(tb_name));
   // TM_BIT_LEN_EXACT_F
   event->set_flags((1U << 0));
   // variable part
@@ -698,6 +697,9 @@ void BinlogConvert::convert_table_map_event(ILogRecord* record)
 
   int col_count = table_meta->getColCount();
   event->set_column_count(col_count);
+
+  // Make a hash value based on db name + table name
+  event->set_table_id(table_id(dbname, tb_name));
 
   unsigned char cbuf[sizeof(col_count) + 1];
   unsigned char* cbuf_end;
@@ -787,6 +789,11 @@ void BinlogConvert::convert_table_map_event(ILogRecord* record)
   // set crc32
   this->_cur_pos = event->get_header()->get_next_position();
   append_event(this->_event_queue, event);
+}
+
+uint64_t BinlogConvert::table_id(const string& db_name, const string& tb_name)
+{
+  return _table_cache.get_table_id(db_name, tb_name);
 }
 
 void BinlogConvert::get_after_images(ILogRecord* record, int col_count, MsgBuf& col_data) const
@@ -891,11 +898,11 @@ size_t col_val_bytes(ILogRecord* record, ITableMeta* table_meta, MsgBuf& before_
 void BinlogConvert::convert_write_rows_event(ILogRecord* record)
 {
   std::string tb_name = record->tbname();
-  std::hash<std::string> hash;
-  auto* event = new WriteRowsEvent(hash(tb_name), STMT_END_F);
-  // event body
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
+  std::string dbname = get_dbname_without_tenant(record->dbname());
+  auto* event = new WriteRowsEvent(table_id(dbname, tb_name), STMT_END_F);
+  // event body
   event->set_var_header_len(2);
   size_t body_size = 0;
   int col_bytes = (col_count + 7) / 8;
@@ -938,12 +945,12 @@ void BinlogConvert::convert_write_rows_event(ILogRecord* record)
 void BinlogConvert::convert_delete_rows_event(ILogRecord* record)
 {
   std::string tb_name = record->tbname();
-  std::hash<std::string> hash;
-  auto* event = new DeleteRowsEvent(hash(tb_name), STMT_END_F);
-
-  // event body
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
+  std::string dbname = get_dbname_without_tenant(record->dbname());
+  auto* event = new DeleteRowsEvent(table_id(dbname, tb_name), STMT_END_F);
+
+  // event body
   event->set_var_header_len(2);
   size_t body_size = 0;
   int col_bytes = (col_count + 7) / 8;
@@ -1000,12 +1007,12 @@ void fill_bitmap(int col_count, int col_bytes, unsigned char* bitmap)
 void BinlogConvert::convert_update_rows_event(ILogRecord* record)
 {
   std::string tb_name = record->tbname();
-  std::hash<std::string> hash;
-  auto* event = new UpdateRowsEvent(hash(tb_name), STMT_END_F);
-
-  // event body
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
+  std::string dbname = get_dbname_without_tenant(record->dbname());
+  auto* event = new UpdateRowsEvent(table_id(dbname, tb_name), STMT_END_F);
+
+  // event body
   event->set_var_header_len(2);
   std::size_t body_size = 0;
   int col_bytes = (col_count + 7) / 8;
@@ -1326,6 +1333,11 @@ int BinlogConvert::backup(
   }
 
   return OMS_OK;
+}
+
+void BinlogConvert::refresh_table_cache(const string& db_name, const string& tb_name)
+{
+  _table_cache.refresh_table_id(db_name, tb_name);
 }
 
 }  // namespace logproxy

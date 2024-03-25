@@ -450,5 +450,19 @@ uint64_t FsUtil::file_size_for_path(const std::filesystem::path& path)
   return file_size;
 }
 
+int FsUtil::write_lines(const std::string& filename, const std::vector<std::string>& lines)
+{
+  std::ofstream file(filename);
+  if (!file.is_open()) {
+    OMS_ERROR("Failed to open file:{}", filename);
+    return OMS_FAILED;
+  }
+  for (const auto& item : lines) {
+    file << item << std::endl;
+  }
+  file.close();
+  return OMS_OK;
+}
+
 }  // namespace logproxy
 }  // namespace oceanbase

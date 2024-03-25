@@ -272,7 +272,11 @@ public:
       }
       case rapidjson::kObjectType: {
         auto object_size = value.GetObject().MemberCount();
-        bool large = is_large_json(object_size);
+        // bool large = is_large_json(object_size);
+        // For the current json, it is necessary to traverse twice whether it is a large json object or a small json
+        // object. In actual consumption, large json objects can also include small json objects. Therefore, for the
+        // sake of performance, we currently process them as large json objects.
+        bool large = true;
         if (header != nullptr) {
           if (large) {
             header[0] = JSONB_TYPE_LARGE_OBJECT;
@@ -317,8 +321,9 @@ public:
         for (auto& member : value.GetObject()) {
           const auto& key = member.name.GetString();
           size_t key_len = strlen(key);
-          auto* key_value = static_cast<char*>(malloc(key_len + 1));
-          strcpy(key_value, key);
+          auto* key_value = static_cast<char*>(malloc(key_len));
+          memset(key_value, 0, key_len);
+          memcpy(key_value, key, key_len);
           data_decode.push_back(key_value, key_len);
         }
 
@@ -341,7 +346,8 @@ public:
       }
       case rapidjson::kArrayType: {
         auto array_size = value.GetArray().Size();
-        bool large = is_large_json(array_size);
+        // bool large = is_large_json(array_size);
+        bool large = true;
         if (header != nullptr) {
           if (large) {
             header[0] = JSONB_TYPE_LARGE_ARRAY;

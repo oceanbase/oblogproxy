@@ -39,7 +39,8 @@ static int compress_data(const RecordDataMessage& msg, MsgBuf& buffer, size_t& r
     }
     if (_s_config.verbose_packet.val()) {
       //      const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
-      //      OMS_STREAM_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
+      //      OMS_STREAM_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " <<
+      //      header->m_version
       //                << ", size: " << header->m_size;
     }
     ptrs.emplace_back(logmsg_buf, size);
@@ -171,7 +172,7 @@ LegacyEncoder::LegacyEncoder()
       if (_s_config.verbose_packet.val()) {
         const MsgHeader* header = (const MsgHeader*)(logmsg_buf);
         OMS_STREAM_DEBUG << "Encode logmsg Header, type: " << header->m_msgType << ", version: " << header->m_version
-                  << ", size: " << header->m_size;
+                         << ", size: " << header->m_size;
       }
 
       uint32_t seq_be = cpu_to_be(idx++);

@@ -33,18 +33,23 @@ static void fetch_index_record(FILE* fp, BinlogIndexRecord& record)
   free(line);
 }
 
-static int fetch_index_vector(FILE* fp, std::vector<BinlogIndexRecord*>& index_records)
+static int fetch_index_vector(
+    FILE* fp, std::vector<BinlogIndexRecord*>& index_records, const std::string& last_purged_file)
 {
   if (fp != nullptr) {
+    uint64_t index = atoll(last_purged_file.c_str());
+    bool purged = !last_purged_file.empty();
     char* buffer = nullptr;
-    size_t bufsiz = 0;
-    ssize_t nbytes;
-    while ((nbytes = getline(&buffer, &bufsiz, fp)) != -1) {
+    size_t size = 0;
+    while ((getline(&buffer, &size, fp)) != -1) {
       auto* record = new BinlogIndexRecord();
       record->parse(buffer);
-      if (record->_index > 0) {
+      if (record->_index > 0 && (!purged || index < record->_index)) {
         index_records.emplace_back(record);
       } else {
+        if (purged && index < record->_index) {
+          purged = false;
+        }
         delete (record);
       }
       free(buffer);
@@ -107,6 +112,26 @@ int binlog_index_unlock(FILE*& fp)
 
 int fetch_index_vector(const std::string& index_file_name, std::vector<BinlogIndexRecord*>& index_records, bool lock)
 {
+  std::vector<std::string> purged_files;
+  fs::path data_path = index_file_name;
+  std::string purge_file_path = data_path.parent_path().string() + "/" + BINLOG_PURGED_NAME;
+
+  if (!FsUtil::exist(purge_file_path)) {
+    std::ofstream file(purge_file_path);
+    if (!file) {
+      OMS_ERROR("Failed to create file :{}", purge_file_path);
+      return OMS_FAILED;
+    }
+    file.close();
+  }
+  if (!FsUtil::read_lines(purge_file_path, purged_files)) {
+    OMS_ERROR("Failed to open file:{}", purge_file_path);
+    return OMS_FAILED;
+  }
+  std::string last_purged_file;
+  if (!purged_files.empty()) {
+    last_purged_file = purged_files.back();
+  }
   /*
    * Locked read
    */
@@ -119,12 +144,12 @@ int fetch_index_vector(const std::string& index_file_name, std::vector<BinlogInd
     }
     FILE* fp = FsUtil::fopen_binary(index_file_name, "r+");
     defer(FsUtil::fclose_binary(fp));
-    return fetch_index_vector(fp, index_records);
+    return fetch_index_vector(fp, index_records, last_purged_file);
   }
 
   FILE* fp = FsUtil::fopen_binary(index_file_name, "r+");
   defer(FsUtil::fclose_binary(fp));
-  return fetch_index_vector(fp, index_records);
+  return fetch_index_vector(fp, index_records, last_purged_file);
 }
 
 int add_index(const std::string& index_file_name, const BinlogIndexRecord& record)
@@ -141,8 +166,12 @@ int add_index(const std::string& index_file_name, const BinlogIndexRecord& recor
     OMS_ERROR("Failed to open file:{},reason:{}", index_file_name, logproxy::system_err(errno));
     return OMS_FAILED;
   }
-  FsUtil::append_file(fp, (unsigned char*)record.to_string().c_str(), record.to_string().size());
-  OMS_DEBUG("add binlog index file:{} value:{}", record._file_name, record.to_string());
+  auto ret = FsUtil::append_file(fp, (unsigned char*)record.to_string().c_str(), record.to_string().size());
+  if (ret == OMS_FAILED) {
+    OMS_ERROR("Failed to add index file:{}", binlog::CommonUtils::fill_binlog_file_name(record._index));
+    return OMS_FAILED;
+  }
+  OMS_INFO("add binlog index file:{} value:{}", record._file_name, record.to_string());
   return OMS_OK;
 }
 
@@ -200,26 +229,30 @@ int update_index(const std::string& index_file_name, const BinlogIndexRecord& re
   }
   std::string temp = index_file_name + ".tmp";
   std::error_code err;
-  fs::copy(index_file_name, temp, fs::copy_options::overwrite_existing, err);
-  if (err) {
-    OMS_ERROR("Failed to copy file:{} to {}", index_file_name, temp);
+  std::vector<std::string> records;
+  if (!FsUtil::read_lines(index_file_name, records)) {
+    OMS_ERROR("Failed to read index file");
     return OMS_FAILED;
   }
-  FILE* fp = FsUtil::fopen_binary(temp, "r+");
-  defer(FsUtil::fclose_binary(fp));
-  if (fp == nullptr) {
-    OMS_ERROR("Failed to open file:{},reason:{}", temp, logproxy::system_err(errno));
+
+  // Find the last row of records and overwrite it
+  BinlogIndexRecord last_record;
+  last_record.parse(records.back());
+
+  if (std::equal(last_record._file_name.begin(), last_record._file_name.end(), record._file_name.c_str())) {
+    records.pop_back();
+    records.emplace_back(record.serialize());
+  } else {
+    OMS_ERROR("The latest binlog index file:{} is not the latest file record in the current memory:{}",
+        binlog::CommonUtils::fill_binlog_file_name(last_record._index),
+        binlog::CommonUtils::fill_binlog_file_name(record._index));
+    records.emplace_back(record.serialize());
+  }
+
+  if (FsUtil::write_lines(temp, records)) {
+    OMS_ERROR("Failed to write to file:{}", temp);
     return OMS_FAILED;
   }
-  seekg_index(pos, fp);
-  fs::resize_file(temp, pos, err);
-  if (err) {
-    OMS_ERROR("Failed to resize file:{} range[{},{}],reason:{}", temp, 0, pos, logproxy::system_err(errno));
-    return OMS_FAILED;
-  }
-  // rewrite record
-  std::string str = record.to_string();
-  FsUtil::rewrite(fp, (unsigned char*)str.c_str(), pos, str.size());
   fs::rename(temp, index_file_name, err);
   if (err) {
     OMS_ERROR("Failed to rename file:{} to {},reason:{}", temp, index_file_name, logproxy::system_err(errno));
@@ -268,7 +301,7 @@ uint64_t convert_ts(const std::string& before_purge_ts)
 }
 
 int purge_binlog_before_ts(const std::string& before_purge_ts, std::vector<BinlogIndexRecord*>& index_records,
-    std::string& error_msg, std::vector<std::string>& purge_binlog_files)
+    std::string& error_msg, std::vector<std::string>& purge_binlog_files, uint64_t& last_purged_index)
 {
   std::vector<BinlogIndexRecord*>::iterator it;
   if (before_purge_ts.empty()) {
@@ -285,6 +318,7 @@ int purge_binlog_before_ts(const std::string& before_purge_ts, std::vector<Binlo
         if ((*it)->get_checkpoint() < purge_ts && !is_active((*it)->get_file_name(), index_records)) {
           // purge
           purge_binlog_files.emplace_back((*it)->_file_name);
+          last_purged_index = (*it)->_index;
           delete *it;
           it = index_records.erase(it);
         } else {
@@ -297,7 +331,8 @@ int purge_binlog_before_ts(const std::string& before_purge_ts, std::vector<Binlo
 }
 
 int purge_binlog_to_file(const std::string& to_binlog_index, std::string& error_msg,
-    std::vector<BinlogIndexRecord*>& index_records, std::vector<std::string>& purge_binlog_files)
+    std::vector<BinlogIndexRecord*>& index_records, std::vector<std::string>& purge_binlog_files,
+    uint64_t& last_purged_index)
 {
   int ret = OMS_OK;
   std::vector<BinlogIndexRecord*>::reverse_iterator rit;
@@ -305,6 +340,9 @@ int purge_binlog_to_file(const std::string& to_binlog_index, std::string& error_
   for (rit = index_records.rbegin(); rit != index_records.rend();) {
     if (std::equal((*rit)->get_file_name().begin(), (*rit)->get_file_name().end(), to_binlog_index.c_str())) {
       found = true;
+      if (!is_active((*rit)->get_file_name(), index_records)) {
+        last_purged_index = (*rit)->_index;
+      }
     }
     // The binlog file being written cannot be deleted
     if (found && !is_active((*rit)->get_file_name(), index_records)) {
@@ -375,16 +413,63 @@ int purge_binlog_index(const std::string& base_name, const std::string& binlog_f
   int ret = OMS_OK;
   fetch_index_vector(index_file_path, index_records, false);
   defer(release_vector(index_records));
+  uint64_t last_purged_index = 0;
   if (binlog_file.empty()) {
-    ret = purge_binlog_before_ts(before_purge_ts, index_records, error_msg, purge_binlog_files);
+    ret = purge_binlog_before_ts(before_purge_ts, index_records, error_msg, purge_binlog_files, last_purged_index);
   } else {
-    ret = purge_binlog_to_file(base_name + binlog_file, error_msg, index_records, purge_binlog_files);
+    ret =
+        purge_binlog_to_file(base_name + binlog_file, error_msg, index_records, purge_binlog_files, last_purged_index);
   }
 
-  if (ret == OMS_OK && !purge_binlog_files.empty() && !index_records.empty()) {
-    ret = rewrite_index_file(index_file_path, error_msg, index_records);
+  /*!
+   * Only record the binlog file in the purged file. Where does it need to be cleaned ?
+   */
+  if (ret == OMS_OK && last_purged_index != 0) {
+    std::string purge_file_path = base_name + BINLOG_PURGED_NAME;
+    ret = FsUtil::write_file(purge_file_path, std::to_string(last_purged_index));
+    if (ret != OMS_OK) {
+      OMS_ERROR("Failed to record the log cleanup event");
+      return ret;
+    }
   }
   return ret;
+}
+
+int merge_binlog_index(const std::string& binlog_index_file)
+{
+  FILE* lock_fp = nullptr;
+  defer(binlog_index_unlock(lock_fp));
+  if (binlog_index_lock(lock_fp, binlog_index_file) == OMS_FAILED) {
+    OMS_ERROR("Failed to lock file:{}", binlog_index_file);
+    return OMS_FAILED;
+  }
+  std::vector<BinlogIndexRecord*> index_records;
+  defer(release_vector(index_records));
+  int ret = fetch_index_vector(binlog_index_file, index_records, false);
+  if (ret != OMS_OK || index_records.empty()) {
+    OMS_ERROR("Failed to merge binlog index");
+    return OMS_FAILED;
+  }
+  /*!
+   * Overwrite mysql index file
+   */
+  std::string temp = binlog_index_file + ".tmp";
+  std::error_code err;
+  std::vector<std::string> records;
+  for (const auto* item : index_records) {
+    records.push_back(item->serialize());
+  }
+  if (FsUtil::write_lines(temp, records)) {
+    OMS_ERROR("Failed to write to file:{}", temp);
+    return OMS_FAILED;
+  }
+  fs::rename(temp, binlog_index_file, err);
+  if (err) {
+    OMS_ERROR("Failed to rename file:{} to {},reason:{}", temp, binlog_index_file, logproxy::system_err(errno));
+    return OMS_FAILED;
+  }
+
+  return OMS_OK;
 }
 
 BinlogIndexRecord::BinlogIndexRecord(const std::string& file_name, int index) : _file_name(file_name), _index(index)
@@ -475,6 +560,14 @@ void BinlogIndexRecord::parse(const std::string& content)
   } else {
     OMS_WARN("Failed to fetch index record,value:{} set size:{}", content, set.size());
   }
+}
+
+std::string BinlogIndexRecord::serialize() const
+{
+  std::stringstream str;
+  str << _file_name << "\t" << _index << "\t" << get_mapping_str(_current_mapping) << "\t"
+      << get_mapping_str(_before_mapping) << "\t" << _checkpoint << "\t" << _position;
+  return str.str();
 }
 
 }  // namespace logproxy

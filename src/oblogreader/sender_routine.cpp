@@ -106,7 +106,7 @@ void SenderRoutine::run()
 
     _stage_timer.reset();
     records.clear();
-    while (!_rqueue.poll(records, _s_config.read_timeout_us.val()) || records.empty()) {
+    while (is_run() && (!_rqueue.poll(records, _s_config.read_timeout_us.val()) || records.empty())) {
       OMS_INFO("Send transfer queue empty, retry...");
     }
     int64_t poll_us = _stage_timer.elapsed();

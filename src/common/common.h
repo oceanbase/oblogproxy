@@ -76,5 +76,23 @@ inline std::string system_err(int error_no)
   return std::to_string(error_no) + "(" + strerror(error_no) + ")";
 }
 
+// Define a function template for the retry mechanism, where Callable is the function to be retried and Predicate is the
+// condition for retrying.
+template <typename Callable, typename... Args>
+int retry(Callable func, Args&&... args, int max_attempts = 3)
+{
+  int attempts = 0;
+  while (true) {
+    auto result = func(std::forward<Args>(args)...);
+    if (result == OMS_OK) {
+      return OMS_OK;
+    }
+
+    if (++attempts >= max_attempts) {
+      return OMS_FAILED;
+    }
+  }
+}
+
 }  // namespace logproxy
 }  // namespace oceanbase

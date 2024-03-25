@@ -209,5 +209,7 @@ size_t convert_binlog_bit(IColMeta& col_meta, size_t data_len, const char* data,
 
 int get_number_len(size_t number);
 
+size_t fixed_len(size_t len);
+
 }  // namespace logproxy
 }  // namespace oceanbase

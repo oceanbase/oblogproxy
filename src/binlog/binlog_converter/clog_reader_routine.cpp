@@ -78,7 +78,7 @@ void ClogReaderRoutine::run()
     stage_tm.reset();
     counter.count_read_io(record->getRealSize());
     counter.count_read(1);
-    while (!_queue.offer(record, _s_config.read_timeout_us.val())) {
+    while (is_run() && !_queue.offer(record, _s_config.read_timeout_us.val())) {
       OMS_STREAM_WARN << "reader transfer queue full(" << _queue.size(false) << "), retry...";
     }
     int64_t offer_us = stage_tm.elapsed();

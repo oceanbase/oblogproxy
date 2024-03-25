@@ -59,9 +59,6 @@ set(CMAKE_CXX_EXTENSIONS 0)
 set(CMAKE_POSITION_INDEPENDENT_CODE 1)
 message(STATUS "oblogproxy version: ${OBLOGPROXY_VERSION}-${GIT_VERSION}")
 
-########### libcdc && logmsg #############################################################################################
-include(obcdc)
-
 ############## include 3rd #########################################################################
 #thread, provides Threads::Threads
 include(FindThreads)
@@ -85,6 +82,8 @@ if (GCC_LIB_DIR)
     set(PROTOC_LINK_FLAGS "${PROTOC_LINK_FLAGS} -L${GCC_LIB_DIR}")
 endif ()
 
+########### libcdc && logmsg #############################################################################################
+include(obcdc)
 include(lz4)
 include(jsoncpp)
 include(libevent)
@@ -92,6 +91,7 @@ include(protobuf)
 include(spdlog)
 include(rapidjson)
 include(etransfer)
+include(logmsg)
 
 file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
 message(STATUS "logproxy protos: ${PROTO_FILES}")
@@ -138,12 +138,13 @@ target_include_directories(common
         PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/proto
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/common/
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/logmsg/
 )
 include(gflags)
 find_package(ZLIB REQUIRED)
 target_link_libraries(common
         PUBLIC logproxy_proto
-        PUBLIC logmsg_wrapper # for oblogmsg
+        PUBLIC logmsg # for oblogmsg
         PUBLIC libevent::core
         PUBLIC libevent::pthreads
         PUBLIC libevent::extra
@@ -171,7 +172,7 @@ function(add_obcdc_access_library OB_CDC_TARGET_NAME LIBOBCDC_TARGET_NAME)
             PRIVATE ${LIBOBCDC_TARGET_NAME}
             PRIVATE common
     )
-    set_target_properties(${OB_CDC_TARGET_NAME} PROPERTIES
+    set_target_properties(${OB_CDC_TARGET_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN"
             OUTPUT_NAME "obcdc"
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OB_CDC_TARGET_NAME}")
 endfunction()
@@ -179,7 +180,31 @@ endfunction()
 # obcdc_access
 message(STATUS "build with oceanbase community")
 add_obcdc_access_library(obcdc-ce-3 libobcdcce3)
-add_obcdc_access_library(obcdc-ce-4 libobcdcce4)
+execute_process(
+        COMMAND bash deps/find_dep_config_file.sh
+        OUTPUT_VARIABLE OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
+file(STRINGS ${OUTPUT} file_contents)
+set(version_list)
+
+foreach (line IN LISTS file_contents)
+    if (NOT line)
+        continue()
+    endif ()
+    string(REGEX MATCH "oceanbase-ce-cdc-([0-9]+\\.[0-9]+\\.[0-9]+)" version_match ${line})
+    if (version_match)
+        list(APPEND version_list ${CMAKE_MATCH_1})
+    endif ()
+endforeach ()
+
+list(REMOVE_DUPLICATES version_list)
+
+foreach (version IN LISTS version_list)
+    add_obcdc_access_library(obcdc-ce-${version} libobcdcce${version})
+endforeach ()
 
 # obcdc_base
 add_library(obcdc_base STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/obcdcaccess/obcdc_factory.cpp)
@@ -220,6 +245,7 @@ add_library(binlog_converter_static STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/clog_reader_routine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_convert.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/binlog_storage.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_converter/table_cache.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ob_log_event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_index.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/data_type.cpp
@@ -269,7 +295,7 @@ file(GLOB LOGPROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/arranger/*.cpp)
 add_library(logproxy_static STATIC ${LOGPROXY_SRC})
 set_target_properties(logproxy_static PROPERTIES OUTPUT_NAME "logproxy")
 target_include_directories(logproxy_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/arranger/)
-target_link_libraries(logproxy_static PUBLIC common)
+target_link_libraries(logproxy_static PRIVATE common)
 get_target_property(LOGPROXY_STATIC_INCLUDE_PATH logproxy_static INTERFACE_INCLUDE_DIRECTORIES)
 message(STATUS "LOGPROXY_STATIC_INCLUDE_PATH: ${LOGPROXY_STATIC_INCLUDE_PATH}")
 
@@ -337,6 +363,7 @@ message(STATUS "BINLOG_CONVERTER_OUTPUT_PATH: ${EXECUTABLE_OUTPUT_PATH}, BINLOG_
 #===== main =====
 add_executable(logproxy ${CMAKE_CURRENT_SOURCE_DIR}/src/entry.cpp)
 target_link_libraries(logproxy
+        PRIVATE common
         PRIVATE logproxy_static
         PRIVATE ob_binlog_server
 )

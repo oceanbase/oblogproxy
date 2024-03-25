@@ -49,6 +49,8 @@ public:
 
   static int write_file(const std::string& filename, const std::string& content);
 
+  static int write_lines(const std::string& filename, const std::vector<std::string>& lines);
+
   static std::vector<std::string> dir_foreach(const std::string& dir,
       const std::function<void(const std::string&, const FileType, std::vector<std::string>&)>& func);
 

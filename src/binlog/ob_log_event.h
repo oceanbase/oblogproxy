@@ -47,6 +47,7 @@ namespace logproxy {
 
 #define BINLOG_MAGIC_SIZE 4
 #define BINLOG_INDEX_NAME "mysql-bin.index"
+#define BINLOG_PURGED_NAME "purged.index"
 #define BINLOG_DATA_DIR "/data/"
 
 #define BEGIN_VAR "BEGIN"
@@ -909,14 +910,14 @@ size_t write_rows(unsigned char* buff, size_t pos, MsgBuf& rows, size_t len);
 int64_t seek_gtid_event(const std::string& binlog, int64_t& record_num, std::vector<GtidLogEvent*>& gtid_log_events,
     bool& existed, int64_t& last_txn_record_num, uint8_t& checksum_flag);
 
-int get_the_last_complete_txn(const std::string& binlog, uint64_t& complete_transaction_pos, uint64_t& last_complete_txn_id,
-    uint64_t& start_complete_txn_id, bool& rotate_existed);
+int get_the_last_complete_txn(const std::string& binlog, uint64_t& complete_transaction_pos,
+    uint64_t& last_complete_txn_id, uint64_t& start_complete_txn_id, bool& rotate_existed);
 
 /*!
-   * Verify whether the event is complete based on the checksum
-   * @param event
-   * @param checksum_flag
-   * @return
+ * Verify whether the event is complete based on the checksum
+ * @param event
+ * @param checksum_flag
+ * @return
  */
 int verify_event_crc32(unsigned char* event, uint64_t len, uint8_t checksum_flag);
 

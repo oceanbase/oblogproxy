@@ -15,6 +15,7 @@
 #include <vector>
 #include <filesystem>
 #include "fs_util.h"
+#include "common_util.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -53,6 +54,8 @@ public:
   void set_position(uint64_t position);
 
   std::string to_string() const;
+
+  std::string serialize() const;
 
   void parse(const std::string& content);
 
@@ -98,5 +101,8 @@ std::string get_mapping_str(const std::pair<std::string, int64_t>& mapping);
 std::pair<std::string, int64_t> parse_mapping_str(const std::string& mapping_str);
 
 bool is_active(const std::string& file, std::vector<BinlogIndexRecord*>& index_records);
+
+int merge_binlog_index(const std::string& binlog_index_file);
+
 }  // namespace logproxy
 }  // namespace oceanbase

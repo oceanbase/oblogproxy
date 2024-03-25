@@ -18,7 +18,6 @@
 
 namespace oceanbase {
 namespace logproxy {
-
 int set_column_metadata(unsigned char* begin, IColMeta& col_meta, std::string table_name)
 {
   long col_len = col_meta.getLength();
@@ -69,13 +68,7 @@ int set_column_metadata(unsigned char* begin, IColMeta& col_meta, std::string ta
     }
     case OB_TYPE_SET: {
       *begin = OB_TYPE_SET;
-      int len;
-      if (col_meta.getValuesOfEnumSet()->size() > 255) {
-        len = 2;
-      } else {
-        len = 1;
-      }
-      *(begin + 1) = len;
+      *(begin + 1) = fixed_len(col_meta.getValuesOfEnumSet()->size());
       return 2;
     }
     case OB_TYPE_TINY_BLOB:
@@ -119,6 +112,11 @@ int set_column_metadata(unsigned char* begin, IColMeta& col_meta, std::string ta
       OMS_STREAM_ERROR << "Unsupported data type:" << col_meta.getType();
       return 0;
   }
+}
+
+size_t fixed_len(size_t len)
+{
+  return (len + 7) / 8;
 }
 
 int remainder_bytes(int remainder)
@@ -695,7 +693,7 @@ size_t convert_binlog_set(IColMeta& col_meta, const char* data, MsgBuf& data_dec
   size_t len;
   std::vector<std::string> set;
   split(data, ',', set);
-  uint64_t bitmap_len = (array->size() + 7) / 8;
+  uint64_t bitmap_len = fixed_len(array->size());
 
   std::bitset<64> bitmap;
   bitmap.reset();
@@ -712,7 +710,8 @@ size_t convert_binlog_set(IColMeta& col_meta, const char* data, MsgBuf& data_dec
   std::string real = bitmap.to_string().substr(64 - bitmap_len * 8, bitmap_len * 8);
   for (size_t i = 0; i < real.size(); i += 8) {
     std::bitset<8> bit_set{real.substr(i, 8)};
-    int1store(reinterpret_cast<unsigned char*>(buff + i / 8), bit_set.to_ulong());
+    // Bytes are ordered from left to right
+    int1store(reinterpret_cast<unsigned char*>(buff + (bitmap_len - 1 - i / 8)), bit_set.to_ulong());
   }
   data_decode.push_back(reinterpret_cast<char*>(buff), bitmap_len);
   return bitmap_len;
@@ -754,6 +753,15 @@ size_t convert_binlog_tiny(const char* data, MsgBuf& data_decode)
   return 1;
 }
 
+bool is_zero_date(const std::string& str)
+{
+  /*!
+   * OBCDC For timestamp's '0', '0000-00-00 00:00:00.00000', '0000-00-00 00:00:00' and similar zero values,
+   * -9223372022400.000000 will be output
+   */
+  return std::equal(str.begin(), str.end(), "-9223372022400.000000");
+}
+
 size_t convert_binlog_timestamp(IColMeta& col_meta, size_t data_len, const char* data, MsgBuf& data_decode)
 {
   // set enable_convert_timestamp_to_unix_timestamp=1，1662034855.000000
@@ -763,7 +771,11 @@ size_t convert_binlog_timestamp(IColMeta& col_meta, size_t data_len, const char*
   int64_t buff_len = 4 + remainder_bytes(precision);
   auto* buff = static_cast<unsigned char*>(malloc(buff_len));
   int pos = 0;
-  be_int4store(buff + pos, unix_time.sec);
+  if (is_zero_date(str)) {
+    be_int4store(buff + pos, 0);
+  } else {
+    be_int4store(buff + pos, unix_time.sec);
+  }
   pos += 4;
   // This is because obcdc will always output a timestamp with a precision of 6 no matter what the precision is
   switch (precision) {

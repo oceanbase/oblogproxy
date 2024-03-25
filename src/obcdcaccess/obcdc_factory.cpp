@@ -16,8 +16,9 @@
 #include "obaccess/ob_access.h"
 #include "obcdc_factory.h"
 #include "fs_util.h"
+#include "str.h"
 
-#define OBCDC_TIMEZONE_FILE "timezone_info.conf"
+#define INCOMPATIBLE_VERSION "4.2.1"
 
 namespace oceanbase {
 namespace logproxy {
@@ -27,12 +28,14 @@ typedef void (*fn_destroy)(IObCdcAccess*);
 
 int ObCdcAccessFactory::load(const OblogConfig& config, IObCdcAccess*& _obcdc)
 {
-  std::string ob_version;
-  ObAccess ob_access;
-  int ret = ob_access.query_ob_version(config, ob_version);
-  if (OMS_OK != ret) {
-    OMS_ERROR("Failed to obtain the version of OB.");
-    return ret;
+  std::string ob_version = config.ob_version.val();
+  if (ob_version.empty()) {
+    ObAccess ob_access;
+    int ret = ob_access.query_ob_version(config, ob_version);
+    if (OMS_OK != ret) {
+      OMS_ERROR("Failed to obtain the version of OB.");
+      return ret;
+    }
   }
 
   std::string obcdc_so_path;
@@ -94,7 +97,7 @@ void ObCdcAccessFactory::unload(IObCdcAccess* obcdc)
   }
 
   OMS_INFO("Successfully close the so handle of obcdc.");
-}
+ }
   */
 }
 
@@ -112,17 +115,36 @@ int ObCdcAccessFactory::locate_obcdc_library(const std::string& ob_version, std:
 #endif
 
   char path[256];
-  if (ob_major_version == 4) {
-    sprintf(path, obcdc_so_path_template.c_str(), 4);
-  } else if (ob_major_version == 3 || ob_major_version == 2) {
-    sprintf(path, obcdc_so_path_template.c_str(), 3);
-  } else if (ob_major_version == 1) {
-    sprintf(path, obcdc_so_path_template.c_str(), 2);
-  } else {
-    OMS_ERROR("Unknown OB major version: {}", ob_major_version);
-    return OMS_FAILED;
+  switch (ob_major_version) {
+    case 1: {
+      sprintf(path, obcdc_so_path_template.c_str(), "2");
+      break;
+    }
+    case 2:
+    case 3: {
+      sprintf(path, obcdc_so_path_template.c_str(), "3");
+      break;
+    }
+    case 4: {
+      std::vector<std::string> segments;
+      split(ob_version.substr(0, 5), '.', segments);
+      if (segments.size() != 3) {
+        OMS_ERROR("Unknown OB major version: {}", ob_version);
+        return OMS_FAILED;
+      }
+      // For OB versions less than 421, we uniformly use the 421 version of OBCDC.
+      if (atoi(segments[1].c_str()) < 2 || (atoi(segments[1].c_str()) == 2 && atoi(segments[2].c_str()) <= 1)) {
+        sprintf(path, obcdc_so_path_template.c_str(), INCOMPATIBLE_VERSION);
+      } else {
+        sprintf(path, obcdc_so_path_template.c_str(), ob_version.substr(0, 5).c_str());
+      }
+      break;
+    }
+    default: {
+      OMS_ERROR("Unknown OB major version: {}", ob_major_version);
+      return OMS_FAILED;
+    }
   }
-
   obcdc_so_path = path;
   return OMS_OK;
 }

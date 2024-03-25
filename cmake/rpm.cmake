@@ -92,9 +92,34 @@ message(STATUS "package/install with oceanbase ce cdc 3.x")
 install_obcdc_target(obcdc-ce-3 libobcdcce3 ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-3.x-access)
 
 #  install obcdc ce 4.x
-message(STATUS "package/install with oceanbase ce cdc 4.x")
-install_obcdc_target(obcdc-ce-4 libobcdcce4 ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-4.x-access)
-install_library_target(libmariadb ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-4.x-access)
+execute_process(
+        COMMAND bash deps/find_dep_config_file.sh
+        OUTPUT_VARIABLE OUTPUT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
+message("OUTPUT_VARIABLE:${OUTPUT}")
+file(STRINGS ${OUTPUT} file_contents)
+set(version_list)
+
+foreach (line IN LISTS file_contents)
+    if (NOT line)
+        continue()
+    endif ()
+    string(REGEX MATCH "oceanbase-ce-cdc-([0-9]+\\.[0-9]+\\.[0-9]+)" version_match ${line})
+    if (version_match)
+        list(APPEND version_list ${CMAKE_MATCH_1})
+    endif ()
+endforeach ()
+
+list(REMOVE_DUPLICATES version_list)
+
+foreach (version IN LISTS version_list)
+    message(STATUS "package/install with oceanbase ce cdc ${version}")
+    install_obcdc_target(obcdc-ce-${version} libobcdcce${version} ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-${version}.x-access)
+    install_library_target(libmariadb ${CPACK_PACKAGING_INSTALL_PREFIX}/obcdc/obcdc-ce-${version}.x-access)
+endforeach ()
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script "/sbin/ldconfig /usr/lib")
 set(CPACK_RPM_UTILS_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_BINARY_DIR}/utils_post.script)

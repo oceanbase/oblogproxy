@@ -193,6 +193,9 @@ function install_cdc_rpm() {
   4)
     extract_rpm_repo "oceanbase_cdc_repo"
     ;;
+  *)
+    extract_rpm_repo "oceanbase_cdc_repo"
+    ;;
   esac
 
   download_and_install_rpm_packages ${RPM_CDC_FILE} ${RPM_REPO} ${RPM_INSTALL_DIR}

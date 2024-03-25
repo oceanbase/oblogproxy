@@ -521,16 +521,16 @@ int BinlogDumper::wait_event(const std::string& file, uint64_t pos, uint64_t& ne
       OMS_STREAM_DEBUG << "discover new events:" << new_pos;
       return OMS_OK;
     } else {
+      if (!is_active(file)) {
+        OMS_INFO("{}: The current file has been rotated and needs to be sent out of the heartbeat:{}",
+            _connection->trace_id(),
+            file);
+        break;
+      }
       if (get_heartbeat_period() != 0 && timer.elapsed() > (get_heartbeat_period() / 1000)) {
         if (send_heartbeat_event(pos) != IoResult::SUCCESS) {
           OMS_ERROR("Failed to send heartbeat:{}", _connection->trace_id());
           return OMS_FAILED;
-        }
-        if (!is_active(file)) {
-          OMS_INFO("{}: The current file has been rotated and needs to be sent out of the heartbeat:{}",
-              _connection->trace_id(),
-              file);
-          break;
         }
         timer.reset();
       }
@@ -665,7 +665,7 @@ bool BinlogDumper::handle_gtid_event(unsigned char* buff)
         OMS_STREAM_DEBUG << "exclude_uuid range[" << range.first << "," << range.second << "]"
                          << ", gno" << g_no;
         if (g_no < range.second && g_no >= range.first) {
-          OMS_INFO("{}: Skip current gtid {} transaction exclude_uuid:{}",
+          OMS_DEBUG("{}: Skip current gtid {} transaction exclude_uuid:{}",
               _connection->trace_id(),
               g_no,
               gtid.second->format_string());

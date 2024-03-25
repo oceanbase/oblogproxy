@@ -44,6 +44,8 @@ public:
   OMS_CONFIG_STR_K(password, "cluster_password", "");
   OMS_CONFIG_STR_K(table_whites, "tb_white_list", "");
 
+  OMS_CONFIG_STR_K(ob_version, "ob_version", "");
+
   // binlog options
   OMS_CONFIG_STR_K(server_uuid, "server_uuid", "");
   OMS_CONFIG_STR_K(cluster, "cluster", "");

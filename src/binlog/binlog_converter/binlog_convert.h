@@ -26,6 +26,7 @@
 #include "ob_log_event.h"
 #include "convert_meta.h"
 #include "binlog_index.h"
+#include "table_cache.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -91,6 +92,10 @@ public:
    */
   int backup(const std::string& binlog, const std::string& binlog_index, const OblogConfig& config, uint16_t index);
 
+  uint64_t table_id(const string& db_name, const string& tb_name);
+
+  void refresh_table_cache(const string& db_name, const string& tb_name);
+
 private:
   BinlogConverter& _converter;
   IObCdcAccess* _oblog;
@@ -113,6 +118,7 @@ private:
   bool _within_filtered_transactions = false;
   int64_t _skip_record_num = 0;
   uint64_t _start_timestamp = 0;
+  TableCache _table_cache;
 };
 
 void fill_bitmap(int col_count, int col_bytes, unsigned char* bitmap);

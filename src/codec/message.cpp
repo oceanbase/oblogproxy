@@ -13,9 +13,6 @@
 #include "message.h"
 #include "msg_buf.h"
 #include "config.h"
-#include "logmsg_factory.h"
-#include "log_record.h"
-#include "msg_header.h"
 #include "lz4.h"
 
 namespace oceanbase {
@@ -143,7 +140,7 @@ int RecordDataMessage::encode_log_records_plain(MsgBuf& buffer) const
     const MsgHeader* header = (const MsgHeader*)(log_record_buffer);
     if (_s_config.verbose_packet.val()) {
       OMS_STREAM_DEBUG << "Encode LogMessage Header, type: " << header->m_msgType << ", version: " << header->m_version
-                << ", size: " << header->m_size;
+                       << ", size: " << header->m_size;
     }
     size_t calc_size = header->m_size + sizeof(MsgHeader);
     if (calc_size != size) {
@@ -153,7 +150,7 @@ int RecordDataMessage::encode_log_records_plain(MsgBuf& buffer) const
       }
       if (_s_config.verbose_packet.val()) {
         OMS_STREAM_WARN << "LogMessage _header size:" << calc_size << " != toString size:" << size
-                 << ". adjust to _header size";
+                        << ". adjust to _header size";
       }
       size = calc_size;
     }
@@ -210,7 +207,7 @@ int RecordDataMessage::encode_log_records_lz4(MsgBuf& buffer, size_t& raw_len) c
   const int compressed_size = LZ4_compress_default(plain_buffer, compressed_buffer, raw_len, compress_bound);
   if (compressed_size <= 0) {
     OMS_STREAM_ERROR << "LZ4 compress failed, src size:" << raw_len << ", compressed bound:" << compress_bound
-              << ", compress return=" << compressed_size;
+                     << ", compress return=" << compressed_size;
     if (buffer.count() != 1) {
       free(plain_buffer);
     }
@@ -222,7 +219,8 @@ int RecordDataMessage::encode_log_records_lz4(MsgBuf& buffer, size_t& raw_len) c
     free(plain_buffer);
   }
 
-  OMS_STREAM_DEBUG << "Encode client data success with lz4, raw_len:" << raw_len << ", compressed_size:" << compressed_size;
+  OMS_STREAM_DEBUG << "Encode client data success with lz4, raw_len:" << raw_len
+                   << ", compressed_size:" << compressed_size;
 
   MsgBuf compressed_message_buffer;
   compressed_message_buffer.push_back(compressed_buffer, compressed_size);
@@ -269,7 +267,7 @@ int RecordDataMessage::decode_log_records_plain(const char* buffer, size_t size,
     const MsgHeader* header = (const MsgHeader*)(buffer + offset);
     if (_s_config.verbose_packet.val()) {
       OMS_STREAM_DEBUG << "Decode LogMessage Header, type: " << header->m_msgType << ", version: " << header->m_version
-                << ", size: " << header->m_size;
+                       << ", size: " << header->m_size;
     }
 
     uint32_t log_record_size = header->m_size + sizeof(MsgHeader);
@@ -289,7 +287,8 @@ int RecordDataMessage::decode_log_records_plain(const char* buffer, size_t size,
     return OMS_FAILED;
   }
 
-  OMS_STREAM_DEBUG << "Total " << log_records.size() << " log records have been decoded from buffer with size: " << size;
+  OMS_STREAM_DEBUG << "Total " << log_records.size()
+                   << " log records have been decoded from buffer with size: " << size;
   records.swap(log_records);
 
   _count = count;
@@ -306,8 +305,8 @@ int RecordDataMessage::decode_log_records_lz4(const char* buffer, size_t buffer_
 
   size_t decompressed_size = LZ4_decompress_safe(buffer, decompressed_buffer, buffer_size, raw_size);
   if (decompressed_size != raw_size) {
-    OMS_STREAM_ERROR << "Failed to decompress log record buffer. compressed_size=" << buffer_size << ". raw_len=" << raw_size
-              << ". lz4 decompres return=" << decompressed_size;
+    OMS_STREAM_ERROR << "Failed to decompress log record buffer. compressed_size=" << buffer_size
+                     << ". raw_len=" << raw_size << ". lz4 decompres return=" << decompressed_size;
     free(decompressed_buffer);
     return OMS_FAILED;
   }

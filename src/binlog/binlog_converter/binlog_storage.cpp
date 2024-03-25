@@ -174,7 +174,9 @@ int BinlogStorage::storage_binlog_event(vector<ObLogEvent*>& records, const stri
       int file_size = stat(_file_name.c_str(), &file_stat);
       _offset = (file_size == 0 ? file_stat.st_size : 0);
       index_record.set_position(_offset);
-      update_index(index_file_name, index_record);
+      if (update_index(index_file_name, index_record) != OMS_OK) {
+        OMS_ERROR("Failed to update index file:{}", binlog::CommonUtils::fill_binlog_file_name(index_record._index));
+      }
       buffer.reset();
       Counter::instance().count_write_io(buffer_pos);
       buffer_pos = 0;
@@ -196,7 +198,9 @@ int BinlogStorage::storage_binlog_event(vector<ObLogEvent*>& records, const stri
     _offset = (file_size == 0 ? file_stat.st_size : 0);
     index_record.set_position(_offset);
     // update index record
-    update_index(index_file_name, index_record);
+    if (update_index(index_file_name, index_record) != OMS_OK) {
+      OMS_ERROR("Failed to update index file:{}", binlog::CommonUtils::fill_binlog_file_name(index_record._index));
+    }
     Counter::instance().count_write_io(buffer_pos);
   }
   return OMS_OK;
@@ -285,6 +289,14 @@ void fetch_pre_gtid_event(const BinlogIndexRecord& index_record, GtidMessage* gt
 size_t BinlogStorage::rotate(ObLogEvent* event, MsgBuf& content, std::size_t size, BinlogIndexRecord& index_record,
     const string& index_file_name)
 {
+
+  /*!
+   * In the rotation scenario, merge the purged.index and mysql index indexes to clean up the cleared file records in
+   * the mysql index.
+   */
+  if (merge_binlog_index(index_file_name) != OMS_OK) {
+    OMS_ERROR("Failed to merge binlog index");
+  }
   RotateEvent* rotate_event = ((RotateEvent*)event);
 
   std::vector<GtidMessage*> gtid_messages;
@@ -323,7 +335,6 @@ size_t BinlogStorage::rotate(ObLogEvent* event, MsgBuf& content, std::size_t siz
   gtid_message->set_gtid_txn_id_intervals(gtid_message->get_txn_range().size());
   gtid_messages.emplace_back(gtid_message);
   OMS_INFO("gtid message :{}", gtid_message->format_string());
-
   size_t buff_pos = init_binlog_file(content, rotate_event, gtid_messages);
 
   return buff_pos;
@@ -364,7 +375,9 @@ int BinlogStorage::previous_rotation(MsgBuf& content, size_t size, RotateEvent* 
     _offset = FsUtil::file_size(_file_name);
     index_record.set_position(_offset);
     // update index record
-    update_index(index_file_name, index_record);
+    if (update_index(index_file_name, index_record) != OMS_OK) {
+      OMS_ERROR("Failed to update index file:{}", binlog::CommonUtils::fill_binlog_file_name(index_record._index));
+    }
     Counter::instance().count_write_io(content.byte_size());
     OMS_STREAM_INFO << "rotate event:" << index_record._file_name << " [offset]" << index_record.get_position();
     content.reset();

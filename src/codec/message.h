@@ -14,9 +14,9 @@
 
 #include <string>
 #include <vector>
-
+#include "logmsg_factory.h"
 #include "log_record.h"
-
+#include "msg_header.h"
 #include "model.h"
 
 namespace oceanbase {

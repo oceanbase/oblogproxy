@@ -244,6 +244,43 @@ TEST(DataType, timestamp_type_precision)
   ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
 }
 
+TEST(DataType, timestamp_zero)
+{
+  {
+    IColMeta col_meta;
+    //  std::string val = "0000-00-00 00:00:00";
+    // This is because obcdc will always output a timestamp with a precision of 6 no matter what the precision is
+    std::string val = "-9223372022400.000000";
+    col_meta.setType(OB_TYPE_TIMESTAMP);
+    col_meta.setScale(0);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[4] = {0x00, 0x00, 0x00, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    //  std::string val = "0000-00-00 00:00:00";
+    // This is because obcdc will always output a timestamp with a precision of 6 no matter what the precision is
+    std::string val = "-9223372022400.000000";
+    col_meta.setType(OB_TYPE_TIMESTAMP);
+    col_meta.setScale(5);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+}
+
 TEST(DataType, time_type)
 {
   {
@@ -538,23 +575,188 @@ TEST(DataType, varchar_type)
 
 TEST(DataType, set_type)
 {
-  IColMeta col_meta;
-  std::string val = "图文,推荐";
-  col_meta.setType(OB_TYPE_SET);
-  vector<std::string> set_def;
-  //'推荐','热门', '置顶', '图文'
-  set_def.push_back("推荐");
-  set_def.push_back("热门");
-  set_def.push_back("置顶");
-  set_def.push_back("图文");
-  col_meta.setValuesOfEnumSet(set_def);
-  MsgBuf msg_buf;
-  size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
-  for (int i = 0; i < len; ++i) {
-    printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+  {
+    IColMeta col_meta;
+    std::string val = "图文,推荐";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("推荐");
+    set_def.emplace_back("热门");
+    set_def.emplace_back("置顶");
+    set_def.emplace_back("图文");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[1] = {0x09};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
   }
-  uint8_t result[1] = {0x09};
-  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+
+  {
+    IColMeta col_meta;
+    std::string val = "4";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x08, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x00, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "1";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x01, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "2";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x02, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "2,3";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x06, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "1,2,3";
+    col_meta.setType(OB_TYPE_SET);
+    vector<std::string> set_def;
+    //'推荐','热门', '置顶', '图文'
+    set_def.emplace_back("1");
+    set_def.emplace_back("2");
+    set_def.emplace_back("3");
+    set_def.emplace_back("4");
+    set_def.emplace_back("5");
+    set_def.emplace_back("6");
+    set_def.emplace_back("7");
+    set_def.emplace_back("8");
+    set_def.emplace_back("9");
+    set_def.emplace_back("0");
+    col_meta.setValuesOfEnumSet(set_def);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    printf("\n");
+    uint8_t result[2] = {0x07, 0x00};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
 }
 
 TEST(DataType, bit_map)
