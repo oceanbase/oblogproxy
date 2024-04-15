@@ -1,4 +1,7 @@
 lexer grammar OBLexer;
+@members {
+bool inRangeOperator = false;
+}
 
 ACCESS
     : ( A C C E S S )
@@ -434,6 +437,10 @@ INSERT
     : ( I N S E R T )
     ;
 
+ORDINALITY
+    : O R D I N A L I T Y
+    ;
+
 INTO
     : ( I N T O )
     ;
@@ -532,6 +539,10 @@ LOCK_
 
 LONG
     : ( L O N G )
+    ;
+
+UNLIMITED
+    : U N L I M I T E D
     ;
 
 LONGBLOB
@@ -912,6 +923,10 @@ UNLOCK
     : ( U N L O C K )
     ;
 
+LINE_DELIMITER
+    : L I N E '_' D E L I M I T E R
+    ;
+
 UNSIGNED
     : ( U N S I G N E D )
     ;
@@ -922,6 +937,10 @@ UPDATE
 
 USAGE
     : ( U S A G E )
+    ;
+
+GEOMCOLLECTION
+    : G E O M C O L L E C T I O N
     ;
 
 USE
@@ -1014,28 +1033,36 @@ SESSION_ALIAS
     | ('@''@' L O C A L )
     ;
 
-UnderlineUTF8
+UNDER_LINE_UTF8
     : ('_' U T F '8')
     ;
 
-UnderlineUTF8MB4
+UNDER_LINE_UTF8MB4
     : ('_' U T F '8' M B '4')
     ;
 
-UnderlineGBK
+UNDER_LINE_GBK
     : ('_' G B K )
     ;
 
-UnderlineGB18030
+UNDER_LINE_GB18030
     : ('_' G B '1''8''0''3''0')
     ;
 
-UnderlineBINARY
+UNDER_LINE_BINARY
     : ('_' B I N A R Y )
     ;
 
-UnderlineUTF16
+UNDER_LINE_UTF16
     : ('_' U T F '1''6')
+    ;
+
+UNDER_LINE_LATIN1
+    : ('_' L A T I N '1')
+    ;
+
+UNDER_LINE_GB18030_2022
+    : ('_' G B '1''8''0''3''0''_''2''0''2''2')
     ;
 
 STRONG
@@ -1044,6 +1071,10 @@ STRONG
 
 WEAK
     : ( W E A K )
+    ;
+
+CONNECT
+    : C O N N E C T
     ;
 
 FROZEN
@@ -1092,6 +1123,10 @@ MINVALUE
 
 NO_PUSH_LIMIT
     : N O '_' P U S H '_' L I M I T
+    ;
+
+EMPTY_FIELD_AS_NULL
+    : E M P T Y '_' F I E L D '_' A S '_' N U L L
     ;
 
 UNINSTALL
@@ -1482,6 +1517,10 @@ EVERY
     : E V E R Y
     ;
 
+SHARDING
+    : S H A R D I N G
+    ;
+
 BYTE
     : B Y T E
     ;
@@ -1496,6 +1535,7 @@ MIN_ROWS
 
 ERROR_P
     : E R R O R
+    | E R R O R '_' P
     ;
 
 MAX_USER_CONNECTIONS
@@ -1574,6 +1614,10 @@ SQL_TSI_MONTH
     : S Q L '_' T S I '_' M O N T H
     ;
 
+ARBITRATION
+    : A R B I T R A T I O N
+    ;
+
 IGNORE
     : I G N O R E
     ;
@@ -1632,6 +1676,10 @@ WAIT
 
 SIMPLIFY_LIMIT
     : S I M P L I F Y '_' L I M I T
+    ;
+
+FIELD_OPTIONALLY_ENCLOSED_BY
+    : F I E L D '_' O P T I O N A L L Y '_' E N C L O S E D '_' B Y
     ;
 
 DES_KEY_FILE
@@ -1791,7 +1839,7 @@ CHUNK
     ;
 
 FILEX
-    : F I L E
+    : F I L E X
     ;
 
 BACKUPSET
@@ -1804,6 +1852,10 @@ PRIMARY_CLUSTER_ID
 
 UNIT
     : U N I T
+    ;
+
+NATIONAL_LITERAL
+    : N A T I O N A L '_' L I T E R A L
     ;
 
 PRIVILEGES
@@ -1874,6 +1926,10 @@ DUMP
     : D U M P
     ;
 
+EXTERNAL
+    : E X T E R N A L
+    ;
+
 APPROX_COUNT_DISTINCT_SYNOPSIS
     : A P P R O X '_' C O U N T '_' D I S T I N C T '_' S Y N O P S I S
     ;
@@ -1890,12 +1946,20 @@ SLOG
     : S L O G
     ;
 
+OJ
+    : O J
+    ;
+
 ARCHIVELOG
     : A R C H I V E L O G
     ;
 
 MAX_CONNECTIONS_PER_HOUR
     : M A X '_' C O N N E C T I O N S '_' P E R '_' H O U R
+    ;
+
+ENCODING
+    : E N C O D I N G
     ;
 
 SECOND
@@ -2310,6 +2374,10 @@ DATA_TABLE_ID
     : D A T A '_' T A B L E '_' I D
     ;
 
+SEQUENCES
+    : S E Q U E N C E S
+    ;
+
 VALID
     : V A L I D
     ;
@@ -2408,6 +2476,10 @@ COUNT
 
 NAMES
     : N A M E S
+    ;
+
+MY_NAME
+    : M Y '_' N A M E
     ;
 
 CHAR
@@ -2534,6 +2606,10 @@ BACKED
     : B A C K E D
     ;
 
+SERVICE
+    : S E R V I C E
+    ;
+
 TEMPLATE
     : T E M P L A T E
     ;
@@ -2584,6 +2660,10 @@ BLOCK_SIZE
 
 COALESCE_SQ
     : C O A L E S C E '_' S Q
+    ;
+
+TRIM_SPACE
+    : T R I M '_' S P A C E
     ;
 
 INNER_PARSE
@@ -2668,6 +2748,10 @@ XML
 
 ELIMINATE_JOIN
     : E L I M I N A T E '_' J O I N
+    ;
+
+PATH
+    : P A T H
     ;
 
 IPC
@@ -2838,7 +2922,7 @@ SIMPLE
     : S I M P L E
     ;
 
-BEGI
+BEGIN
     : B E G I N
     ;
 
@@ -2876,6 +2960,10 @@ ASCII
 
 INFO
     : I N F O
+    ;
+
+SKIP_HEADER
+    : S K I P '_' H E A D E R
     ;
 
 SQL_THREAD
@@ -2956,6 +3044,10 @@ SOME
 
 INDEX_TABLE_ID
     : I N D E X '_' T A B L E '_' I D
+    ;
+
+PATTERN
+    : P A T T E R N
     ;
 
 RECOVERY_WINDOW
@@ -3048,6 +3140,10 @@ ESTIMATE
 
 SLAVE
     : S L A V E
+    ;
+
+SKIP_BLANK_LINES
+    : S K I P '_' B L A N K '_' L I N E S
     ;
 
 GTS
@@ -3444,6 +3540,10 @@ COLUMN_FORMAT
 
 MAX_MEMORY
     : M A X '_' M E M O R Y
+    ;
+
+NESTED
+    : N E S T E D
     ;
 
 CLEAN
@@ -4062,6 +4162,10 @@ GROUP_CONCAT
     : G R O U P '_' C O N C A T
     ;
 
+JSON_TABLE
+    : J S O N '_' T A B L E
+    ;
+
 LEAD
     : L E A D
     ;
@@ -4100,6 +4204,10 @@ TRACING
 
 NTILE
     : N T I L E
+    ;
+
+NULL_IF_EXETERNAL
+    : N U L L '_' I F '_' E X E T E R N A L
     ;
 
 BUCKETS
@@ -4178,6 +4286,10 @@ REDO_TRANSPORT_OPTIONS
     : R E D O '_' T R A N S P O R T '_' O P T I O N S
     ;
 
+FIELD_DELIMITER
+    : F I E L D '_' D E L I M I T E R
+    ;
+
 MASTER_HOST
     : M A S T E R '_' H O S T
     ;
@@ -4222,6 +4334,14 @@ WEEK
     : W E E K
     ;
 
+LINK
+    : L I N K
+    ;
+
+STATEMENT_ID
+    : S T A T E M E N T '_' I D
+    ;
+
 NULLS
     : N U L L S
     ;
@@ -4236,6 +4356,10 @@ CASCADED
 
 PLUGIN
     : P L U G I N
+    ;
+
+ENCRYPTED
+    : E N C R Y P T E D
     ;
 
 TENANT
@@ -4369,6 +4493,22 @@ RANDOM_LOCAL : R A N D O M '_' L O C A L;
 BROADCAST : B R O A D C A S T;
 
 HINT_HINT_BEGIN : H I N T '_' H I N T '_' B E G I N;
+
+LOG_RESTORE_SOURCE
+    : L O G '_' R E S T O R E '_' S O U R C E
+    ;
+
+ENABLE_ARBITRATION_SERVICE
+    : E N A B L E '_' A R B I T R A T I O N '_' S E R V I C E
+    ;
+
+LEFT_BRACE
+    : '{'
+    ;
+
+RIGHT_BRACE
+    : '}'
+    ;
 
 Comma
     : [,]
@@ -4566,6 +4706,10 @@ In_c_comment
 
 ANTLR_SKIP
     : '--'[ \t]* .*? '\n'   -> channel(1)
+    ;
+
+COMMENT_SKIP
+    : '#' .*? '\n'   -> channel(1)
     ;
 
 Blank

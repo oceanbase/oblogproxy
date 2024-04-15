@@ -257,7 +257,7 @@ size_t binary_to_hex(const std::string& binary, char* buff, int len)
 {
   size_t i = 0;
   size_t index = 0;
-  std::bitset<64> bit_max(atoi(binary.c_str()));
+  std::bitset<64> bit_max(std::stoull((binary.c_str())));
   std::string real = bit_max.to_string().substr(64 - len * 8, len * 8);
   for (; i < real.size(); i += 8) {
     std::bitset<8> bit_set{real.substr(i, 8)};
@@ -1007,10 +1007,7 @@ int get_packed_integer(size_t val)
 
 size_t int_two_complement(unsigned char* val, size_t len, const char* data)
 {
-  auto num = atoll(data);
-  //  if (num < 0) {
-  //    num += pow(2, len);
-  //  }
+  auto num = std::stoull(data);
   switch (len) {
     case 1:
       int1store(val, num);

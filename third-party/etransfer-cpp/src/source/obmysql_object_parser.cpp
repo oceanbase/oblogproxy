@@ -27,6 +27,7 @@
 #include "object/drop_table_object.h"
 #include "object/partition_object.h"
 #include "object/rename_index_object.h"
+#include "object/rename_table_column_object.h"
 #include "object/rename_table_object.h"
 #include "object/table_column_object.h"
 #include "object/table_constraint_object.h"
@@ -1504,7 +1505,7 @@ void OBMySQLObjectParser::ProcessAlterTableAlterColumnAction(
     }
   } else if (ctx->DROP() != nullptr) {
     RawConstant column_name_to_drop =
-        GetColumnName(ctx->column_definition_ref());
+        GetColumnName(ctx->column_definition_ref(0));
     Strings drop_option;
     if (nullptr != ctx->CASCADE()) {
       drop_option.push_back(ctx->CASCADE()->getText());
@@ -1517,7 +1518,7 @@ void OBMySQLObjectParser::ProcessAlterTableAlterColumnAction(
         drop_option));
   } else if (ctx->ALTER() != nullptr) {
     RawConstant column_name_to_drop =
-        GetColumnName(ctx->column_definition_ref());
+        GetColumnName(ctx->column_definition_ref(0));
     if (ctx->alter_column_behavior() != nullptr) {
       std::shared_ptr<ColumnAttributes> attributes =
           std::make_shared<ColumnAttributes>();
@@ -1567,8 +1568,12 @@ void OBMySQLObjectParser::ProcessAlterTableAlterColumnAction(
         ProcessColumnDefinition(ctx->column_definition(), alter_column_types);
     actions.push_back(std::make_shared<AlterTableColumnObject>(
         catalog, table_name, Util::GetCtxString(ctx),
-        GetColumnName(ctx->column_definition_ref()), table_column_object,
+        GetColumnName(ctx->column_definition_ref(0)), table_column_object,
         alter_column_types));
+  } else if (ctx->RENAME() != nullptr) {
+    RawConstant old_col_name = GetColumnName(ctx->column_definition_ref(0));
+    RawConstant new_col_name = GetColumnName(ctx->column_definition_ref(1));
+    actions.push_back(std::make_shared<RenameTableColumnObject>(catalog, table_name, Util::GetCtxString(ctx), old_col_name, new_col_name));
   } else {
     ddl_parse_context->SetErrMsg("unsupported " + Util::GetCtxString(ctx));
   }

@@ -28,6 +28,7 @@
 #include "sink/drop_table_object_builder.h"
 #include "sink/drop_table_partition_object_builder.h"
 #include "sink/rename_index_object_builder.h"
+#include "sink/rename_table_column_object_builder.h"
 #include "sink/rename_table_object_builder.h"
 #include "sink/truncate_table_object_builder.h"
 #include "sink/truncate_table_partition_object_builder.h"
@@ -73,6 +74,8 @@ BuilderMap ObjectBuilderMapper::InitMapper() {
       std::make_shared<AlterTablePartitionObjectBuilder>();
   mapper[common::ObjectType::TABLE_REFERENCE_CONSTRAINT_OBJECT] =
       std::make_shared<AddTableReferenceConstraintObjectBuilder>();
+  mapper[common::ObjectType::RENAME_TABLE_COLUMN_OBJECT] =
+      std::make_shared<RenameTableColumnObjectBuilder>();
   return mapper;
 }
 const BuilderMap ObjectBuilderMapper::mysql_object_builder_mapper =

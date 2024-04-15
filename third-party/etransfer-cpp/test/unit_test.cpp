@@ -3039,3 +3039,65 @@ TEST(PARSER_WITH_CONTEXT, CONTEXT_7) {
   std::cout << err_msg << std::endl;
   EXPECT_STREQ(expect.c_str(), dest.c_str());
 }
+
+TEST(RENAME_COLUMN, RENAME_COLUMN_1) {
+  std::string source = "ALTER TABLE t RENAME COLUMN d TO g;";
+  std::string expect = "ALTER TABLE `t`\n\tRENAME COLUMN `d` TO `g`\n";
+  std::string dest;
+  std::string err_msg;
+  std::shared_ptr<ParseContext> parse_context = std::make_shared<ParseContext>(source, "test", false);
+  std::shared_ptr<BuildContext> builder_context = std::make_shared<BuildContext>();
+  ASSERT_EQ(etransfer::tool::ConvertTool::ParseWithContext(source, parse_context, builder_context, dest, err_msg), 0);
+  std::cout << err_msg << std::endl;
+  EXPECT_STREQ(expect.c_str(), dest.c_str());
+}
+
+TEST(COMMENT, COMMENT_1) {
+  std::string source = "--单行注释\ncreate table t(c1 int);";
+  std::string expect = "CREATE TABLE `t`(\n"
+                        "\t`c1` INTEGER\n"
+                        ")";
+  std::string dest;
+  std::string err_msg;
+  std::shared_ptr<ParseContext> parse_context = std::make_shared<ParseContext>(source, "test", false);
+  std::shared_ptr<BuildContext> builder_context = std::make_shared<BuildContext>();
+  ASSERT_EQ(etransfer::tool::ConvertTool::ParseWithContext(source, parse_context, builder_context, dest, err_msg), 0);
+  std::cout << err_msg << std::endl;
+  EXPECT_STREQ(expect.c_str(), dest.c_str());
+}
+
+TEST(COMMENT, COMMENT_2) {
+  std::string source = "/* 多行\n"
+                       "注释*/ create table t(c1 int);";
+  std::string expect = "CREATE TABLE `t`(\n"
+                        "\t`c1` INTEGER\n"
+                        ")";
+  std::string dest;
+  std::string err_msg;
+  std::shared_ptr<ParseContext> parse_context = std::make_shared<ParseContext>(source, "test", false);
+  std::shared_ptr<BuildContext> builder_context = std::make_shared<BuildContext>();
+  ASSERT_EQ(etransfer::tool::ConvertTool::ParseWithContext(source, parse_context, builder_context, dest, err_msg), 0);
+  std::cout << err_msg << std::endl;
+  EXPECT_STREQ(expect.c_str(), dest.c_str());
+}
+
+TEST(COMMENT, COMMENT_3) {
+  std::string source = "-- 注释\n"
+                        "create table test(c1 int, -- 注释\n"
+                        "-- 注释\n"
+                        "-- 注释\n"
+                        "c2 int, #注释2\n"
+                        "c3 int /*注释3*/); ";
+  std::string expect = "CREATE TABLE `test`(\n"
+                        "\t`c1` INTEGER,\n"
+                        "\t`c2` INTEGER,\n"
+                        "\t`c3` INTEGER\n"
+                        ")";
+  std::string dest;
+  std::string err_msg;
+  std::shared_ptr<ParseContext> parse_context = std::make_shared<ParseContext>(source, "test", false);
+  std::shared_ptr<BuildContext> builder_context = std::make_shared<BuildContext>();
+  ASSERT_EQ(etransfer::tool::ConvertTool::ParseWithContext(source, parse_context, builder_context, dest, err_msg), 0);
+  std::cout << err_msg << std::endl;
+  EXPECT_STREQ(expect.c_str(), dest.c_str());
+}

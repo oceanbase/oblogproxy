@@ -146,26 +146,57 @@ TEST(DataType, short_type)
 
 TEST(DataType, long_type)
 {
-  IColMeta col_meta;
-  std::string val = "-2222";
-  uint8_t result[4] = {82, 247, 255, 255};
-  col_meta.setType(OB_TYPE_LONG);
-  MsgBuf msg_buf;
-  get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
-  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  {
+    IColMeta col_meta;
+    std::string val = "-2222";
+    uint8_t result[4] = {82, 247, 255, 255};
+    col_meta.setType(OB_TYPE_LONG);
+    MsgBuf msg_buf;
+    get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+  {
+    IColMeta col_meta;
+    std::string val = "18446744073709551615";
+    uint8_t result[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    col_meta.setType(OB_TYPE_LONGLONG);
+    MsgBuf msg_buf;
+
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
 }
 
 TEST(DataType, bit_type)
 {
-  IColMeta col_meta;
-  std::string val = "6";
-  col_meta.setType(OB_TYPE_BIT);
-  col_meta.setPrecision(5);
-  MsgBuf msg_buf;
-  get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+  {
+    IColMeta col_meta;
+    std::string val = "6";
+    col_meta.setType(OB_TYPE_BIT);
+    col_meta.setPrecision(5);
+    MsgBuf msg_buf;
+    get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
 
-  uint8_t result[1] = {6};
-  ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+    uint8_t result[1] = {6};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
+
+  {
+    IColMeta col_meta;
+    std::string val = "8608372198138972245";
+    col_meta.setType(OB_TYPE_BIT);
+    col_meta.setPrecision(64);
+    MsgBuf msg_buf;
+    size_t len = get_column_val_bytes(col_meta, val.size(), val.data(), msg_buf, std::string());
+    for (int i = 0; i < len; ++i) {
+      printf("\\%02hhx", (unsigned char)msg_buf.begin()->buffer()[i]);
+    }
+    uint8_t result[8] = {0x77, 0x77, 0x14, 0xe7, 0xb4, 0x6c, 0x08, 0x55};
+    ASSERT_EQ(true, memcmp(result, msg_buf.begin()->buffer(), sizeof(result)) == 0);
+  }
 }
 
 TEST(DataType, date_type)
