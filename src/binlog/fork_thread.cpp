@@ -125,7 +125,7 @@ int stop_binlog_converter(std::string status_config)
           state_machine.get_pid(),
           logproxy::system_err(errno));
     }
-    state_machine.set_converter_state(binlog::STOP);
+    state_machine.set_converter_state(binlog::DROP);
     binlog::g_state_machine->update_state(binlog::get_default_state_file_path(), state_machine);
   }
 

@@ -21,6 +21,7 @@
 #include "binlog_dumper.h"  // BINLOG_FATAL_ERROR
 #include "common_util.h"
 #include "SQLParserResult.h"
+#include "guard.hpp"
 #include "sql/show_binlog_events.h"
 #include "sql/purge_binlog.h"
 #include "sql/show_binlog_server.h"
@@ -28,9 +29,14 @@
 #include "sql/show_binlog_status.h"
 #include "sql/set_statement.h"
 #include "sql/statements.h"
+#include "str.h"
+#include "telemetry.h"
 
 #include <unordered_map>
+#include <communication/io.h>
 
+#define UTF8_CS 33
+#define BINARY_CS 63
 namespace oceanbase {
 namespace binlog {
 static std::unordered_map<hsql::StatementType, SqlCmdProcessor*> _s_supported_sql_cmd_processors = {
@@ -45,6 +51,10 @@ static std::unordered_map<hsql::StatementType, SqlCmdProcessor*> _s_supported_sq
     {hsql::StatementType::COM_SELECT, &SelectProcessor::instance()},
     {hsql::StatementType::COM_SET, &SetVarProcessor::instance()},
     {hsql::StatementType::COM_SHOW, &ShowVarProcessor::instance()},
+    {hsql::StatementType::COM_ALTER_BINLOG_INSTANCE, &AlterBinlogInstanceProcessor::instance()},
+    {hsql::StatementType::COM_START_BINLOG_INSTANCE, &StartBinlogInstanceProcessor::instance()},
+    {hsql::StatementType::COM_STOP_BINLOG_INSTANCE, &StopBinlogInstanceProcessor::instance()},
+    {hsql::StatementType::COM_SHOW_BINLOG_INSTANCE, &ShowBinlogInstanceProcessor::instance()},
 };
 
 SqlCmdProcessor* sql_cmd_processor(hsql::StatementType type)
@@ -565,8 +575,87 @@ IoResult ShowBinlogServerProcessor::process(Connection* conn, const hsql::SQLSta
   return conn->send_eof_packet();
 }
 
+int CreateBinlogProcessor::check_quta()
+{
+  if (!logproxy::Config::instance().check_quota_enable.val()) {
+    return OMS_OK;
+  }
+
+  uint64_t max_cpu_ratio = logproxy::Config::instance().node_cpu_limit_threshold_percent.val();
+  double current_cpu_ratio = std::floor(logproxy::g_metric.cpu_status.cpu_used_ratio);
+  if (max_cpu_ratio != 0 && uint64_t(current_cpu_ratio * 100) > max_cpu_ratio) {
+    OMS_ERROR("Exceed max cpu ratio: {}, current: {}", max_cpu_ratio, current_cpu_ratio);
+    return OMS_FAILED;
+  }
+
+  uint64_t max_mem_quota_ratio = logproxy::Config::instance().node_mem_limit_threshold_percent.val();
+  float current_mem_ratio = logproxy::g_metric.memory_status.mem_used_ratio;
+  if (max_mem_quota_ratio != 0 && uint64_t(current_mem_ratio * 100) > max_mem_quota_ratio) {
+    OMS_ERROR("Exceed max mem quota : {}, current:{}", max_mem_quota_ratio, current_mem_ratio);
+    return OMS_FAILED;
+  }
+
+  return OMS_OK;
+}
+
+IoResult CreateBinlogProcessor::inter_start_binlog(Connection* conn, logproxy::OblogConfig& config)
+{
+  init_oblog_config(config);
+  std::vector<StateMachine*> state_machines;
+  binlog::g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
+
+  bool is_existed = false;
+  for (const StateMachine* state_machine : state_machines) {
+    if (strcmp(config.cluster.val().c_str(), state_machine->get_cluster().c_str()) == 0 &&
+        strcmp(config.tenant.val().c_str(), state_machine->get_tenant().c_str()) == 0) {
+
+      OMS_INFO("Current tenant:{}.{} BC server status:{}",
+          config.cluster.val(),
+          config.cluster.val(),
+          print(state_machine->get_converter_state()));
+      is_existed = true;
+      if (state_machine->get_converter_state() == INIT || state_machine->get_converter_state() == RUNNING) {
+        // Determine whether the process exists, and if it exists, it will not be pulled repeatedly
+        if (state_machine->get_pid() > 0 && 0 == kill(state_machine->get_pid(), 0)) {
+          OMS_INFO("The current binlog converter [{},{}] is alive and the pull action is terminated",
+              state_machine->get_cluster(),
+              state_machine->get_tenant());
+          conn->send_ok_packet();
+          logproxy::release_vector(state_machines);
+          return IoResult::SUCCESS;
+        }
+      }
+    }
+  }
+  logproxy::release_vector(state_machines);
+  StateMachine state_machine;
+  state_machine.set_cluster(config.cluster.val());
+  state_machine.set_tenant(config.tenant.val());
+  state_machine.set_config(config.generate_config_str());
+  if (is_existed) {
+    g_state_machine->update_state(get_default_state_file_path(), state_machine);
+  } else {
+    g_state_machine->add_state(get_default_state_file_path(), state_machine);
+  }
+  OMS_INFO("Start Binlog Converter with config:{}", config.debug_str());
+  g_bc_executor->submit(logproxy::start_binlog_converter, config.serialize_configs());
+
+  int state_count = 0;
+  binlog::g_state_machine->fetch_state_count(get_default_state_file_path(), state_count);
+  oceanbase::logproxy::Telemetry::report_telemetry_data_async(
+      oceanbase::logproxy::Config::instance().telemetry_url.val(), state_count, 5, 5, 5);
+
+  return conn->send_ok_packet();
+}
+
 IoResult CreateBinlogProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
 {
+
+  if (check_quta() != OMS_OK) {
+    OMS_ERROR("Insufficient resources cannot create a new binlog");
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "Insufficient resources cannot create a new binlog", "HY000");
+  }
+
   auto* p_statement = (hsql::CreateBinlogStatement*)statement;
   logproxy::OblogConfig config{""};
 
@@ -620,49 +709,7 @@ IoResult CreateBinlogProcessor::process(Connection* conn, const hsql::SQLStateme
     }
   }
 
-  init_oblog_config(config);
-
-  std::vector<StateMachine*> state_machines;
-  binlog::g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
-
-  bool is_existed = false;
-  for (const StateMachine* state_machine : state_machines) {
-    if (strcmp(config.cluster.val().c_str(), state_machine->get_cluster().c_str()) == 0 &&
-        strcmp(config.tenant.val().c_str(), state_machine->get_tenant().c_str()) == 0) {
-
-      OMS_INFO("Current tenant:{}.{} BC server status:{}",
-          config.cluster.val(),
-          config.cluster.val(),
-          print(state_machine->get_converter_state()));
-
-      if (state_machine->get_converter_state() == INIT || state_machine->get_converter_state() == RUNNING) {
-        // Determine whether the process exists, and if it exists, it will not be pulled repeatedly
-        if (state_machine->get_pid() > 0 && 0 == kill(state_machine->get_pid(), 0)) {
-          OMS_STREAM_INFO << "The current binlog converter [" << state_machine->get_cluster() << ","
-                          << state_machine->get_tenant() << "]"
-                          << "is alive and the pull action is terminated";
-          conn->send_ok_packet();
-          logproxy::release_vector(state_machines);
-          return IoResult::SUCCESS;
-        }
-        is_existed = true;
-      }
-    }
-  }
-  logproxy::release_vector(state_machines);
-  StateMachine state_machine;
-  state_machine.set_cluster(config.cluster.val());
-  state_machine.set_tenant(config.tenant.val());
-  state_machine.set_config(config.serialize_configs());
-  if (is_existed) {
-    binlog::g_state_machine->update_state(get_default_state_file_path(), state_machine);
-  } else {
-    binlog::g_state_machine->add_state(get_default_state_file_path(), state_machine);
-  }
-  OMS_STREAM_INFO << "Start Binlog Converter with config:" << config.debug_str();
-  g_bc_executor->submit(logproxy::start_binlog_converter, config.serialize_configs());
-
-  return conn->send_ok_packet();
+  return inter_start_binlog(conn, config);
 }
 
 void CreateBinlogProcessor::init_oblog_config(logproxy::OblogConfig& config)
@@ -681,6 +728,8 @@ void CreateBinlogProcessor::init_oblog_config(logproxy::OblogConfig& config)
   config.add("sort_trans_participants", "1");
   // 4.x enables to output row data in the order of column declaration
   config.add("enable_output_by_table_def", "1");
+  // 4.x It is recommended to filter the DDL of system tenants
+  config.add("enable_filter_sys_tenant", "1");
   config.add("memory_limit", logproxy::Config::instance().binlog_memory_limit.val());
   config.add("working_mode", logproxy::Config::instance().binlog_working_mode.val());
 
@@ -728,6 +777,11 @@ IoResult DropBinlogProcessor::process(Connection* conn, const hsql::SQLStatement
       g_bc_executor->submit(logproxy::stop_binlog_converter, state_machine->to_string());
       logproxy::release_vector(state_machines);
 
+      int state_count = 0;
+      binlog::g_state_machine->fetch_state_count(get_default_state_file_path(), state_count);
+      oceanbase::logproxy::Telemetry::report_telemetry_data_async(
+          oceanbase::logproxy::Config::instance().telemetry_url.val(), state_count, 5, 5, 5);
+
       return conn->send_ok_packet();
     }
   }
@@ -737,8 +791,6 @@ IoResult DropBinlogProcessor::process(Connection* conn, const hsql::SQLStatement
   }
 
   return conn->send_err_packet(BINLOG_FATAL_ERROR, "BC process does not exist", "HY000");
-
-  return conn->send_ok_packet();
 }
 
 IoResult ShowBinlogStatusProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
@@ -1086,6 +1138,331 @@ IoResult SelectProcessor::handle_function(Connection* conn, hsql::SelectStatemen
       return IoResult::FAIL;
     }
     return p_func_processor->process(conn, p_statement);
+  }
+  return conn->send_eof_packet();
+}
+
+IoResult AlterBinlogInstanceProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
+{
+  auto* p_statement = (hsql::AlterBinlogInstanceStatement*)statement;
+
+  std::string instance_name(p_statement->instance_name);
+  if (instance_name.empty()) {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "Binlog instance does not exist", "HY000");
+  }
+
+  update_instance_options(instance_name, *(p_statement->instance_options));
+  return conn->send_ok_packet();
+}
+
+int AlterBinlogInstanceProcessor::update_instance_options(
+    const std::string& instance_name, std::vector<hsql::SetClause*>& instance_options)
+{
+  std::vector<std::string> parts;
+  logproxy::split_by_str(instance_name, "#", parts);
+  if (parts.size() != 2) {
+    return OMS_FAILED;
+  }
+  std::string cluster = parts[0];
+  std::string tenant = parts[1];
+  std::vector<StateMachine*> state_machines;
+  g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
+  defer(logproxy::release_vector(state_machines));
+
+  for (StateMachine* state_machine : state_machines) {
+    if (strcmp(cluster.c_str(), state_machine->get_cluster().c_str()) == 0 &&
+        strcmp(tenant.c_str(), state_machine->get_tenant().c_str()) == 0) {
+      OMS_INFO(
+          "Current tenant:{}.{} BC server status:{}", cluster, tenant, print(state_machine->get_converter_state()));
+      auto config = logproxy::OblogConfig{state_machine->get_config()};
+      for (auto variable : instance_options) {
+        if (std::strcmp(variable->column, "extra_obcdc_cfg") == 0) {
+          std::vector<std::string> kvs;
+          logproxy::split(variable->value->get_value(), ';', kvs);
+          for (std::string& kv : kvs) {
+            std::vector<std::string> kv_split;
+            size_t count = logproxy::split(kv, '=', kv_split, true);
+            if (count != 2) {
+              continue;
+            }
+            config.set(kv_split[0], kv_split[1]);
+          }
+        } else {
+          config.set(variable->column, variable->value->get_value());
+        }
+      }
+      state_machine->set_config(config.generate_config_str());
+      g_state_machine->update_state(get_default_state_file_path(), *state_machine);
+      return OMS_OK;
+    }
+  }
+  return OMS_FAILED;
+}
+
+IoResult StartBinlogInstanceProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
+{
+  std::string instance_name;
+  hsql::InstanceFlag flag;
+  auto* p_statement = (hsql::StartBinlogInstanceStatement*)statement;
+  // The stand-alone version of instanc is named cluster#tenant
+  instance_name = std::string(p_statement->instance_name);
+  if (instance_name.empty()) {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "binlog instance does not exist: " + instance_name, "HY000");
+  }
+  std::vector<std::string> parts;
+  logproxy::split_by_str(instance_name, "#", parts);
+  if (parts.size() != 2) {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "binlog instance name format error: " + instance_name, "HY000");
+  }
+
+  std::string cluster = parts[0];
+  std::string tenant = parts[1];
+
+  std::vector<StateMachine*> state_machines;
+  g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
+  defer(logproxy::release_vector(state_machines););
+  bool is_existed = false;
+  std::string config_str;
+  for (const StateMachine* state_machine : state_machines) {
+    if (strcmp(cluster.c_str(), state_machine->get_cluster().c_str()) == 0 &&
+        strcmp(tenant.c_str(), state_machine->get_tenant().c_str()) == 0) {
+
+      OMS_INFO(
+          "Current tenant:{}.{} BC server status:{}", cluster, cluster, print(state_machine->get_converter_state()));
+
+      if (state_machine->get_converter_state() != DROP) {
+        // Determine whether the process exists, and if it exists, it will not be pulled repeatedly
+        if (state_machine->get_pid() > 0 && 0 == kill(state_machine->get_pid(), 0)) {
+          OMS_STREAM_INFO << "The current binlog converter [" << state_machine->get_cluster() << ","
+                          << state_machine->get_tenant() << "]" << "is alive and the pull action is terminated";
+          conn->send_ok_packet();
+          return IoResult::SUCCESS;
+        }
+        config_str = state_machine->get_config();
+        is_existed = true;
+      } else {
+        OMS_WARN("The current binlog converter [%s,%s] has been deleted, please create a new one.",
+            cluster.c_str(),
+            tenant.c_str());
+        return conn->send_err_packet(BINLOG_FATAL_ERROR, "[start binlog instance] instance has been deleted", "HY000");
+      }
+    }
+  }
+
+  if (!is_existed) {
+    OMS_ERROR("{}: [start binlog instance] instance {} does not exist: {}", conn->trace_id(), instance_name, flag);
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "[start binlog instance] instance does not exist", "HY000");
+  }
+  auto config = logproxy::OblogConfig{config_str};
+  OMS_INFO("{}: [start binlog instance] Config:{}", conn->trace_id(), config.generate_config_str());
+  return CreateBinlogProcessor::inter_start_binlog(conn, config);
+}
+
+IoResult StopBinlogInstanceProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
+{
+  std::string instance_name;
+  hsql::InstanceFlag flag;
+  auto* p_statement = (hsql::StopBinlogInstanceStatement*)statement;
+  instance_name = std::string(p_statement->instance_name);
+  flag = p_statement->flag;
+  if (hsql::InstanceFlag::OBCDC_ONLY == flag) {
+    OMS_ERROR("{}: [stop binlog instance] Unsupported flag: {}", conn->trace_id(), flag);
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "Flag [OBCDC_ONLY] is not supported yet", "HY000");
+  }
+
+  if (instance_name.empty()) {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "binlog instance does not exist: " + instance_name, "HY000");
+  }
+  std::vector<std::string> parts;
+  logproxy::split_by_str(instance_name, "#", parts);
+  if (parts.size() != 2) {
+    return conn->send_err_packet(BINLOG_FATAL_ERROR, "binlog instance name format error: " + instance_name, "HY000");
+  }
+
+  std::string cluster = parts[0], tenant = parts[1];
+
+  std::vector<StateMachine*> state_machines;
+  binlog::g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
+  for (StateMachine* state_machine : state_machines) {
+    if (strcmp(cluster.c_str(), state_machine->get_cluster().c_str()) == 0 &&
+        strcmp(tenant.c_str(), state_machine->get_tenant().c_str()) == 0) {
+      OMS_INFO("Stop BC process begin, cluster:{},tenant:{},pid:{}",
+          state_machine->get_cluster(),
+          state_machine->get_tenant(),
+          state_machine->get_pid());
+      if (state_machine->get_pid() > 0) {
+        // stop BC process
+        int ret = kill(state_machine->get_pid(), SIGKILL);
+        if (ret != 0) {
+          OMS_ERROR("Failed to stop BC process, cluster:{},tenant:{},pid:{},reason:{}",
+              state_machine->get_cluster(),
+              state_machine->get_tenant(),
+              state_machine->get_pid(),
+              logproxy::system_err(errno));
+        }
+        state_machine->set_converter_state(binlog::STOP);
+        binlog::g_state_machine->update_state(binlog::get_default_state_file_path(), *state_machine);
+      }
+      logproxy::release_vector(state_machines);
+
+      return conn->send_ok_packet();
+    }
+  }
+  logproxy::release_vector(state_machines);
+  return conn->send_err_packet(BINLOG_FATAL_ERROR, "BC process does not exist", "HY000");
+}
+
+IoResult ShowBinlogInstanceProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
+{
+  ColumnPacket name_column_packet{
+      "name", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::pri_key_flag, 31};
+  ColumnPacket ob_cluster_column_packet{
+      "ob_cluster", "", UTF8_CS, 56, ColumnType::ct_var_string, ColumnDefinitionFlags::pri_key_flag, 31};
+  ColumnPacket ob_tenant_column_packet{
+      "ob_tenant", "", UTF8_CS, 36, ColumnType::ct_var_string, ColumnDefinitionFlags::pri_key_flag, 31};
+  ColumnPacket ip_column_packet{
+      "ip", "", UTF8_CS, 32, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket port_column_packet{
+      "port", "", BINARY_CS, 16, ColumnType::ct_short, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket zone_column_packet{
+      "zone", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket region_column_packet{
+      "region", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket group_column_packet{
+      "group", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket running_column_packet{
+      "running", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket state_column_packet{
+      "state", "", UTF8_CS, 128, ColumnType::ct_var_string, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket obcdc_running_column_packet{
+      "obcdc_running", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket obcdc_state_column_packet{
+      "obcdc_state", "", UTF8_CS, 128, ColumnType::ct_var_string, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket service_mode_column_packet{
+      "service_mode", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket convert_running_column_packet{
+      "convert_running", "", UTF8_CS, 128, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket convert_delay_column_packet{
+      "convert_delay", "", BINARY_CS, 20, ColumnType::ct_longlong, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket convert_rps_column_packet{
+      "convert_rps", "", BINARY_CS, 20, ColumnType::ct_longlong, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket convert_eps_column_packet{
+      "convert_eps", "", BINARY_CS, 20, ColumnType::ct_longlong, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket convert_iops_column_packet{
+      "convert_iops", "", BINARY_CS, 20, ColumnType::ct_longlong, static_cast<ColumnDefinitionFlags>(0), 31};
+  ColumnPacket odp_addr_column_packet{
+      "odp_addr", "", UTF8_CS, 128, ColumnType::ct_var_string, static_cast<ColumnDefinitionFlags>(0), 31};
+
+  if (conn->send_result_metadata({name_column_packet,
+          ob_cluster_column_packet,
+          ob_tenant_column_packet,
+          ip_column_packet,
+          port_column_packet,
+          zone_column_packet,
+          region_column_packet,
+          group_column_packet,
+          running_column_packet,
+          state_column_packet,
+          obcdc_running_column_packet,
+          obcdc_state_column_packet,
+          service_mode_column_packet,
+          convert_running_column_packet,
+          convert_delay_column_packet,
+          convert_rps_column_packet,
+          convert_eps_column_packet,
+          convert_iops_column_packet,
+          odp_addr_column_packet}) != IoResult::SUCCESS) {
+    return IoResult::FAIL;
+  }
+
+  auto* p_statement = (hsql::ShowBinlogInstanceStatement*)statement;
+  hsql::ShowInstanceMode mode = p_statement->mode;
+  bool history = p_statement->history;
+  std::vector<StateMachine*> state_machines;
+  g_state_machine->fetch_state_vector(get_default_state_file_path(), state_machines);
+  defer(logproxy::release_vector(state_machines));
+  std::vector<StateMachine> instances;
+  switch (mode) {
+    case hsql::ShowInstanceMode::INSTANCE: {
+      if (nullptr == p_statement->instance_names) {
+        OMS_INFO("{}: [show binlog instance] show instances for all instances", conn->trace_id());
+        for (auto& state_machine : state_machines) {
+          instances.push_back(*state_machine);
+        }
+      } else {
+        for (const auto instance_name : *(p_statement->instance_names)) {
+          std::vector<std::string> parts;
+          logproxy::split_by_str(instance_name, "#", parts);
+          if (parts.size() != 2) {
+            return conn->send_err_packet(BINLOG_FATAL_ERROR, "binlog instance name format error", "HY000");
+          }
+          auto cluster = parts[0];
+          auto tenant = parts[1];
+          for (auto& state_machine : state_machines) {
+            if (strcmp(cluster.c_str(), state_machine->get_cluster().c_str()) == 0 &&
+                strcmp(tenant.c_str(), state_machine->get_tenant().c_str()) == 0) {
+              instances.push_back(*state_machine);
+            }
+          }
+        }
+      }
+      break;
+    }
+    case hsql::ShowInstanceMode::TENANT: {
+      std::string cluster(p_statement->tenant->cluster);
+      std::string tenant(p_statement->tenant->tenant);
+      OMS_INFO("{}: [show binlog instance] show instances for tenant [{}.{}]", conn->trace_id(), cluster, tenant);
+      for (auto& state_machine : state_machines) {
+        if (strcmp(cluster.c_str(), state_machine->get_cluster().c_str()) == 0 &&
+            strcmp(tenant.c_str(), state_machine->get_tenant().c_str()) == 0) {
+          instances.push_back(*state_machine);
+        }
+      }
+      break;
+    }
+    default:
+      OMS_WARN("{}: [show binlog instance] Unsupported mode: {}", conn->trace_id(), mode);
+  }
+
+  for (const auto& instance : instances) {
+    if (!history) {
+      if (instance.get_converter_state() == DROP) {
+        continue;
+      }
+    }
+
+    conn->start_row();
+    conn->store_string(instance.get_cluster() + "#" + instance.get_tenant());
+    conn->store_string(instance.get_cluster());
+    conn->store_string(instance.get_tenant());
+    OMS_INFO(
+        "cluster:{},instance name:{}", instance.get_cluster(), instance.get_cluster() + "#" + instance.get_tenant());
+    std::string ip;
+    logproxy::get_localip_address(ip);
+    conn->store_string(ip);
+    conn->store_uint64(logproxy::Config::instance().service_port.val());
+
+    conn->store_string("");
+    conn->store_string("");
+    conn->store_string("");
+
+    bool running =
+        instance.get_converter_state() == RUNNING && (instance.get_pid() > 0 && 0 == kill(instance.get_pid(), 0));
+    conn->store_string(running ? "Yes" : "No");
+    conn->store_string(print(instance.get_converter_state()));
+    conn->store_string(running ? "Yes" : "No");
+    conn->store_string(print(instance.get_converter_state()));
+    conn->store_string(running ? "enabled" : "disabled");
+    conn->store_string(running ? "Yes" : "No");
+    conn->store_null();
+    conn->store_null();
+    conn->store_null();
+    conn->store_null();
+    conn->store_null();
+    IoResult send_ret = conn->send_row();
+    if (send_ret != IoResult::SUCCESS) {
+      return send_ret;
+    }
   }
   return conn->send_eof_packet();
 }

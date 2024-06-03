@@ -18,7 +18,8 @@
 #include "fs_util.h"
 #include "str.h"
 
-#define INCOMPATIBLE_VERSION "4.2.1"
+#define INCOMPATIBLE_VERSION_42x "4.2.1"
+#define INCOMPATIBLE_VERSION_43x "4.3.1"
 
 namespace oceanbase {
 namespace logproxy {
@@ -134,7 +135,9 @@ int ObCdcAccessFactory::locate_obcdc_library(const std::string& ob_version, std:
       }
       // For OB versions less than 421, we uniformly use the 421 version of OBCDC.
       if (atoi(segments[1].c_str()) < 2 || (atoi(segments[1].c_str()) == 2 && atoi(segments[2].c_str()) <= 1)) {
-        sprintf(path, obcdc_so_path_template.c_str(), INCOMPATIBLE_VERSION);
+        sprintf(path, obcdc_so_path_template.c_str(), INCOMPATIBLE_VERSION_42x);
+      } else if (atoi(segments[1].c_str()) == 3) {
+        sprintf(path, obcdc_so_path_template.c_str(), INCOMPATIBLE_VERSION_43x);
       } else {
         sprintf(path, obcdc_so_path_template.c_str(), ob_version.substr(0, 5).c_str());
       }

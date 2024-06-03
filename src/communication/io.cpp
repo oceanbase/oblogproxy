@@ -17,10 +17,13 @@
 #include <cstring>
 #include <netdb.h>
 #include <poll.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 #include "communication/io.h"
 #include "log.h"
 #include "common.h"
+#include "guard.hpp"
 
 namespace oceanbase {
 namespace logproxy {
@@ -118,12 +121,13 @@ int connect(const char* host, int port, bool block_mode, int timeout, int& sockf
         OMS_STREAM_DEBUG << "Connect to server success after poll. host=" << host << ",port=" << port;
       } else {
         OMS_STREAM_ERROR << "Failed to connect to server. host=" << host << ",port=" << port
-                  << ". timeout:" << (bool)(ret == 0) << ", error=" << strerror(errno);
+                         << ". timeout:" << (bool)(ret == 0) << ", error=" << strerror(errno);
         close(sock);
         return OMS_CONNECT_FAILED;
       }
     } else {
-      OMS_STREAM_ERROR << "Failed to connect to server. host=" << host << ",port=" << port << ". error=" << strerror(errno);
+      OMS_STREAM_ERROR << "Failed to connect to server. host=" << host << ",port=" << port
+                       << ". error=" << strerror(errno);
       close(sock);
       return OMS_CONNECT_FAILED;
     }
@@ -253,6 +257,30 @@ int set_close_on_exec(int fd)
     return OMS_FAILED;
   }
   return OMS_OK;
+}
+
+int get_localip_address(std::string& ip)
+{
+  struct ifaddrs *ifaddr, *ifa;
+  defer(freeifaddrs(ifaddr));
+  int family;
+
+  if (getifaddrs(&ifaddr) == -1) {
+    perror("getifaddrs");
+    return OMS_FAILED;
+  }
+
+  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == NULL) {
+      continue;
+    }
+    family = ifa->ifa_addr->sa_family;
+    if (family == AF_INET && strcmp(ifa->ifa_name, "lo") != 0) {
+      ip = inet_ntoa(((struct sockaddr_in*)ifa->ifa_addr)->sin_addr);
+      return OMS_OK;
+    }
+  }
+  return OMS_FAILED;
 }
 
 }  // namespace logproxy

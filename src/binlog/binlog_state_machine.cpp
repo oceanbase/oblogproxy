@@ -35,7 +35,7 @@ ConverterState value_of(uint64_t state)
     case 3:
       return STOP;
     case 4:
-      return DELETE;
+      return DROP;
     default:
       return UNKNOWN;
   }
@@ -45,15 +45,15 @@ std::string print(ConverterState state)
 {
   switch (state) {
     case INIT:
-      return "INIT";
+      return "Init";
     case RUNNING:
-      return "RUNNING";
+      return "Running";
     case FAILED:
-      return "FAILED";
+      return "Failed";
     case STOP:
-      return "STOP";
-    case DELETE:
-      return "DELETE";
+      return "Stop";
+    case DROP:
+      return "Drop";
     default:
       return "UNKNOWN";
   }
@@ -138,7 +138,7 @@ void StateMachine::parse(const std::string& content)
   }
 }
 
-std::string StateMachine::get_config()
+std::string StateMachine::get_config() const
 {
   return _config;
 }
@@ -286,6 +286,27 @@ int StateMachineManager::fetch_state_vector_no_lock(std::string file_name, std::
 std::string get_default_state_file_path()
 {
   return logproxy::Config::instance().binlog_log_bin_basename.val() + "/" + STATE_FILE_DEFAULT;
+}
+
+int StateMachineManager::fetch_state_count(std::string file_name, int& state_count)
+{
+  std::lock_guard<std::mutex> op_lock(_op_mutex);
+  std::ifstream ifs(file_name);
+  if (!ifs.good()) {
+    OMS_ERROR("Failed to open: {},reason:{}", file_name, logproxy::system_err(errno));
+    return OMS_FAILED;
+  }
+
+  for (std::string line; std::getline(ifs, line);) {
+    auto* state_machine = new StateMachine();
+    state_machine->parse(line);
+    if (!state_machine->get_cluster().empty() && !state_machine->get_config().empty()) {
+      state_count++;
+    } else {
+      delete (state_machine);
+    }
+  }
+  return OMS_OK;
 }
 
 }  // namespace binlog

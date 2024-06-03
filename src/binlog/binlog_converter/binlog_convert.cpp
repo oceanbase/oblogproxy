@@ -23,6 +23,7 @@
 #include "data_type.h"
 #include "binlog_convert.h"
 #include "counter.h"
+#include "guard.hpp"
 #include "ddl-converter/ddl_converter.h"
 namespace oceanbase {
 namespace logproxy {
@@ -287,26 +288,6 @@ void BinlogConvert::convert_gtid_log_event(ILogRecord* record)
   }
 }
 
-/*
- * @params full_dbname tenant.dbname
- * @returns dbname
- * @description get database name does not contain tenant name
- * @date 2022/10/19 14:43
- */
-std::string get_dbname_without_tenant(const std::string& full_dbname)
-{
-  if (full_dbname.empty()) {
-    return full_dbname;
-  }
-  std::vector<std::string> parts;
-  split(full_dbname, '.', parts);
-  // When some DDL changes to the database, only the tenant name information will appear
-  if (parts.size() == 1) {
-    return "";
-  }
-  return parts[1];
-}
-
 void BinlogConvert::convert_query_event(ILogRecord* record)
 {
   char* sql = nullptr;
@@ -317,7 +298,8 @@ void BinlogConvert::convert_query_event(ILogRecord* record)
     sql_statment_len = BEGIN_VAR_LEN;
   } else {
     unsigned int new_col_count = 0;
-    refresh_table_cache(get_dbname_without_tenant(record->dbname()), record->tbname());
+    refresh_table_cache(
+        binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant), record->tbname());
     BinLogBuf* new_bin_log_buf = record->newCols(new_col_count);
     sql_statment_len = new_bin_log_buf->buf_used_size;
     sql = static_cast<char*>(malloc(new_bin_log_buf->buf_used_size));
@@ -339,7 +321,7 @@ void BinlogConvert::convert_query_event(ILogRecord* record)
     }
   }
 
-  std::string dbname = get_dbname_without_tenant(record->dbname());
+  std::string dbname = binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant);
   std::string ddl = std::string{sql, sql_statment_len};
   auto* event = new QueryEvent(dbname, ddl);
   OMS_STREAM_DEBUG << event->print_event_info();
@@ -687,7 +669,7 @@ void BinlogConvert::convert_table_map_event(ILogRecord* record)
   event->set_flags((1U << 0));
   // variable part
 
-  std::string dbname = get_dbname_without_tenant(record->dbname());
+  std::string dbname = binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant);
   event->set_db_name(dbname);
   event->set_db_len(dbname.size());
 
@@ -900,7 +882,7 @@ void BinlogConvert::convert_write_rows_event(ILogRecord* record)
   std::string tb_name = record->tbname();
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
-  std::string dbname = get_dbname_without_tenant(record->dbname());
+  std::string dbname = binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant);
   auto* event = new WriteRowsEvent(table_id(dbname, tb_name), STMT_END_F);
   // event body
   event->set_var_header_len(2);
@@ -947,7 +929,7 @@ void BinlogConvert::convert_delete_rows_event(ILogRecord* record)
   std::string tb_name = record->tbname();
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
-  std::string dbname = get_dbname_without_tenant(record->dbname());
+  std::string dbname = binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant);
   auto* event = new DeleteRowsEvent(table_id(dbname, tb_name), STMT_END_F);
 
   // event body
@@ -1009,7 +991,7 @@ void BinlogConvert::convert_update_rows_event(ILogRecord* record)
   std::string tb_name = record->tbname();
   ITableMeta* table_meta = record->getTableMeta();
   int col_count = table_meta->getColCount();
-  std::string dbname = get_dbname_without_tenant(record->dbname());
+  std::string dbname = binlog::CommonUtils::get_dbname_without_tenant(record->dbname(), _meta.tenant);
   auto* event = new UpdateRowsEvent(table_id(dbname, tb_name), STMT_END_F);
 
   // event body

@@ -21,6 +21,7 @@
 #include "binlog_state_machine.h"
 #include "metric/sys_metric.h"
 #include "metric/status_thread.h"
+#include "telemetry.h"
 
 namespace oceanbase {
 namespace binlog {
@@ -74,8 +75,7 @@ void BinlogServer::start_owned_binlog_converters()
       if (state_machine->get_pid() > 0 && 0 == kill(state_machine->get_pid(), 0)) {
 
         OMS_STREAM_INFO << "The current binlog converter [" << state_machine->get_cluster() << ","
-                        << state_machine->get_tenant() << "]"
-                        << "is alive and the pull action is terminated";
+                        << state_machine->get_tenant() << "]" << "is alive and the pull action is terminated";
         pulled_up[state_machine->get_unique_id()] = true;
         continue;
       }
@@ -86,6 +86,10 @@ void BinlogServer::start_owned_binlog_converters()
       }
     }
   }
+
+  oceanbase::logproxy::Telemetry::report_telemetry_data_async(
+      oceanbase::logproxy::Config::instance().telemetry_url.val(), state_machines.size(), 5, 5, 5);
+
   OMS_STREAM_INFO << "Finish to pull up " << pulled_up.size() << " BC processes";
   logproxy::release_vector(state_machines);
 }

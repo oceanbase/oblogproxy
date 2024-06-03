@@ -24,5 +24,8 @@
 #include "show_binlog_status.h"
 #include "purge_binlog.h"
 #include "show_slave_status.h"
+#include "show_slave_status.h"
+#include "binlog_stmt.h"
+#include "binlog_instance_stmt.h"
 
 #endif  // SQLPARSER_STATEMENTS_H

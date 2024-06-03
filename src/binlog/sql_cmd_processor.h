@@ -70,8 +70,14 @@ public:
 class CreateBinlogProcessor : public SqlCmdProcessor {
   OMS_SINGLETON(CreateBinlogProcessor);
 
+private:
+  static int check_quta();
+
 public:
+  static IoResult inter_start_binlog(Connection* conn, logproxy::OblogConfig& config);
+
   IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
+
   static void init_oblog_config(logproxy::OblogConfig& config);
 };
 
@@ -88,6 +94,36 @@ class ShowBinlogStatusProcessor : public SqlCmdProcessor {
 public:
   IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
   static void serialize_binlog_metrics(string& status, const oceanbase::binlog::StateMachine* state_machine);
+};
+
+class AlterBinlogInstanceProcessor : public SqlCmdProcessor {
+  OMS_SINGLETON(AlterBinlogInstanceProcessor);
+
+public:
+  IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
+
+  static int update_instance_options(const std::string& instance, std::vector<hsql::SetClause*>& instance_options);
+};
+
+class StartBinlogInstanceProcessor : public SqlCmdProcessor {
+  OMS_SINGLETON(StartBinlogInstanceProcessor);
+
+public:
+  IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
+};
+
+class StopBinlogInstanceProcessor : public SqlCmdProcessor {
+  OMS_SINGLETON(StopBinlogInstanceProcessor);
+
+public:
+  IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
+};
+
+class ShowBinlogInstanceProcessor : public SqlCmdProcessor {
+  OMS_SINGLETON(ShowBinlogInstanceProcessor);
+
+public:
+  IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
 };
 
 class SetVarProcessor : public SqlCmdProcessor {

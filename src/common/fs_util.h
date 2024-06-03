@@ -24,7 +24,6 @@
 #include "msg_buf.h"
 #include "common.h"
 #include "log.h"
-#include "guard.hpp"
 
 namespace oceanbase {
 namespace logproxy {

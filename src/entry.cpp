@@ -11,6 +11,7 @@
  */
 
 #include <csignal>
+#include <fstream>
 #include "log.h"
 #include "option.h"
 #include "config.h"
@@ -18,6 +19,13 @@
 #include "arranger.h"
 #include "binlog_server.h"
 #include "environmental.h"
+#include "json/json.h"
+#include "uuid_global.h"
+#include "uuid_util.h"
+
+void init_telemetry_info(oceanbase::logproxy::Config& config);
+void init_logproxy_uuid();
+void write_uuid_to_file(const std::string& filename, const std::string& uuid);
 
 using namespace oceanbase::logproxy;
 // using namespace oceanbase::binlog;
@@ -119,6 +127,11 @@ int main(int argc, char** argv)
 
   init_log(argv[0]);
   print_env_info();
+
+  init_telemetry_info(conf);
+
+  init_logproxy_uuid();
+
   int ret = OMS_OK;
   if (conf.binlog_mode.val()) {
     ret = oceanbase::binlog::BinlogServer::run_foreground();
@@ -133,4 +146,60 @@ int main(int argc, char** argv)
     ::exit(-1);
   }
   return 0;
+}
+
+void init_telemetry_info(oceanbase::logproxy::Config& conf)
+{
+  if (conf.telemetry_url.val().empty()) {  // do some check, check for empty, and so on.
+    OMS_WARN("Failed to check telemetry url, url: {}", conf.telemetry_url.val());
+    conf.telemetry_enabled.set(false);
+  }
+
+  OMS_INFO("Init telemetry info success, url: {}, enabled: {}",
+      conf.telemetry_url.val(),
+      (conf.telemetry_enabled.val() ? "true" : "false"));
+}
+
+void init_logproxy_uuid()
+{
+  std::string filename = "./uuid";
+  std::string uuid;
+  std::ifstream file(filename);
+
+  if (file.is_open()) {
+    std::getline(file, uuid);
+    file.close();
+
+    if (!uuid.empty()) {
+      OMS_INFO("Read uuid from file, uuid: {}", uuid);
+
+      global_uuid = uuid;
+    } else {
+      OMS_INFO("File is empty, generating new uuid...");
+
+      if (std::remove(filename.c_str()) != 0) {
+        OMS_WARN("Error deleting existing empty file.");
+        return;
+      }
+
+      uuid = global_uuid;
+      write_uuid_to_file(filename, uuid);
+
+      OMS_INFO("Generated and wrote uuid to new file, uuid: {}", uuid);
+    }
+  } else {
+    OMS_INFO("File not found, generating new uuid...");
+
+    uuid = global_uuid;
+    write_uuid_to_file(filename, uuid);
+
+    OMS_INFO("Generated and wrote uuid to new file, uuid: {}", uuid);
+  }
+}
+
+void write_uuid_to_file(const std::string& filename, const std::string& uuid)
+{
+  std::ofstream outfile(filename);
+  outfile << uuid << std::endl;
+  outfile.close();
 }

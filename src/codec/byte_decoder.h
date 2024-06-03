@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 namespace oceanbase {
 namespace logproxy {
 static inline void int1store(unsigned char* T, uint8_t A);
@@ -268,7 +269,7 @@ static inline void hf_int8store(unsigned char* T, uint64_t A)
   hf_int4store((unsigned char*)(T) + 4, def_temp3);
 }
 
-static inline void float8store(unsigned char* T, double V)
+static inline void be_float8store(unsigned char* T, double V)
 {
   *(T) = ((unsigned char*)&V)[7];
   *((T) + 1) = (char)((unsigned char*)&V)[6];
@@ -278,6 +279,11 @@ static inline void float8store(unsigned char* T, double V)
   *((T) + 5) = (char)((unsigned char*)&V)[2];
   *((T) + 6) = (char)((unsigned char*)&V)[1];
   *((T) + 7) = (char)((unsigned char*)&V)[0];
+}
+
+static inline void float8store(unsigned char* T, double M)
+{
+  std::memcpy(T, &M, sizeof(double));
 }
 
 static inline void float8get(double* V, const unsigned char* M)

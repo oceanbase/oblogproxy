@@ -21,7 +21,7 @@
 namespace oceanbase {
 namespace binlog {
 #define STATE_FILE_DEFAULT "state"
-enum ConverterState { INIT, RUNNING, FAILED, STOP, DELETE, UNKNOWN };
+enum ConverterState { INIT, RUNNING, FAILED, STOP, DROP, UNKNOWN };
 
 ConverterState value_of(uint64_t state);
 std::string print(ConverterState state);
@@ -53,7 +53,7 @@ public:
 
   void set_converter_state(ConverterState converter_state);
 
-  std::string get_config();
+  std::string get_config() const;
 
   void set_config(std::string config);
 
@@ -85,6 +85,8 @@ public:
   int fetch_state_vector(std::string file_name, std::vector<StateMachine*>& state_machines);
 
   int fetch_state_vector_no_lock(std::string file_name, std::vector<StateMachine*>& state_machines);
+
+  int fetch_state_count(std::string file_name, int& state_count);
 
 private:
   std::mutex _op_mutex;

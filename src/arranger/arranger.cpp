@@ -24,6 +24,7 @@
 #include "metric/status_thread.h"
 #include "metric/sys_metric.h"
 #include "obaccess/clog_meta_routine.h"
+#include "telemetry.h"
 
 namespace oceanbase {
 namespace logproxy {
@@ -72,6 +73,7 @@ int Arranger::run_foreground()
   log_gc.start();
   log_gc.detach();
 
+  Telemetry::report_telemetry_data_async(Config::instance().telemetry_url.val(), _client_peers.size(), 5, 5, 5);
   return _accepter.start();
 }
 
@@ -236,6 +238,8 @@ int Arranger::create(ClientMeta& client, OblogConfig& oblog_config)
   client.pid = ret;
   _client_peers.emplace(client_id, client);
   OMS_STREAM_INFO << "Client connected: " << client_id << " with peer: " << client.peer.to_string();
+
+  Telemetry::report_telemetry_data_async(Config::instance().telemetry_url.val(), _client_peers.size(), 5, 5, 5);
   return OMS_OK;
 }
 
@@ -265,6 +269,8 @@ void Arranger::on_close(const Peer& peer)
       break;
     }
   }
+
+  Telemetry::report_telemetry_data_async(Config::instance().telemetry_url.val(), _client_peers.size(), 5, 5, 5);
 }
 
 int Arranger::close_client_force(const ClientMeta& client, const std::string& msg)
@@ -295,20 +301,26 @@ int Arranger::close_client_force(const ClientMeta& client, const std::string& ms
     }
     _client_peers.erase(entry);
   }
+
   return OMS_OK;
 }
 
 void Arranger::gc_pid_routine()
 {
+  bool killed = false;
   for (auto iter = _client_peers.begin(); iter != _client_peers.end();) {
     int pid = iter->second.pid;
     // detect if oblogreader still alive
     if (kill(pid, 0) != 0) {
       close_by_pid(pid, iter->second);
       iter = _client_peers.erase(iter);
+      killed = true;
     } else {
       ++iter;
     }
+  }
+  if (killed) {
+    Telemetry::report_telemetry_data_async(Config::instance().telemetry_url.val(), _client_peers.size(), 5, 5, 5);
   }
 }
 

@@ -20,12 +20,13 @@ namespace oceanbase {
 namespace binlog {
 static uint16_t g_file_name_width = logproxy::Config::instance().binlog_file_name_fill_zeroes_width.val();
 static std::string g_binlog_file_prefix = logproxy::Config::instance().binlog_log_bin_prefix.val();
+
 class CommonUtils {
 public:
   /*
    * Fill Binlog file name with specified width
    */
-  static std::string fill_binlog_file_name(uint16_t index)
+  static std::string fill_binlog_file_name(uint64_t index)
   {
     std::stringstream string_stream;
     string_stream << std::setfill('0') << std::setw(g_file_name_width) << index;
@@ -107,6 +108,24 @@ public:
       ss << hex;
     }
     return ss.str();
+  }
+  /*
+   * @params full_dbname tenant.dbname
+   * @returns dbname
+   * @description get database name does not contain tenant name
+   * @date 2022/10/19 14:43
+   */
+  static std::string get_dbname_without_tenant(const std::string& full_dbname, const std::string& tenant_name)
+  {
+    if (full_dbname.empty()) {
+      return full_dbname;
+    }
+    size_t pos = full_dbname.find(tenant_name);
+    if (pos != std::string::npos && full_dbname.size() > tenant_name.size()) {
+      return full_dbname.substr(pos + tenant_name.size() + 1);
+    } else {
+      return full_dbname;
+    }
   }
 };
 }  // namespace binlog

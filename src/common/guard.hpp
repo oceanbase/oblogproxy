@@ -22,11 +22,12 @@ namespace logproxy {
 #define DEFER_BASE(x, y) x##y
 #define DEFER_FUNC(x, y) DEFER_BASE(x, y)
 #define DEFER(x) DEFER_FUNC(x, __COUNTER__)
-#define defer(expr) auto DEFER(_defered_option) = defer_func([&]() { expr; })
+#define defer(expr) auto DEFER(_defered_option) = oceanbase::logproxy::defer_func([&]() { expr; })
 
 /*!
  * @brief This macro definition only calls the corresponding function when it leaves the scope.
- * However, there is no guarantee that the function has been executed, so this function only applies to releasing resources, etc.
+ * However, there is no guarantee that the function has been executed, so this function only applies to releasing
+ * resources, etc.
  * @tparam
  */
 template <typename F>

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <memory>
 #include <vector>
+#include <cstring>
 #include "ColumnType.h"
 
 namespace hsql {
@@ -96,6 +97,12 @@ struct SetClause {
   Expr* value;
   VarLevel type;
   VarType var_type = kSys;
+
+  void set_column(const std::string& col)
+  {
+    this->column = static_cast<char*>(malloc(col.length() * sizeof(char)));
+    std::strcpy(this->column, col.c_str());
+  }
 };
 // Represents SQL expressions (i.e. literals, operators, column_refs).
 // TODO: When destructing a placeholder expression, we might need to alter the

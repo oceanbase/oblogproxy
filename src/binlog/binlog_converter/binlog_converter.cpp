@@ -51,6 +51,10 @@ int BinlogConverter::init(MessageVersion packet_version, OblogConfig& config)
     // if no time point is specified, initialize the current time point
     this->get_meta().first_start_timestamp = Timer::now();
   }
+
+  this->get_meta().cluster = config.cluster.val();
+  this->get_meta().tenant = config.tenant.val();
+
   ret = _storage.init(this->get_meta(), _oblog, config);
   if (ret != OMS_OK) {
     return ret;

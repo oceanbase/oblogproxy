@@ -122,10 +122,16 @@
   hsql::PurgeBinlogStatement* purge_binlog;
   hsql::DropBinlogStatement* drop_binlog;
   hsql::ShowBinlogStatusStatement* show_binlog_status;
+  hsql::AlterBinlogInstanceStatement* alter_binlog_instance;
+  hsql::StartBinlogInstanceStatement* start_binlog_instance;
+  hsql::StopBinlogInstanceStatement* stop_binlog_instance;
+  hsql::ShowBinlogInstanceStatement* show_binlog_instance;
   hsql::SetStatement* set_stmt;
   hsql::SQLStatement* statement;
   hsql::TransactionStatement* transaction_stmt;
   hsql::UpdateStatement* update_stmt;
+  hsql::InstanceFlag instance_flag;
+  hsql::ShowInstanceMode show_instance_mode;
 
   hsql::Alias* alias_t;
   hsql::AlterAction* alter_action_t;
@@ -179,7 +185,7 @@
      ** Destructor symbols
      *********************************/
     // clang-format off
-    %destructor { } <fval> <ival> <bval> <join_type> <order_type> <datetime_field> <column_type_t> <column_constraint_t> <import_type_t> <column_constraint_set> <lock_mode_t> <lock_wait_policy_t>
+    %destructor { } <fval> <ival> <bval> <join_type> <order_type> <datetime_field> <column_type_t> <column_constraint_t> <import_type_t> <column_constraint_set> <lock_mode_t> <lock_wait_policy_t> <instance_flag>
     %destructor {
       free( ($$.name) );
       free( ($$.schema) );
@@ -200,7 +206,7 @@
         }
       }
       delete ($$);
-    } <table_vec> <table_element_vec> <update_vec> <set_vec> <var_vec> <expr_vec> <order_vec> <stmt_vec>
+    } <table_vec> <table_element_vec> <update_vec> <set_vec> <expr_vec> <order_vec> <stmt_vec>
     %destructor { delete ($$); } <*>
 
 
@@ -231,10 +237,11 @@
     %token TRUE FALSE BOOLEAN
     %token TRANSACTION BEGIN COMMIT ROLLBACK
     %token NOWAIT SKIP LOCKED SHARE
-    %token VARIABLES SESSION AT NAMES BINLOG SERVER UUID MASTER STATUS BINARY
+    %token VARIABLES SESSION AT NAMES BINLOG SERVER UUID MASTER STATUS BINARY INSTANCE INSTANCES START
     %token LOGS EVENTS PURGE SLAVE TENANT CLUSTER URL USER PASSWORD
     /* Binlog Options*/
-    %token SERVER_UUID CLUSTER_URL INITIAL_TRX_XID INITIAL_TRX_GTID_SEQ INITIAL_TRX_SEEKING_ABORT_TIMESTAMP
+    %token SERVER_UUID CLUSTER_URL INITIAL_TRX_XID INITIAL_TRX_GTID_SEQ INITIAL_TRX_SEEKING_ABORT_TIMESTAMP OBCDC_ONLY PROCESS_ONLY
+    %token START_TIMESTAMP ROOTSERVER_LIST CLUSTER_USER CLUSTER_PASSWORD EXTRA_OBCDC_CFG SERVER_ID STOP _INITIAL_OB_TXN_ID _INITIAL_OB_TXN_GTID_SEQ
 
     /*********************************
      ** Non-Terminal types (http://www.gnu.org/software/bison/manual/html_node/Type-Decl.html)
@@ -256,6 +263,10 @@
     %type <show_binlog_server>     show_binlog_server_statement
     %type <purge_binlog>           purge_binlog_statement
     %type <drop_binlog>            drop_binlog_statement
+    %type <alter_binlog_instance>  alter_binlog_instance_statement
+    %type <start_binlog_instance>  start_binlog_instance_statement
+    %type <stop_binlog_instance>   stop_binlog_instance_statement
+    %type <show_binlog_instance>   show_binlog_instance_statement
     %type <show_binlog_status>     show_binlog_status_statement
     %type <insert_stmt>            insert_statement
     %type <delete_stmt>            delete_statement truncate_statement
@@ -289,7 +300,7 @@
     %type <column_type_t>          column_type
     %type <table_constraint_t>     table_constraint
     %type <update_t>               update_clause
-    %type <set_t>                  set_clause
+    %type <set_t>                  set_clause binlog_instance_option obcdc_option instance_binlog_option
     %type <var_t>                  var_clause
     %type <locking_t>              locking_clause
     %type <group_t>                opt_group
@@ -304,18 +315,18 @@
     %type <lock_wait_policy_t>     opt_row_lock_policy
     %type <lock_mode_t>            row_lock_mode
     %type <binlog_option>          binlog_option
+    %type <instance_flag>          opt_instance_flag
 
     // ImportType is used for compatibility reasons
     %type <import_type_t>          opt_file_type file_type
 
-    %type <str_vec>                ident_commalist opt_column_list
+    %type <str_vec>                ident_commalist opt_column_list opt_instance_name_list
     %type <expr_vec>               expr_list select_list opt_literal_list literal_list hint_list opt_hints
     %type <table_vec>              table_ref_commalist
     %type <order_vec>              opt_order order_list
     %type <with_description_vec>   opt_with_clause with_clause with_description_list
     %type <update_vec>             update_clause_commalist
-    %type <set_vec>                set_clause_commalist
-    %type <var_vec>                var_clause_commalist
+    %type <set_vec>                set_clause_commalist binlog_instance_option_commalist
     %type <table_element_vec>      table_elem_commalist
     %type <locking_clause_vec>     opt_locking_clause_list opt_locking_clause
     %type <binlog_option_vec>      binlog_option_clause with_binlog_clause binlog_option_list
@@ -415,6 +426,10 @@ preparable_statement : select_statement { $$ = $1; }
 | drop_binlog_statement { $$ = $1; }
 | purge_binlog_statement { $$ = $1; }
 | show_binlog_server_statement { $$ = $1; }
+| alter_binlog_instance_statement { $$ = $1; }
+| start_binlog_instance_statement { $$ = $1; }
+| stop_binlog_instance_statement { $$ = $1; }
+| show_binlog_instance_statement { $$ = $1; }
 ;
 
 /******************************
@@ -582,6 +597,125 @@ show_statement : SHOW TABLES { $$ = new ShowStatement(kShowTables); }
   $$ = new ShowStatement(kShowVar);
 };
 
+
+show_binlog_instance_statement : SHOW BINLOG INSTANCE IDENTIFIER {
+  $$ = new ShowBinlogInstanceStatement();
+  $$->mode = ShowInstanceMode::INSTANCE;
+  $$->instance_names = new std::vector<char*>();
+  $$->instance_names->push_back($4);
+}
+| SHOW BINLOG INSTANCES opt_instance_name_list {
+  $$ = new ShowBinlogInstanceStatement();
+  $$->mode = ShowInstanceMode::INSTANCE;
+  $$->instance_names = $4;
+}
+| SHOW BINLOG INSTANCES FOR tenant_name {
+  $$ = new ShowBinlogInstanceStatement();
+  $$->mode = ShowInstanceMode::TENANT;
+  $$->tenant = $5;
+};
+
+opt_instance_name_list : ident_commalist { $$ = $1; }
+| /* empty */ { $$ = nullptr; };
+
+start_binlog_instance_statement : START BINLOG INSTANCE IDENTIFIER opt_instance_flag {
+ $$ = new StartBinlogInstanceStatement();
+ $$->instance_name = $4;
+ $$->flag = $5;
+};
+
+stop_binlog_instance_statement : STOP BINLOG INSTANCE IDENTIFIER opt_instance_flag {
+ $$ = new StopBinlogInstanceStatement();
+ $$->instance_name = $4;
+ $$->flag = $5;
+};
+
+opt_instance_flag : PROCESS_ONLY { $$ = InstanceFlag::PROCESS_ONLY; }
+| OBCDC_ONLY { $$ = InstanceFlag::OBCDC_ONLY; }
+| /* empty */ { $$ = InstanceFlag::BOTH; };
+
+
+alter_binlog_instance_statement : ALTER BINLOG INSTANCE IDENTIFIER SET binlog_instance_option_commalist {
+  $$ = new AlterBinlogInstanceStatement();
+  $$->instance_name = $4;
+  $$->instance_options = $6;
+};
+
+binlog_instance_option_commalist : binlog_instance_option {
+  $$ = new std::vector<SetClause*>();
+  $$->push_back($1);
+}
+| binlog_instance_option_commalist ',' binlog_instance_option {
+  $1->push_back($3);
+  $$ = $1;
+};
+
+binlog_instance_option: obcdc_option { $$ = $1; }
+| instance_binlog_option { $$ = $1; };
+
+obcdc_option : START_TIMESTAMP '=' expr {
+  $$ = new SetClause();
+  $$->set_column("start_timestamp");
+  $$->value = $3;
+  $$->type = Global;
+}
+| ROOTSERVER_LIST '=' expr {
+  $$ = new SetClause();
+  $$->set_column("rootserver_list");
+  $$->value = $3;
+  $$->type = Global;
+}
+| CLUSTER_URL '=' expr {
+  $$ = new SetClause();
+  $$->set_column("cluster_url");
+  $$->value = $3;
+  $$->type = Global;
+}
+| CLUSTER_USER '=' expr {
+  $$ = new SetClause();
+  $$->set_column("cluster_user");
+  $$->value = $3;
+  $$->type = Global;
+}
+| CLUSTER_PASSWORD '=' expr {
+  $$ = new SetClause();
+  $$->set_column("cluster_password");
+  $$->value = $3;
+  $$->type = Global;
+}
+| EXTRA_OBCDC_CFG '=' expr {
+  $$ = new SetClause();
+  $$->set_column("extra_obcdc_cfg");
+  $$->value = $3;
+  $$->type = Global;
+};
+
+instance_binlog_option : SERVER_ID '=' expr {
+  $$ = new SetClause();
+  $$->set_column("server_id");
+  $$->value = $3;
+  $$->type = Global;
+}
+| SERVER_UUID '=' expr {
+  $$ = new SetClause();
+  $$->set_column("server_uuid");
+  $$->value = $3;
+  $$->type = Global;
+}
+| _INITIAL_OB_TXN_ID '=' expr {
+  $$ = new SetClause();
+  $$->set_column("initial_ob_txn_id");
+  $$->value = $3;
+  $$->type = Global;
+}
+| _INITIAL_OB_TXN_GTID_SEQ '=' expr {
+  $$ = new SetClause();
+  $$->set_column("initial_ob_txn_gtid_seq");
+  $$->value = $3;
+  $$->type = Global;
+};
+
+
 show_master_statement: SHOW MASTER STATUS {
   $$ = new ShowMasterStatusStatement();
 };
@@ -691,15 +825,6 @@ set_clause : IDENTIFIER '=' expr {
    $$->type = Local;
 }
 ;
-
-var_clause_commalist : var_clause {
-  $$ = new std::vector<SetClause*>();
-  $$->push_back($1);
-}
-| var_clause_commalist ',' var_clause {
-  $1->push_back($3);
-  $$ = $1;
-};
 
 var_clause : IDENTIFIER {
   $$ = new SetClause();

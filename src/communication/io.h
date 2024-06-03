@@ -11,7 +11,8 @@
  */
 
 #pragma once
-
+#include <string>
+#include <event2/event.h>
 namespace oceanbase {
 namespace logproxy {
 int writen(int fd, const void* buf, int size);
@@ -44,5 +45,6 @@ int set_reuse_addr(int fd);
 int set_non_block(int fd);
 int set_close_on_exec(int fd);
 
+int get_localip_address(std::string& ip);
 }  // namespace logproxy
 }  // namespace oceanbase

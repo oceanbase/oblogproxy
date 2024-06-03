@@ -7,9 +7,10 @@ oceanbase_cdc_repo=https://mirrors.aliyun.com/oceanbase/community/stable/el/7/aa
 
 [deps]
 oceanbase-ce-devel-3.1.5-100020022023091114.el7.aarch64.rpm
-oceanbase-ce-cdc-4.2.1.4-104010022024031310.el7.aarch64.rpm
+oceanbase-ce-cdc-4.2.1.6-106000022024042511.el7.aarch64.rpm
 oceanbase-ce-cdc-4.2.2.1-101000022024031310.el7.aarch64.rpm
-oceanbase-ce-cdc-4.3.0.1-101000042024032211.el7.aarch64.rpm
+oceanbase-ce-cdc-4.2.3.0-100000042024041514.el7.aarch64.rpm
+oceanbase-ce-cdc-4.3.1.0-100000082024051609.el7.aarch64.rpm
 
 [tools]
 obdevtools-gcc9-9.3.0-52022092914.el7.aarch64.rpm

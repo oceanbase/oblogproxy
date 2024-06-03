@@ -92,6 +92,7 @@ include(spdlog)
 include(rapidjson)
 include(etransfer)
 include(logmsg)
+include(httplib)
 
 file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
 message(STATUS "logproxy protos: ${PROTO_FILES}")
@@ -133,12 +134,14 @@ file(GLOB COMMON_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/obaccess/*.cpp
 )
 add_library(common STATIC ${COMMON_SRC})
+add_dependencies(common httplib)
 target_compile_definitions(common PUBLIC __OMS_VERSION__=\"${OBLOGPROXY_VERSION}-${GIT_VERSION}\")
 target_include_directories(common
         PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/proto
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/common/
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/logmsg/
+        PUBLIC ${HTTPLIB_INCLUDE_DIR}
 )
 include(gflags)
 find_package(ZLIB REQUIRED)
@@ -336,7 +339,9 @@ if (WITH_TEST)
             #            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_queue.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_binlog_dumper.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_json_parse.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_sys_metric.cpp)
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_sys_metric.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/test/test_io.cpp
+    )
     target_include_directories(test_base PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
     target_link_libraries(test_base
             PRIVATE logproxy_static

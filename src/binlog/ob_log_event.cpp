@@ -554,7 +554,6 @@ void PreviousGtidsLogEvent::deserialize(unsigned char* buff)
   }
 
   gtid_message->set_txn_range(txn_vector);
-  OMS_STREAM_INFO << "gtid uuid" << gtid_message->format_string();
 
   gtid_messages.emplace_back(gtid_message);
 
@@ -957,7 +956,6 @@ std::string GtidMessage::format_string()
       stream << ":" << this->_txn_range.at(i).first;
     }
   }
-  OMS_INFO("uuid string {}", stream.str());
   return stream.str();
 }
 
@@ -1557,8 +1555,8 @@ void GtidLogEvent::set_gtid_uuid(const std::string& gtid_uuid)
 std::string GtidLogEvent::print_event_info()
 {
   std::stringstream info;
-  info << "SET @@SESSION.GTID_NEXT= "
-       << "'" << binlog::CommonUtils::gtid_format(this->get_gtid_uuid(), this->get_gtid_txn_id()) << "'";
+  info << "SET @@SESSION.GTID_NEXT= " << "'"
+       << binlog::CommonUtils::gtid_format(this->get_gtid_uuid(), this->get_gtid_txn_id()) << "'";
   return info.str();
 }
 

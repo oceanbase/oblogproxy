@@ -20,6 +20,8 @@
 #include "sql/set_statement.h"
 #include "sql/CreateStatement.h"
 #include "sql/create_binlog.h"
+
+#include <sql/binlog_instance_stmt.h>
 using namespace oceanbase::binlog;
 TEST(SQLParser, parser)
 {
@@ -102,7 +104,7 @@ TEST(SQLParser, create)
         "CREATE BINLOG FOR TENANT `cluster`.`tenant` TO USER `user` PASSWORD `pwd` WITH CLUSTER URL "
         "'cluster_url',"
         "SERVER UUID '2340778c-7464-11ed-a721-7cd30abc99b4',INITIAL_TRX_XID '{hash:1380121015845354198, inc:16474501, "
-        "addr:\"127.0.0.1:10000\", t:1694412306958599}',INITIAL_TRX_GTID_SEQ '31'";
+        "addr:\"xxxxx:10000\", t:1694412306958599}',INITIAL_TRX_GTID_SEQ '31'";
     ASSERT_EQ(OMS_OK, ObSqlParser::parse(query, result));
     ASSERT_EQ(hsql::COM_CREATE_BINLOG, result.getStatement(0)->type());
   }
@@ -110,13 +112,12 @@ TEST(SQLParser, create)
   {
     hsql::SQLParserResult result;
     std::string query = "CREATE BINLOG FOR TENANT `ob3x.admin`.`mysql` WITH CLUSTER URL "
-                        "`http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_127.0.0.1_110000_ob3x`";
+                        "`http://xxxxxxx`";
     ASSERT_EQ(OMS_OK, ObSqlParser::parse(query, result));
     ASSERT_EQ(hsql::COM_CREATE_BINLOG, result.getStatement(0)->type());
     hsql::CreateBinlogStatement* create_statement = (hsql::CreateBinlogStatement*)result.getStatement(0);
     ASSERT_EQ(hsql::CLUSTER_URL, create_statement->binlog_options->at(0)->option_type);
-    ASSERT_STREQ("http://127.0.0.1:8080/oceanbase_configer/v2/obtest_admin_127.0.0.1_110000_ob3x",
-        create_statement->binlog_options->at(0)->value);
+    ASSERT_STREQ("http://xxxxxxx", create_statement->binlog_options->at(0)->value);
   }
 }
 
@@ -462,4 +463,121 @@ TEST(SQLParser, show_binlog_events_in_file_limit)
 
   ASSERT_EQ(1, atoll(limit_str.c_str()));
   ASSERT_EQ("binlog.000001", binlog_file);
+}
+
+TEST(SQLParser, alter_binlog_instance)
+{
+  hsql::SQLParserResult result;
+  std::string query = "ALTER BINLOG INSTANCE `c_3bqn7192jio$t_jpyg8359m89$138383` SET EXTRA_OBCDC_CFG = 518400;";
+
+  int ret = ObSqlParser::parse(query, result);
+  if (OMS_OK != ret) {
+    OMS_INFO("parse result: {}", result.errorMsg());
+  }
+
+  ASSERT_EQ(OMS_OK, ret);
+  ASSERT_EQ(hsql::COM_ALTER_BINLOG_INSTANCE, result.getStatement(0)->type());
+  auto* alter_statement = (hsql::AlterBinlogInstanceStatement*)result.getStatement(0);
+  ASSERT_EQ("c_3bqn7192jio$t_jpyg8359m89$138383", std::string(alter_statement->instance_name));
+  ASSERT_EQ(1, alter_statement->instance_options->size());
+  ASSERT_EQ("518400", alter_statement->instance_options->at(0)->value->get_value());
+}
+
+TEST(SQLParser, show_binlog_instance)
+{
+
+  // case 1
+  {
+    std::string sql = "SHOW BINLOG INSTANCE `21cs&^`;";
+
+    hsql::SQLParserResult result1;
+    int ret = ObSqlParser::parse(sql, result1);
+    if (OMS_OK != ret) {
+      OMS_INFO("parse result: {}", result1.errorMsg());
+    }
+
+    ASSERT_EQ(OMS_OK, ret);
+    ASSERT_EQ(result1.getStatement(0)->type(), hsql::COM_SHOW_BINLOG_INSTANCE);
+    auto* show_instance_statement = (hsql::ShowBinlogInstanceStatement*)result1.getStatement(0);
+    ASSERT_EQ(show_instance_statement->history, false);
+    ASSERT_EQ(show_instance_statement->mode, hsql::ShowInstanceMode::INSTANCE);
+    ASSERT_EQ(1, show_instance_statement->instance_names->size());
+    ASSERT_EQ(std::string(show_instance_statement->instance_names->at(0)), "21cs&^");
+  }
+
+  // case 2
+  {
+    std::string sql = "SHOW BINLOG INSTANCES;";
+
+    hsql::SQLParserResult result1;
+    int ret = ObSqlParser::parse(sql, result1);
+    if (OMS_OK != ret) {
+      OMS_INFO("parse result: {}", result1.errorMsg());
+    }
+
+    ASSERT_EQ(OMS_OK, ret);
+    ASSERT_EQ(result1.getStatement(0)->type(), hsql::COM_SHOW_BINLOG_INSTANCE);
+    auto* show_instance_statement = (hsql::ShowBinlogInstanceStatement*)result1.getStatement(0);
+    ASSERT_EQ(show_instance_statement->history, false);
+    ASSERT_EQ(show_instance_statement->mode, hsql::ShowInstanceMode::INSTANCE);
+    ASSERT_EQ(nullptr, show_instance_statement->instance_names);
+  }
+
+  // case 3
+  {
+    std::string sql =
+        "SHOW BINLOG INSTANCES `c_3bqn7192jio$t_jpyg8359m89$138383`, `c_3bqn7192jio$t_jpyg8359m89$138390`;";
+
+    hsql::SQLParserResult result1;
+    int ret = ObSqlParser::parse(sql, result1);
+    if (OMS_OK != ret) {
+      OMS_INFO("parse result: {}", result1.errorMsg());
+    }
+
+    ASSERT_EQ(OMS_OK, ret);
+    ASSERT_EQ(result1.getStatement(0)->type(), hsql::COM_SHOW_BINLOG_INSTANCE);
+    auto* show_instance_statement = (hsql::ShowBinlogInstanceStatement*)result1.getStatement(0);
+    ASSERT_EQ(show_instance_statement->history, false);
+    ASSERT_EQ(show_instance_statement->mode, hsql::ShowInstanceMode::INSTANCE);
+    ASSERT_EQ(2, show_instance_statement->instance_names->size());
+    ASSERT_EQ(std::string(show_instance_statement->instance_names->at(0)), "c_3bqn7192jio$t_jpyg8359m89$138383");
+    ASSERT_EQ(std::string(show_instance_statement->instance_names->at(1)), "c_3bqn7192jio$t_jpyg8359m89$138390");
+  }
+
+  // case 4
+  {
+    std::string sql = "SHOW BINLOG INSTANCES FOR `c_3bqn7192jio`.`t_jpyg8359m89`;";
+
+    hsql::SQLParserResult result1;
+    int ret = ObSqlParser::parse(sql, result1);
+    if (OMS_OK != ret) {
+      OMS_INFO("parse result: {}", result1.errorMsg());
+    }
+
+    ASSERT_EQ(OMS_OK, ret);
+    ASSERT_EQ(result1.getStatement(0)->type(), hsql::COM_SHOW_BINLOG_INSTANCE);
+    auto* show_instance_statement = (hsql::ShowBinlogInstanceStatement*)result1.getStatement(0);
+    ASSERT_EQ(show_instance_statement->history, false);
+    ASSERT_EQ(show_instance_statement->mode, hsql::ShowInstanceMode::TENANT);
+    ASSERT_EQ(std::string(show_instance_statement->tenant->cluster), "c_3bqn7192jio");
+    ASSERT_EQ(std::string(show_instance_statement->tenant->tenant), "t_jpyg8359m89");
+  }
+}
+
+TEST(SQLParser, stop_binlog_instance)
+{
+  // case 1
+  hsql::SQLParserResult result1;
+  std::string sql_none = "STOP BINLOG INSTANCE `instance1`;";
+
+  int ret = ObSqlParser::parse(sql_none, result1);
+  if (OMS_OK != ret) {
+    OMS_INFO("parse result: {}", result1.errorMsg());
+  }
+
+  ASSERT_EQ(OMS_OK, ret);
+  ASSERT_EQ(result1.getStatement(0)->type(), hsql::COM_STOP_BINLOG_INSTANCE);
+  auto* stop_instance_statement_none = (hsql::StopBinlogInstanceStatement*)result1.getStatement(0);
+  ASSERT_EQ(std::string(stop_instance_statement_none->instance_name), "instance1");
+  ASSERT_EQ(stop_instance_statement_none->flag, hsql::InstanceFlag::BOTH);
 }

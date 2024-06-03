@@ -62,7 +62,6 @@ TEST(WriteRowsEvent, deserialize)
 }
 
 TEST(PreviousGtidsLogEvent, deserialize)
-{}
 {
   unsigned char event[] = {0x41,
       0xc6,
@@ -139,4 +138,13 @@ TEST(PreviousGtidsLogEvent, deserialize)
   pre_gtid_event.deserialize(event);
   OMS_INFO(pre_gtid_event.print_event_info());
   ASSERT_EQ("706348f0-07fc-11ed-a717-0242ac110002:1-10", pre_gtid_event.print_event_info());
+}
+
+TEST(Converter, get_dbname_without_tenant)
+{
+  std::string full_dbname = "t_xxx11.2.2.3&^%$#@!.db&&^^%%$$##..123&&^^";
+  std::string tenant_name = "t_xxx11.2.2.3&^%$#@!";
+  auto dbname = oceanbase::binlog::CommonUtils::get_dbname_without_tenant(full_dbname, tenant_name);
+  OMS_INFO(dbname);
+  ASSERT_EQ(dbname, "db&&^^%%$$##..123&&^^");
 }

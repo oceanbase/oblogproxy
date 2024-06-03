@@ -15,6 +15,13 @@ enum StatementType {
   COM_CREATE_BINLOG,
   COM_DROP,
   COM_DROP_BINLOG,
+  COM_ALTER_BINLOG,
+  COM_CREATE_BINLOG_INSTANCE,
+  COM_ALTER_BINLOG_INSTANCE,
+  COM_START_BINLOG_INSTANCE,
+  COM_STOP_BINLOG_INSTANCE,
+  COM_DROP_BINLOG_INSTANCE,
+  COM_SHOW_BINLOG_INSTANCE,
   COM_PREPARE,
   COM_EXECUTE,
   COM_EXPORT,
@@ -55,7 +62,6 @@ struct UserInfo {
   char* user;
   char* password;
 };
-
 
 // Base struct for every SQL statement
 struct SQLStatement {
