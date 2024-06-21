@@ -42,7 +42,7 @@ CDC 模式用于解决数据同步，CDC 模式下 OBLogProxy 可以订阅 Ocean
 基于 Fedora （包括 CentOS，Fedora，OpenAnolis，RedHat，UOS 等）
 
 ```bash
-yum install -y git wget rpm rpm-build make glibc-devel glibc-headers libstdc++-static binutils zlib zlib-devel bison flex java-11-openjdk
+yum install -y which git wget rpm rpm-build cpio gcc gcc-c++ make glibc-devel glibc-headers libstdc++-static binutils zlib zlib-devel bison flex java-11-openjdk
 ```
 
 ### 源码编译
@@ -78,7 +78,7 @@ cmake --build . -j 8
 
 ## 许可
 
-OBLogProxy 使用 MulanPubL-2.0 许可。当您修改或分发源代码时，请遵守 [MulanPubL-2.0](http://license.coscl.org.cn/MulanPubL-2.0) 。
+OBLogProxy 使用 MulanPubL-2.0 许可。当您修改或分发源代码时，请遵守 [MulanPubL-2.0](LICENSE) 。
 
 ## 贡献
 
@@ -92,4 +92,4 @@ OBLogProxy 使用 MulanPubL-2.0 许可。当您修改或分发源代码时，请
 如果您在使用 OBLogProxy 时遇到任何问题，欢迎联系我们寻求帮助：
 
 - [GitHub Issue](https://github.com/oceanbase/oblogproxy/issues)
-- [官方网站](https://open.oceanbase.com)
+- [问答论坛](https://ask.oceanbase.com/)
