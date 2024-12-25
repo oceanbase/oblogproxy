@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 'v4'
+  pull_request:
+    branches:
+      - 'v4'
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        centos_release: [ "7", "8" ]
+    uses: ./.github/workflows/build_rpm.yml
+    with:
+      centos_release: ${{ matrix.centos_release }}
