@@ -1,0 +1,55 @@
+name: Build RPM
+
+on:
+  workflow_call:
+    inputs:
+      centos_release:
+        required: true
+        type: string
+
+env:
+  mount_directory: /mnt/oblogproxy
+  build_workspace: /opt/oblogproxy
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space on Ubuntu runner
+        uses: kfir4444/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Prepare CentOS container
+        run: |
+          sudo mkdir -p ${mount_directory}
+          sudo chmod 777 ${mount_directory}
+          
+          docker run --name=centos -v ${mount_directory}:${build_workspace} -w ${build_workspace} -id centos:${{ inputs.centos_release }}
+          docker cp . centos:${build_workspace}
+          
+          docker exec -i centos /bin/sh -c "sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*"
+          docker exec -i centos /bin/sh -c "sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*"
+          docker exec -i centos yum install -y sudo git which wget make rpm-build gcc-c++ autoconf zlib-devel openssl-devel
+          docker exec -i centos yum clean all
+
+      - name: Build and package
+        run: |
+          docker exec -i centos /bin/sh -c "export PROJECT_NAME=obbinlog-ce && sh ${build_workspace}/rpm/obbinlog-ce-build.sh ${build_workspace} obbinlog-ce 4.x $(date +%Y%m%d%H)"
+
+          rpm_file=$(docker exec -i centos /bin/sh -c "ls ${build_workspace}/rpm/*.rpm")
+          docker cp centos:${rpm_file} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-el${{ inputs.centos_release }}
+          path: "**.rpm"
