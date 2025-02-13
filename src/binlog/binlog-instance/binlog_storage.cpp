@@ -142,25 +142,25 @@ void StorageHandler::onEvent(SerializeEvent& data, std::int64_t sequence, bool e
 void SerializeExceptionHandler::handleEventException(
     const std::exception& ex, std::int64_t sequence, SerializeEvent& evt)
 {
-  OMS_ERROR("Handle event exception: {},sequence :{}", ex.what(), sequence);
+  OMS_ERROR("Handle event exception: {},sequence :{}, trace :{}", ex.what(), sequence, CommonUtils::get_stack_trace());
   _binlog_storage->stop();
 }
 
 void SerializeExceptionHandler::handleOnStartException(const std::exception& ex)
 {
-  OMS_ERROR("Serialize handle startup failed : {}", ex.what());
+  OMS_ERROR("Serialize handle startup failed : {}, trace :{}", ex.what(), CommonUtils::get_stack_trace());
   _binlog_storage->stop();
 }
 
 void SerializeExceptionHandler::handleOnShutdownException(const std::exception& ex)
 {
-  OMS_ERROR("Serialize handle shutdown failed: {}", ex.what());
+  OMS_ERROR("Serialize handle shutdown failed: {}, trace :{}", ex.what(), CommonUtils::get_stack_trace());
   _binlog_storage->stop();
 }
 
 void SerializeExceptionHandler::handleOnTimeoutException(const std::exception& ex, std::int64_t sequence)
 {
-  OMS_ERROR("Serialize handle timeout exception: {}, sequence: {}", ex.what(), sequence);
+  OMS_ERROR("Serialize handle timeout exception: {}, sequence: {}, trace :{}", ex.what(), sequence, CommonUtils::get_stack_trace());
   _binlog_storage->stop();
 }
 

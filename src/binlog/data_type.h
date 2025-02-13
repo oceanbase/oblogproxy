@@ -223,4 +223,6 @@ size_t col_val_bytes(ILogRecord* record, ITableMeta* table_meta, MsgBuf& before_
     unsigned char* after_bitmap, unsigned char*& partial_cols_bitmap, size_t& partial_cols_bytes);
 
 void fill_bitmap(int col_count, size_t col_bytes, unsigned char* bitmap);
+
+double string_double(const char *str);
 }  // namespace oceanbase::binlog

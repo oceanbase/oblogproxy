@@ -15,6 +15,7 @@
 #include <string>
 #include <iomanip>
 #include <random>
+#include <execinfo.h>
 
 #include "config.h"
 
@@ -185,6 +186,21 @@ public:
       ret.append(binlog_buf[1].buf);
     }
     return ret;
+  }
+
+  static std::string get_stack_trace()
+  {
+    string stack_trace_msg;
+    int size = 16;
+    void * array[16];
+    int stack_num = backtrace(array, size);
+    char ** stacktrace = backtrace_symbols(array, stack_num);
+    for (int i = 0; i < stack_num; ++i)
+    {
+      stack_trace_msg.append(stacktrace[i]).append("\n");
+    }
+    free(stacktrace);
+    return stack_trace_msg;
   }
 };
 

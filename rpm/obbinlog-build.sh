@@ -123,9 +123,9 @@ if [ "${TYPE}" = "TAR" ]; then
     make -j ${CONCURRENT} install oblogproxy
     cp -r ${PROJECT_DIR}/env/ ./oblogproxy/env
     mkdir -p ./oblogproxy/deps/lib && cp -r ./deps/lib/* ./oblogproxy/deps/lib
-    tar --use-compress-program=pigz -cvpf ${PACKAGE_NAME}-"${VERSION}"-"${RELEASE}".tar.gz oblogproxy
+    tar --use-compress-program=pigz -cvpf ${PACKAGE_NAME}-"${VERSION}"-"${RELEASE}"."${OS_ARCH}".tar.gz oblogproxy
 
-    mv ${PACKAGE_NAME}-"${VERSION}"-"${RELEASE}".tar.gz ${PROJECT_DIR}/ob_artifacts/
+    mv ${PACKAGE_NAME}-"${VERSION}"-"${RELEASE}"."${OS_ARCH}".tar.gz ${PROJECT_DIR}/ob_artifacts/
 
 else
     ${CMAKE_COMMAND} -DCOMMUNITY_BUILD=${COMMUNITY_BUILD} -DCMAKE_VERBOSE_MAKEFILE=ON -DWITH_DEBUG=OFF -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -D OBLOGPROXY_PACKAGE_NAME=${PROJECT_NAME} -D OBLOGPROXY_PACKAGE_RELEASE=${RELEASE} ..

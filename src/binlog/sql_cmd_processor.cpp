@@ -65,6 +65,7 @@ static std::unordered_map<hsql::StatementType, SqlCmdProcessor*> _obi_supported_
     {hsql::StatementType::COM_SHOW_BINLOGS, &ShowBinaryLogsProcessor::instance()},
     {hsql::StatementType::COM_SHOW_BINLOG_EVENTS, &ShowBinlogEventsProcessor::instance()},
     {hsql::StatementType::COM_SHOW_MASTER_STAT, &ShowMasterStatusProcessor::instance()},
+    {hsql::StatementType::COM_SHOW_SLAVE_STAT, &ShowSlaveStatusProcessor::instance()},
     {hsql::StatementType::COM_PURGE_BINLOG, &PurgeBinaryLogsProcessor::instance()},
     {hsql::StatementType::COM_SELECT, &SelectProcessor::instance()},
     {hsql::StatementType::COM_SET, &SetVarProcessor::instance()},
@@ -463,6 +464,283 @@ IoResult ShowMasterStatusProcessor::process(Connection* conn, const hsql::SQLSta
       return send_ret;
     }
   }
+  return conn->send_eof_packet();
+}
+
+IoResult ShowSlaveStatusProcessor::process(Connection* conn, const hsql::SQLStatement* statement)
+{
+  OMS_INFO("{}: [show slave status] start execute", conn->trace_id());
+  ColumnPacket slave_io_state_column_packet{
+    "Slave_IO_State", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::pri_key_flag, 31};
+  ColumnPacket master_host_column_packet{
+    "Master_Host", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_user_column_packet{
+      "Master_User", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_port_column_packet{"Master_Port",
+      "",
+      UTF8_CS,
+      4,
+      ColumnType::ct_long,
+      ColumnDefinitionFlags::num_flag,
+      0};
+  ColumnPacket connect_retry_column_packet{"Connect_Retry",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket master_log_file_column_packet{
+    "Master_Log_File", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket read_master_log_pos_column_packet{"Read_Master_Log_Pos",
+    "",
+    UTF8_CS,
+    8,
+    ColumnType::ct_longlong,
+    ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+    0};
+  ColumnPacket relay_log_file_column_packet{
+    "Relay_Log_File", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket relay_log_pos_column_packet{"Relay_Log_Pos",
+    "",
+    UTF8_CS,
+    8,
+    ColumnType::ct_longlong,
+    ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+    0};
+  ColumnPacket relay_master_log_file_column_packet{
+    "Relay_Master_Log_File", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket slave_io_running_column_packet{
+    "Slave_IO_Running", "", UTF8_CS, 64, ColumnType::ct_enum, ColumnDefinitionFlags::enum_flag, 31};
+  ColumnPacket slave_sql_running_column_packet{
+    "Slave_SQL_Running", "", UTF8_CS, 64, ColumnType::ct_enum, ColumnDefinitionFlags::enum_flag, 31};
+  ColumnPacket replicate_do_db_column_packet{
+    "Replicate_Do_DB", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_ignore_db_column_packet{
+    "Replicate_Ignore_DB", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_do_table_column_packet{
+    "Replicate_Do_Table", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_ignore_table_column_packet{
+    "Replicate_Ignore_Table", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_wild_do_table_column_packet{
+    "Replicate_Wild_Do_Table", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_wild_ignore_table_column_packet{
+    "Replicate_Wild_Ignore_Table", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket last_errno_column_packet{"Last_Errno",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket last_error_column_packet{
+      "Last_Error", "", UTF8_CS, 1024, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket skip_counter_column_packet{"Skip_Counter",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+
+  ColumnPacket exec_master_log_pos_column_packet{"Exec_Master_Log_Pos",
+    "",
+    UTF8_CS,
+    8,
+    ColumnType::ct_longlong,
+    ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+    0};
+
+  ColumnPacket relay_log_space_column_packet{"Relay_Log_Space",
+    "",
+    UTF8_CS,
+    8,
+    ColumnType::ct_longlong,
+    ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+    0};
+
+  ColumnPacket until_condition_column_packet{
+      "Until_Condition", "", UTF8_CS, 10, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket until_log_file_column_packet{
+      "Until_Log_File", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket until_log_pos_column_packet{"Until_Log_Pos",
+    "",
+    UTF8_CS,
+    8,
+    ColumnType::ct_longlong,
+    ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+    0};
+  ColumnPacket master_ssl_allowed_column_packet{
+    "Master_SSL_Allowed", "", UTF8_CS, 3, ColumnType::ct_enum, ColumnDefinitionFlags::enum_flag, 31};
+  ColumnPacket master_ssl_ca_file_column_packet{
+    "Master_SSL_CA_File", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_ssl_ca_path_column_packet{
+    "Master_SSL_CA_Path", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_ssl_cert_column_packet{
+    "Master_SSL_Cert", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_ssl_cipher_column_packet{
+    "Master_SSL_Cipher", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_ssl_key_column_packet{
+    "Master_SSL_Key", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket seconds_behind_master_column_packet{"Seconds_Behind_Master",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket master_ssl_verify_server_cert_column_packet{
+    "Master_SSL_Verify_Server_Cert", "", UTF8_CS, 3, ColumnType::ct_enum, ColumnDefinitionFlags::enum_flag, 31};
+  ColumnPacket last_io_errno_column_packet{"Last_IO_Errno",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket last_io_error_column_packet{
+    "Last_IO_Error", "", UTF8_CS, 1024, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket last_sql_errno_column_packet{"Last_SQL_Errno",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket last_sql_error_column_packet{
+    "Last_SQL_Error", "", UTF8_CS, 1024, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket replicate_ignore_server_ids_column_packet{
+    "Replicate_Ignore_Server_Ids", "", UTF8_CS, 1024, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_server_id_column_packet{"Master_Server_Id",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket master_uuid_column_packet{
+    "Master_UUID", "", UTF8_CS, 36, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_info_file_column_packet{
+    "Master_Info_File", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket sql_delay_column_packet{"SQL_Delay",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket sql_remaining_delay_column_packet{"SQL_Remaining_Delay",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket slave_sql_running_state_column_packet{
+    "Slave_SQL_Running_State", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_retry_count_column_packet{"Master_Retry_Count",
+    "",
+    UTF8_CS,
+    4,
+    ColumnType::ct_long,
+    ColumnDefinitionFlags::num_flag,
+    0};
+  ColumnPacket master_bind_column_packet{
+    "Master_Bind", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket last_io_error_timestamp_column_packet{
+    "Last_IO_Error_Timestamp", "", UTF8_CS, 0, ColumnType::ct_timestamp, ColumnDefinitionFlags::timestamp_flag, 0};
+  ColumnPacket last_sql_error_timestamp_column_packet{
+    "Last_SQL_Error_Timestamp", "", UTF8_CS, 0, ColumnType::ct_timestamp, ColumnDefinitionFlags::timestamp_flag, 0};
+  ColumnPacket master_ssl_crl_column_packet{
+    "Master_SSL_Crl", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_ssl_crlpath_column_packet{
+    "Master_SSL_Crlpath", "", UTF8_CS, 512, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket retrieved_gtid_set_column_packet{"Retrieved_Gtid_Set",
+      "",
+      UTF8_CS,
+      2048,
+      ColumnType::ct_var_string,
+      ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+      0};
+  ColumnPacket executed_gtid_set_column_packet{"Executed_Gtid_Set",
+      "",
+      UTF8_CS,
+      2048,
+      ColumnType::ct_var_string,
+      ColumnDefinitionFlags::binary_flag | ColumnDefinitionFlags::blob_flag,
+      0};
+  ColumnPacket auto_position_column_packet{
+    "Auto_Position", "", UTF8_CS, 1, ColumnType::ct_enum, ColumnDefinitionFlags::enum_flag, 31};
+  ColumnPacket replicate_rewrite_db_column_packet{
+    "Replicate_Rewrite_DB", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket channel_name_column_packet{
+    "Channel_name", "", UTF8_CS, 255, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+  ColumnPacket master_tls_version_column_packet{
+    "Master_TLS_Version", "", UTF8_CS, 64, ColumnType::ct_var_string, ColumnDefinitionFlags::not_null_flag, 31};
+
+  if (conn->send_result_metadata({
+          slave_io_state_column_packet,
+          master_host_column_packet,
+          master_user_column_packet,
+          master_port_column_packet,
+          connect_retry_column_packet,
+          master_log_file_column_packet,
+          read_master_log_pos_column_packet,
+          relay_log_file_column_packet,
+          relay_log_pos_column_packet,
+          relay_master_log_file_column_packet,
+          slave_io_running_column_packet,
+          slave_sql_running_column_packet,
+          replicate_do_db_column_packet,
+          replicate_ignore_db_column_packet,
+          replicate_do_table_column_packet,
+          replicate_ignore_table_column_packet,
+          replicate_wild_do_table_column_packet,
+          replicate_wild_ignore_table_column_packet,
+          last_errno_column_packet,
+          last_error_column_packet,
+          skip_counter_column_packet,
+          exec_master_log_pos_column_packet,
+          relay_log_space_column_packet,
+          until_condition_column_packet,
+          until_log_file_column_packet,
+          until_log_pos_column_packet,
+          master_ssl_allowed_column_packet,
+          master_ssl_ca_file_column_packet,
+          master_ssl_ca_path_column_packet,
+          master_ssl_cert_column_packet,
+          master_ssl_cipher_column_packet,
+          master_ssl_key_column_packet,
+          seconds_behind_master_column_packet,
+          master_ssl_verify_server_cert_column_packet,
+          last_io_errno_column_packet,
+          last_io_error_column_packet,
+          last_sql_errno_column_packet,
+          last_sql_error_column_packet,
+          replicate_ignore_server_ids_column_packet,
+          master_server_id_column_packet,
+          master_uuid_column_packet,
+          master_info_file_column_packet,
+          sql_delay_column_packet,
+          sql_remaining_delay_column_packet,
+          slave_sql_running_state_column_packet,
+          master_retry_count_column_packet,
+          master_bind_column_packet,
+          last_io_error_timestamp_column_packet,
+          last_sql_error_timestamp_column_packet,
+          master_ssl_crl_column_packet,
+          master_ssl_crlpath_column_packet,
+          retrieved_gtid_set_column_packet,
+          executed_gtid_set_column_packet,
+          auto_position_column_packet,
+          replicate_rewrite_db_column_packet,
+          channel_name_column_packet,
+          master_tls_version_column_packet}) != IoResult::SUCCESS) {
+    OMS_ERROR("{}: [show slave status]: send metadata failed ", conn->trace_id());
+    return IoResult::FAIL;
+  }
+
+  OMS_INFO("{}: [show slave status] executed", conn->trace_id());
   return conn->send_eof_packet();
 }
 

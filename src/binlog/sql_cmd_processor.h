@@ -89,6 +89,14 @@ public:
   IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
 };
 
+class ShowSlaveStatusProcessor : public SqlCmdProcessor {
+  OMS_SINGLETON(ShowSlaveStatusProcessor);
+
+public:
+  IoResult process(Connection* conn, const hsql::SQLStatement* statement) override;
+};
+
+
 class PurgeBinaryLogsProcessor : public SqlCmdProcessor {
   OMS_SINGLETON(PurgeBinaryLogsProcessor);
 

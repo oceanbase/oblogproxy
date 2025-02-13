@@ -319,6 +319,7 @@ add_library(binlog_instance_static STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog-instance/table_cache.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_index.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ob_log_event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_dtoa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/data_type.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/connection.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/env.cpp
@@ -341,6 +342,7 @@ add_library(binlog_instance_static STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog-instance/parallel_convert.h
         src/binlog/release_event_helper.cpp
         src/binlog/release_event_helper.h)
+target_compile_options(binlog_instance_static PRIVATE -Wno-register)
 target_include_directories(binlog_instance_static
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog-instance)
@@ -371,6 +373,7 @@ add_library(binlog_manager_static STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/sql_parser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_index.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/ob_log_event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog_dtoa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/data_type.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/gtid_manager.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/selection_strategy.cpp
@@ -382,6 +385,7 @@ add_library(binlog_manager_static STATIC
 target_include_directories(binlog_manager_static
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/binlog/binlog-instance)
+target_compile_options(binlog_manager_static PRIVATE -Wno-register)
 target_link_libraries(binlog_manager_static
         PRIVATE mysql_protocol
         PRIVATE common

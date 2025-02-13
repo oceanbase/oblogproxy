@@ -11,6 +11,7 @@
  */
 
 #include "data_type.h"
+#include "binlog_dtoa.h"
 
 #include <cassert>
 #include <bitset>
@@ -294,7 +295,7 @@ size_t convert_binlog_float(IColMeta& col_meta, const char* data, MsgBuf& data_d
    * mysql actually uses double to store data, and the expression in binlog is also double
    */
   if (col_meta.getPrecision() > 24) {
-    double value = std::stod(data);
+    double value = string_double(data);
     char* buff = reinterpret_cast<char*>(&value);
     data_decode.push_back_copy(buff, sizeof(double));
     return sizeof(double);
@@ -302,7 +303,7 @@ size_t convert_binlog_float(IColMeta& col_meta, const char* data, MsgBuf& data_d
 
   // Due to the -1.17549e-38 precision loss that causes float out-of-bounds problems, the data passed in this scenario
   // is basically within the float range, so there is no precision loss.
-  float value = (float)std::stod(data);
+  float value = (float)string_double(data);
   char* buff = reinterpret_cast<char*>(&value);
   data_decode.push_back_copy(buff, sizeof(float));
   return sizeof(float);
@@ -310,7 +311,7 @@ size_t convert_binlog_float(IColMeta& col_meta, const char* data, MsgBuf& data_d
 
 size_t convert_binlog_double(const char* data, MsgBuf& data_decode)
 {
-  double value = std::stod(data);
+  double value = string_double(data);
   char* buff = reinterpret_cast<char*>(&value);
   data_decode.push_back_copy(buff, sizeof(double));
   return sizeof(double);
@@ -1234,6 +1235,13 @@ void fill_bitmap(int col_count, size_t col_bytes, unsigned char* bitmap)
   if (col_count / 8 == col_bytes - 1) {
     bitmap[col_bytes - 1] = (0xFF << (col_count % 8));
   }
+}
+
+double string_double(const char *str)
+{
+  int err = 0;
+  char *endptr = const_cast<char *>(str) + strlen(str);
+  return BinlogStrotd::convert(str, &endptr, &err);
 }
 
 }  // namespace oceanbase::binlog

@@ -3,6 +3,7 @@
 //
 
 #include "parallel_convert.h"
+#include "common_util.h"
 
 #include <RoundRobinThreadAffinedTaskScheduler.h>
 #include <YieldingWaitStrategy.h>
@@ -75,25 +76,25 @@ void BinlogEventConvertHandler::onEvent(BinlogEvent& binlog_event, std::int64_t 
 
 void ConvertExceptionHandler::handleEventException(const std::exception& ex, std::int64_t sequence, BinlogEvent& evt)
 {
-  OMS_ERROR("Handle event exception: {},sequence :{}", ex.what(), sequence);
+  OMS_ERROR("Handle event exception: {},sequence :{}, trace :{}", ex.what(), sequence, CommonUtils::get_stack_trace());
   converter.stop_converter();
 }
 
 void ConvertExceptionHandler::handleOnStartException(const std::exception& ex)
 {
-  OMS_ERROR("Handle event exception: {},sequence :{}", ex.what());
+  OMS_ERROR("Handle event exception: {},sequence :{}, trace :{}", ex.what(), CommonUtils::get_stack_trace());
   converter.stop_converter();
 }
 
 void ConvertExceptionHandler::handleOnShutdownException(const std::exception& ex)
 {
-  OMS_ERROR("Handle event exception: {},sequence :{}", ex.what());
+  OMS_ERROR("Handle event exception: {},sequence :{}, trace :{}", ex.what(), CommonUtils::get_stack_trace());
   converter.stop_converter();
 }
 
 void ConvertExceptionHandler::handleOnTimeoutException(const std::exception& ex, std::int64_t sequence)
 {
-  OMS_ERROR("Handle event exception: {},sequence :{}", ex.what(), sequence);
+  OMS_ERROR("Handle event exception: {},sequence :{}, trace :{}", ex.what(), sequence, CommonUtils::get_stack_trace());
   converter.stop_converter();
 }
 
@@ -650,7 +651,9 @@ int ParallelConvert::init(IObCdcAccess* obcdc)
 }
 void ParallelConvert::stop()
 {
-  _disruptor->shutdown();
+  // Fix dima: 2025010800106932017
+  // If all converter threads exit at the same time, the records in the ringbuffer will never bee handled.
+  _disruptor->shutdown(std::chrono::milliseconds(60 * 1000));
   _task_scheduler->stop();
   Thread::stop();
 }
