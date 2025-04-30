@@ -7,7 +7,7 @@ oceanbase_cdc_repo=https://mirrors.aliyun.com/oceanbase/community/stable/el/8/x8
 
 [deps]
 oceanbase-ce-devel-3.1.5-100020022023091114.el8.x86_64.rpm
-oceanbase-ce-cdc-4.2.1.10-110000022024112010.el8.x86_64.rpm
+oceanbase-ce-cdc-4.2.1.11-111000032025032610.el8.x86_64.rpm
 oceanbase-ce-cdc-4.2.2.1-101000022024031310.el8.x86_64.rpm
 oceanbase-ce-cdc-4.2.3.1-101000012024061810.el8.x86_64.rpm
 oceanbase-ce-cdc-4.2.4.0-100000032024070811.el8.x86_64.rpm
@@ -17,7 +17,7 @@ oceanbase-ce-cdc-4.3.1.0-100000082024051609.el8.x86_64.rpm
 oceanbase-ce-cdc-4.3.2.1-100000072024081218.el8.x86_64.rpm
 oceanbase-ce-cdc-4.3.3.1-100000062024102115.el8.x86_64.rpm
 oceanbase-ce-cdc-4.3.4.1-101000032024121814.el8.x86_64.rpm
-oceanbase-ce-cdc-4.3.5.0-100000042024123117.el8.x86_64.rpm
+oceanbase-ce-cdc-4.3.5.1-101000042025031818.el8.x86_64.rpm
 
 [tools]
 obdevtools-gcc9-9.3.0-52022092914.el8.x86_64.rpm
