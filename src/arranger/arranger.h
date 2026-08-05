@@ -30,6 +30,7 @@ public:
   int run_foreground();
 
 private:
+  void init_metric_config();
   void on_close(const Peer&);
 
   EventResult on_handshake(const Peer&, const Message&);

@@ -51,12 +51,22 @@ int Arranger::init()
   return OMS_OK;
 }
 
+void Arranger::init_metric_config()
+{
+  g_metric->set_ip(_localip);
+  g_metric->set_port(_s_conf.service_port.val());
+  g_metric->set_node_id(_localhost);
+}
+
 int Arranger::run_foreground()
 {
   int ret = _accepter.listen(_s_conf.service_port.val());
   if (ret != OMS_OK) {
     return ret;
   }
+
+  init_metric_config();
+
   StatusThread status_thread;
   status_thread.register_gauge("NREADER", [this] { return _client_peers.size(); });
   status_thread.register_gauge("NCHANNEL", [this] { return _accepter.channel_count(); });
